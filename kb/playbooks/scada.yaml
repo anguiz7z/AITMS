@@ -1,0 +1,58 @@
+component_type: scada
+description: |
+  SCADA / DCS supervisory layer — GE iFix / Cimplicity, Siemens WinCC,
+  Wonderware / AVEVA, Honeywell Experion, Rockwell FactoryTalk. The HMI +
+  data-aggregation layer above PLCs. Often the operator's day-to-day view.
+threats:
+  - id: T_SCADA_001
+    title: Engineering workstation compromise (most common OT entry path)
+    stride_ai: [Spoofing, Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1566, T1059, T1078]
+    maestro: [M.L7.03]
+    likelihood: 4
+    impact: 5
+    description: |
+      The Engineering Workstation is a dual-homed PC connecting to both
+      corporate IT and OT. Phishing or USB infection pivots from IT into
+      OT. Stuxnet and TRITON both used this path.
+    mitigations:
+      - "EWS in dedicated subnet; no internet, no email, no USB"
+      - "EDR + application allowlisting on EWS"
+      - "MFA + Privileged-Access Workstation discipline"
+      - "Detection: alert on EWS reaching corporate IT services"
+    refs: [T0817, T0865, T1566]
+
+  - id: T_SCADA_002
+    title: Historian / OPC-UA exposure
+    stride_ai: [Information_Disclosure, Tampering]
+    owasp_api: [API2:2023, API8:2023]
+    attack_enterprise: [T1190, T1530]
+    maestro: [M.L2.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      OPC-UA / OPC-DA endpoints exposed to the wider corporate network for
+      "analytics integration" without authentication. Attacker reads
+      process data (intellectual property) and can write setpoints.
+    mitigations:
+      - "OPC-UA with X.509 certificates + signed messages required"
+      - "DMZ between IT and OT for data-historian access"
+      - "Read-only replication to corporate analytics; never bidirectional"
+    refs: [T0810, T0846, T1530]
+
+  - id: T_SCADA_003
+    title: Unpatched SCADA / HMI software
+    stride_ai: [Tampering]
+    attack_enterprise: [T1190, T1203]
+    maestro: [M.X.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      SCADA software runs on Windows; both the SCADA app and the underlying
+      OS often run end-of-life versions for compatibility reasons. Long
+      tail of unpatched CVEs.
+    mitigations:
+      - "Lifecycle plan with funded migration to supported versions"
+      - "Compensating controls: virtual patching via NIPS, application allowlisting"
+      - "Risk acceptance documentation when migration delayed"
+    refs: [T1190, T1203]

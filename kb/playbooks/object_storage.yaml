@@ -1,0 +1,111 @@
+component_type: object_storage
+description: |
+  Cloud blob / object storage — AWS S3, Azure Blob, GCP GCS, on-prem MinIO.
+  Used by AI systems for training data, model artifacts, RAG corpora,
+  document uploads, generated outputs, audit logs.
+threats:
+  - id: T_OBJSTORE_001
+    title: Public bucket / blob exposing sensitive data
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0024.000]
+    attack_cloud: [T1530]
+    maestro: [M.L4.06]
+    linddun: [DD_003, NC_001, D_001]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      Bucket / container created with public-read or "authenticated AWS users
+      only" (the latter is effectively public — every AWS user). Training data,
+      fine-tune corpora, exported chat logs, customer PII end up indexed by
+      search engines or scraped wholesale.
+    mitigations:
+      - "Block Public Access org-wide (AWS); private-by-default container ACL (Azure / GCS)"
+      - "IaC scanning (Checkov, tfsec) catches public buckets pre-merge"
+      - "Continuous detection (AWS Config / Azure Policy) for re-introduction"
+      - "Data classification tags; reject upload of sensitive tags to non-private buckets"
+    refs: [AML.M0019]
+
+  - id: T_OBJSTORE_002
+    title: Pre-signed URL leak / over-broad
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API1:2023]
+    atlas: []
+    attack_cloud: [T1530]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Pre-signed URLs (S3, SAS tokens, signed GCS URLs) issued with overly long
+      TTLs, broad object scopes, or no IP restriction. Recipient's URL ends up
+      in chat logs / referer headers / browser history; anyone with the URL
+      reads.
+    mitigations:
+      - "Short TTLs (< 15 min for sensitive content)"
+      - "Object-level scope (one URL = one key)"
+      - "Where possible, IP-restricted SAS tokens"
+      - "Audit pre-signed URL generation in CloudTrail / Activity Log"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_OBJSTORE_003
+    title: Bucket as malicious-content delivery vehicle
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM01:2025, LLM04:2025]
+    owasp_api: [API10:2023]
+    atlas: [AML.T0019, AML.T0051.001]
+    attack_cloud: [T1102, T1213]
+    maestro: [M.L2.01]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA, NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    owasp_ml: [ML02:2023, ML06:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Adversary uploads to a bucket the AI workload reads from. Could be
+      RAG-corpus poisoning (training data tampering), prompt-injection
+      payloads in PDFs / HTML, malicious model weights, fake fine-tune data.
+    mitigations:
+      - "Object versioning + write-only lifecycle to S3 Object Lock"
+      - "Source authentication: only specific IAM principals can write"
+      - "Content-scanning pipeline (anti-malware, prompt-injection detector) on ingest"
+      - "Manifest with hashes; consumer verifies before use"
+    refs: [AML.M0007, AML.M0014]
+
+  - id: T_OBJSTORE_004
+    title: Delete / encrypt for impact (ransomware)
+    stride_ai: [Denial_of_Service, Tampering]
+    owasp_api: []
+    atlas: []
+    attack_cloud: [T1485, T1486]
+    maestro: [M.X.04]
+    likelihood: 2
+    impact: 5
+    description: |
+      Adversary with object-write access deletes or rewrites with adversary-owned
+      KMS key. Prevents recovery without ransom payment.
+    mitigations:
+      - "Versioning + MFA-Delete on critical buckets"
+      - "Object Lock (compliance mode) on training / model artifacts"
+      - "Cross-account / cross-region replication for restore"
+      - "Periodic restore drills"
+    refs: [AML.M0019]
+
+  - id: T_OBJSTORE_005
+    title: Egress cost / data exfil over storage transfer
+    stride_ai: [Information_Disclosure, Denial_of_Service]
+    owasp_api: [API4:2023]
+    attack_cloud: [T1567]
+    maestro: [M.X.04]
+    likelihood: 2
+    impact: 3
+    description: |
+      Adversary with read access exfils data via the storage egress path —
+      effectively turning the storage layer into a high-bandwidth tunnel.
+      Observable as bandwidth-cost spike before it's observable as a data leak.
+    mitigations:
+      - "Egress monitoring + per-tenant transfer caps"
+      - "Anomaly detection on bytes-out per principal"
+      - "S3 / Storage Account access points with IP restrictions"
+    refs: [AML.M0023]

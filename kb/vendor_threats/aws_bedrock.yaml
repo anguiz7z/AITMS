@@ -1,0 +1,281 @@
+# AWS Bedrock vendor-threat overlay (v0.16.0)
+# Augments agent / llm_inference / rag_vector_store playbooks for
+# Bedrock-specific surface area: Agents, Action Groups, Knowledge Bases,
+# Guardrails, and the InvokeAgent control plane.
+# Public references / write-ups:
+#   - https://aws.amazon.com/blogs/security/secure-amazon-bedrock-agents/
+#   - https://repost.aws/articles/ARyL7XK1cLT8a4XwSmF4uTQA  (Bedrock Agent trace exfil)
+#   - https://docs.aws.amazon.com/bedrock/latest/userguide/agents-prompt-templates.html
+#   - https://embracethered.com/blog/posts/2024/aws-bedrock-prompt-injection/
+
+- id: T_AWS_BEDROCK_001
+  title: BOLA on Bedrock Agent action-groups via sessionAttributes tampering
+  description: |
+    Bedrock Agents pass two attacker-influenceable maps into every
+    action-group Lambda invocation: `sessionAttributes` and
+    `promptSessionAttributes`. If the action-group implementation
+    trusts these for authorisation decisions (`tenantId`, `userId`,
+    `accountNumber`), an attacker controlling the prompt can rewrite
+    them to access another user's records — classic Broken Object
+    Level Authorization (OWASP API1:2023) reincarnated through the
+    natural-language layer. The agent runtime does NOT sign or
+    verify these fields against the invoking IAM principal.
+    OWASP LLM06 (Excessive Agency) plus API1 BOLA — combined because
+    only the LLM mediates the call.
+  stride_ai: [Elevation_of_Privilege, Spoofing]
+  owasp_llm: [LLM06:2025, LLM01:2025]
+  owasp_agentic: [AGT02, AGT03, AGT06]
+  owasp_api: [API1:2023, API5:2023]
+  attack_cloud: [T1078.004]
+  attack_enterprise: []
+  atlas: [AML.T0048, AML.T0050, AML.T0053]
+  nist: []
+  maestro: [M.L7.04, M.L3.03]
+  likelihood: 4
+  impact: 5
+  mitigations:
+    - "Never read `sessionAttributes`/`promptSessionAttributes` for authz; derive identity from the invoking IAM principal in the Lambda context"
+    - "Validate every action-group input against a JSON-schema before tool dispatch; reject unknown keys"
+    - "Per-tenant Bedrock Agent aliases — bind one alias to one tenant, not multi-tenant pools"
+    - "DynamoDB row-level conditional expressions checking `tenantId == request.requestContext.authorizer.principalId`"
+    - "Detective: CloudWatch metric on action-group invocations where requested-tenant != caller-tenant"
+  refs: [AML.M0019, AML.M0015]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [bedrock, bedrock_agent, bedrock_agents, amazon_bedrock]
+    component_type: [agent, llm_inference, tool, serverless_function]
+  applies_to_ai_workflows: true
+
+- id: T_AWS_BEDROCK_002
+  title: Action-group function-name shadowing in tool catalog
+  description: |
+    Bedrock Agents resolve tool calls by function-name string match
+    against the action-group's OpenAPI / function-schema. When an agent
+    has multiple action-groups attached (a common pattern for
+    composability), two action-groups may declare a function with the
+    same name — e.g. `read_customer_record` defined by both the
+    legitimate `customers-api` action-group and a newly-attached
+    `marketing-tools` action-group. The agent's tool-selection is
+    non-deterministic; an attacker who has the right to attach
+    action-groups (via `bedrock:UpdateAgentActionGroup`) can shadow a
+    sensitive function with their own implementation that exfiltrates
+    arguments. The control plane does not warn on name collision.
+    Analogous to MCP / OpenAI-function-calling tool-shadowing.
+  stride_ai: [Spoofing, Tampering]
+  owasp_llm: [LLM01:2025, LLM06:2025]
+  owasp_agentic: [AGT01, AGT05, AGT12]
+  owasp_api: [API5:2023, API8:2023]
+  attack_cloud: [T1078.004, T1098.003]
+  attack_enterprise: []
+  atlas: [AML.T0010, AML.T0050]
+  nist: []
+  maestro: [M.L7.04, M.X.01]
+  likelihood: 3
+  impact: 4
+  mitigations:
+    - "CI gate enforcing unique function-names across all action-groups bound to an agent"
+    - "IAM least-privilege on `bedrock:UpdateAgentActionGroup`, `bedrock:AssociateAgentKnowledgeBase`"
+    - "Tag-based authorisation: action-groups must carry `owner=` tag matching the agent alias's owner"
+    - "Detective: CloudTrail rule on `UpdateAgent` / `AssociateAgentKnowledgeBase` outside change-window"
+    - "Versioned agent aliases — pin production aliases to specific action-group versions, not `DRAFT`"
+  refs: [AML.M0019, AML.M0014]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [bedrock, bedrock_agent, bedrock_agents, amazon_bedrock]
+    component_type: [agent, tool, mcp_server]
+  applies_to_ai_workflows: true
+
+- id: T_AWS_BEDROCK_003
+  title: Agent prompt and system-prompt extraction via traceLevel=enabled
+  description: |
+    `InvokeAgent` accepts `enableTrace=true` which returns the agent's
+    internal reasoning trace including the orchestration prompt, KB
+    retrieval results, action-group invocation arguments, and the
+    pre-/post-processing prompt templates. The trace contains *the
+    system prompt verbatim* — exactly what an attacker needs to
+    construct targeted jailbreaks or extract the agent's tools list.
+    IAM permissions to call `bedrock:InvokeAgent` are commonly granted
+    broadly inside an account ("anyone in the dev role can test the
+    agent") with no further restriction on the `enableTrace` parameter
+    — IAM has no condition key for it.
+    See https://embracethered.com/blog/posts/2024/aws-bedrock-prompt-injection/
+  stride_ai: [Information_Disclosure]
+  owasp_llm: [LLM07:2025, LLM02:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API3:2023, API8:2023]
+  attack_cloud: [T1552]
+  attack_enterprise: []
+  atlas: [AML.T0056, AML.T0024, AML.T0057]
+  nist: []
+  maestro: [M.L7.03, M.L1.02]
+  likelihood: 4
+  impact: 3
+  mitigations:
+    - "Reject `enableTrace=true` at the API-gateway proxy in front of InvokeAgent for non-developer callers"
+    - "Never embed credentials, customer PII, or business logic in the agent's system / orchestration prompt"
+    - "CloudWatch metric filter on Bedrock invocation logs where `trace.modelInvocationInput` is present from prod accounts"
+    - "Separate agent alias for tracing-enabled debug workflows (developer-only IAM) from the production alias"
+    - "Prompt redaction layer: scrub the trace before returning to non-privileged callers"
+  refs: [AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [bedrock, bedrock_agent, bedrock_agents, amazon_bedrock]
+    component_type: [agent, llm_inference]
+  applies_to_ai_workflows: true
+
+- id: T_AWS_BEDROCK_004
+  title: Cross-account bedrock:InvokeAgent via permissive role-trust policy
+  description: |
+    Bedrock Agents are invoked from any IAM principal that holds
+    `bedrock:InvokeAgent` on the agent ARN. When the agent's owning
+    account exposes a cross-account role with a trust policy permitting
+    `bedrock:InvokeAgent`, an external account can drive the agent
+    against its KB and action-groups — including any privileged S3
+    reads or downstream API writes those action-groups perform.
+    Unlike S3 / Lambda where resource-policies are commonly audited,
+    Bedrock resource-policies are a newer surface and IAM Access
+    Analyzer findings for `bedrock:*` are often unfiltered. The blast
+    radius is the agent's execution role, not the caller's.
+  stride_ai: [Elevation_of_Privilege, Spoofing]
+  owasp_llm: [LLM06:2025]
+  owasp_agentic: [AGT03, AGT09]
+  owasp_api: [API5:2023]
+  attack_cloud: [T1078.004, T1199, T1550]
+  attack_enterprise: []
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.L7.03]
+  likelihood: 2
+  impact: 5
+  mitigations:
+    - "Resource-policy on Bedrock Agent restricting `bedrock:InvokeAgent` to `aws:PrincipalOrgID == o-xxxxx`"
+    - "IAM Access Analyzer: monitor external-access findings for `bedrock:*` permissions"
+    - "Explicit cross-account audit before any `bedrock:InvokeAgent` grant; require ExternalId"
+    - "SCP: deny `bedrock:InvokeAgent` to principals outside the org"
+    - "CloudTrail rule on `InvokeAgent` events where `userIdentity.accountId != resourceArn-account`"
+  refs: [AML.M0019]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [bedrock, bedrock_agent, bedrock_agents, amazon_bedrock]
+    component_type: [agent, iam_principal]
+  applies_to_ai_workflows: true
+
+- id: T_AWS_BEDROCK_005
+  title: Bedrock Knowledge Base poisoning via misconfigured S3 source bucket
+  description: |
+    A Bedrock Knowledge Base ingests from a configured S3 source bucket
+    (or other vector data sources). If the source bucket's policy lets
+    a broader set of principals call `s3:PutObject` than is intended
+    (cross-account writers, public-acl uploads from a misconfigured
+    front-end, broken `s3:RequestObjectTagKeys` constraints), an
+    attacker can drop adversarial documents into the corpus. Indirect
+    prompt injection then fires on the next ingest run — every agent
+    using that KB inherits the poisoned content.
+    Compounds with T_AWS_BEDROCK_001 because the agent's action-groups
+    will be triggered with attacker-crafted arguments.
+    Mapped to ATLAS AML.T0020 (Poison Training Data) — though the data
+    is RAG corpus rather than fine-tuning, the primitive is identical.
+  stride_ai: [Tampering, Spoofing]
+  owasp_llm: [LLM01:2025, LLM04:2025, LLM08:2025]
+  owasp_agentic: [AGT01, AGT06]
+  owasp_api: [API3:2023, API8:2023]
+  attack_cloud: [T1565]
+  attack_enterprise: [T1485]
+  atlas: [AML.T0020, AML.T0010, AML.T0051.001]
+  nist: []
+  maestro: [M.L2.02, M.L1.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "S3 bucket policy: deny `s3:PutObject` to all principals except a single ingestion role; require `aws:SourceAccount`"
+    - "S3 Block Public Access at the account and bucket level for all KB source buckets"
+    - "Object Lambda or pre-ingest scanner that flags injection markers (e.g. `<|im_start|>system`, base64 blobs)"
+    - "Content provenance: require X.509-signed manifest for any document added to the KB"
+    - "Versioned S3 buckets + Object Lock; CloudTrail on `s3:PutObject` to KB sources triggers alert if writer != ingestion role"
+  refs: [AML.M0007, AML.M0008, AML.M0014]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [bedrock, bedrock_knowledge_base, bedrock_kb, bedrock_agent, bedrock_agents, amazon_bedrock]
+    component_type: [rag_vector_store, data_source, object_storage, agent]
+  applies_to_ai_workflows: true
+
+- id: T_AWS_BEDROCK_006
+  title: Bedrock Guardrails bypass via adversarial encoding (base64, unicode confusables, polyglot)
+  description: |
+    Bedrock Guardrails evaluate input/output against word filters,
+    denied-topics, regex, and a contextual-grounding classifier. The
+    filters operate on the raw token stream, so adversarial encodings
+    that the underlying LLM can still decode but the guardrail
+    classifier cannot — base64, hex, leetspeak, unicode confusables
+    (Cyrillic 'а' for Latin 'a'), zero-width joiners, ROT13,
+    interleaved characters — slip past. The model decodes the payload
+    in-context and produces a response that the *output* guardrail
+    likewise fails to detect because the toxic content is wrapped in
+    the same encoding scheme. Production deployments often rely on
+    Guardrails as their sole content-safety layer.
+    See: Microsoft "Skeleton Key" jailbreak research, and the broader
+    https://github.com/llm-attacks/llm-attacks corpus on transferable
+    adversarial suffixes.
+  stride_ai: [Tampering, Elevation_of_Privilege, Defense_Evasion]
+  owasp_llm: [LLM01:2025, LLM05:2025]
+  owasp_agentic: [AGT06]
+  owasp_api: [API8:2023]
+  attack_cloud: []
+  attack_enterprise: []
+  atlas: [AML.T0051, AML.T0051.000, AML.T0054, AML.T0043]
+  nist: []
+  maestro: [M.L1.01, M.L1.02, M.L7.05]
+  likelihood: 4
+  impact: 4
+  mitigations:
+    - "Layered defence: chain Bedrock Guardrails with a separate prompt-injection classifier (Lakera, Llama Guard) on both input AND output"
+    - "Normalize input pre-evaluation: unicode-normalize NFKC, strip zero-width chars, lowercase, decode common encodings (base64/hex) and re-evaluate decoded text"
+    - "Constitutional / instruction-hierarchy fine-tune on top of the foundation model — Guardrails alone is insufficient for safety-critical workflows"
+    - "Red-team CI: nightly run of an adversarial-prompt corpus through the Guardrail; fail build on regression"
+    - "Output egress monitoring: block responses containing high-entropy strings or known polyglot markers"
+  refs: [AML.M0015, AML.M0022, AML.M0021]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [bedrock, bedrock_guardrails, bedrock_guardrail, amazon_bedrock, bedrock_agent, bedrock_agents]
+    component_type: [guardrails, llm_inference, output_filter, agent]
+  applies_to_ai_workflows: true
+
+- id: T_AWS_BEDROCK_007
+  title: Bedrock Agent action-group input-schema fuzzing → injected tool calls
+  description: |
+    Bedrock Agent action groups declare their inputs via an OpenAPI / JSON
+    schema. The agent uses the LLM to fill in parameters from the user prompt;
+    the schema isn't validated against the underlying Lambda's expectations.
+    Adversarial prompts produce inputs that:
+    - pass schema validation but are out-of-band for the backend (e.g. integer
+      overflow, oversized strings, unicode normalisation that the Lambda's
+      regex didn't anticipate),
+    - cause partial-update semantics on the underlying resource,
+    - trigger backend exceptions that leak the action-group internal state
+      back into the agent context as an error string.
+    The agent then helpfully reports the error to the user, surfacing
+    private system state. Independent of the BOLA risk (T_AWS_BEDROCK_001)
+    — this attack uses the documented schema, not session attributes.
+  stride_ai: [Tampering, Information_Disclosure]
+  owasp_llm: [LLM05:2025, LLM01:2025]
+  owasp_agentic: [AGT01, AGT06]
+  owasp_api: [API3:2023, API8:2023]
+  atlas: [AML.T0051, AML.T0050]
+  attack_cloud: [T1190]
+  attack_enterprise: [T1190]
+  nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_INDIRECT]
+  maestro: [M.L3.05, M.L7.02]
+  csa_singapore: [CSA_AI.DEPLOY.02]
+  likelihood: 4
+  impact: 4
+  mitigations:
+    - "Action-group Lambda validates inputs against BOTH OpenAPI schema AND backend invariants"
+    - "Action-group Lambda catches exceptions and returns a generic redacted error to the agent — never raw stack traces or DB error strings"
+    - "Schema fuzzing in CI: Hypothesis / Schemathesis test pass before action-group deploys"
+    - "WAF rule on the Bedrock Agent endpoint flags requests whose parameter values exceed schema constraints"
+  refs: [AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [bedrock_agent, bedrock_agents]
+    component_type: [agent]
+  applies_to_ai_workflows: true

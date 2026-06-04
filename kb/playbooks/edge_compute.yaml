@@ -1,0 +1,113 @@
+component_type: edge_compute
+description: |
+  Edge compute platform — short-lived code running at CDN PoPs / edge
+  locations close to the user. Examples: Lambda@Edge, CloudFront
+  Functions, Cloudflare Workers, Akamai EdgeWorkers, Azure Front Door
+  Rules Engine, Fastly Compute@Edge, Vercel Edge Functions. Used for
+  TLS termination logic, rewrites, A/B test routing, auth checks,
+  bot filtering, and increasingly model-serving (LLM-at-edge).
+threats:
+  - id: T_EDGECMP_001
+    title: Edge-function code tampering bypasses central security controls
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1565, T1556]
+    attack_cloud: [T1525]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Edge functions run before any WAF / API gateway / IDS — they
+      are themselves the security gate for auth checks, rate-limits,
+      bot-filtering. Compromise of the edge-function deploy
+      pipeline gives the attacker the ability to rewrite the
+      enforcement: strip auth header, allow bot user-agents, leak
+      session tokens to attacker-controlled URLs.
+    mitigations:
+      - "Edge-function deploy via protected branch + signed commit"
+      - "Two-person review on every edge-function change"
+      - "Continuous deployment-history diff to detect unauthorised changes"
+      - "Independent egress-validation: shadow-mirror logs to validate the function still enforces its claimed policy"
+    refs: [T1565, AML.M0019]
+
+  - id: T_EDGECMP_002
+    title: Secret leakage in edge-function code (constants / env)
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1552.001, T1552.005]
+    attack_cloud: [T1552]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Edge platforms have very limited secret-management; many
+      teams hard-code API keys, signed-cookie secrets, or
+      JWT-signing keys in the code or in the platform's env-var
+      (which may be readable to any deploy user). Edge code is
+      often inspectable via the platform UI to broad deployer roles.
+    mitigations:
+      - "Platform-native secret store with per-secret IAM (Cloudflare Secrets, Lambda env var with KMS)"
+      - "Pre-deploy scan (gitleaks / trufflehog) of edge function bundle"
+      - "Rotate secrets on every deployer-membership change"
+      - "Minimum-privilege deploy role; separate from view role"
+    refs: [T1552, AML.M0019]
+
+  - id: T_EDGECMP_003
+    title: Edge-function DDoS / cost-amplification via runaway loop
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1499]
+    attack_cloud: [T1499]
+    maestro: [M.L4.04]
+    likelihood: 3
+    impact: 3
+    description: |
+      Edge platforms bill per request + per CPU-ms. A bug or attacker
+      who can trigger a function that recurses (function calls
+      origin-which-routes-back-to-function), or each request
+      consumes max-CPU, blows the budget rapidly. Cloudflare CPU
+      limits help but cost can still be material.
+    mitigations:
+      - "Per-function CPU + memory limits set to required minimum"
+      - "Cost-anomaly alerts at 50% / 80% of monthly budget"
+      - "Recursion-detection: log + alert when edge function calls origin URLs that route to same function"
+      - "Origin shielding to absorb function-induced load spikes"
+    refs: [T1499, AML.M0019]
+
+  - id: T_EDGECMP_004
+    title: Edge-function as exfiltration channel for upstream attacker
+    stride_ai: [Information_Disclosure, Defense_Evasion]
+    attack_enterprise: [T1041, T1071]
+    attack_cloud: [T1567]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 4
+    description: |
+      Attacker who reaches the edge-deploy pipeline pushes a
+      function that copies every request body / response to an
+      attacker bucket. Traffic appears entirely normal at the
+      origin; egress to the bucket blends with global CDN traffic.
+    mitigations:
+      - "Egress allowlist in edge platform (e.g. Cloudflare Service Bindings — only listed destinations callable)"
+      - "Diff alerting on every edge-function deploy with reviewer"
+      - "Out-of-band log validation: compare requests received at origin vs edge logs"
+      - "Periodic red-team simulation of edge-exfiltration"
+    refs: [T1041, T1567, AML.M0019]
+
+  - id: T_EDGECMP_005
+    title: Vendor-platform multi-tenant isolation failure
+    stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+    attack_enterprise: [T1611, T1078.004]
+    attack_cloud: [T1611]
+    maestro: [M.X.01]
+    likelihood: 1
+    impact: 5
+    description: |
+      Edge platforms run code from many tenants on shared isolates
+      (V8, WASM). Sandbox-escape vulnerabilities in V8 isolates
+      could lead to cross-tenant data leakage. Cloudflare and
+      others have published advisories of near-misses; full
+      disclosure would impact thousands of customers simultaneously.
+    mitigations:
+      - "Multi-tenant vendor selection based on isolation guarantees (Cloudflare WASM, Fastly Lucet)"
+      - "Sensitive workloads on dedicated / pro plans where isolation tier is stronger"
+      - "Vendor advisory monitoring with rapid migration playbook"
+      - "Defence-in-depth: don't rely solely on edge for auth — origin also enforces"
+    refs: [T1611, AML.M0007]

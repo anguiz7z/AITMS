@@ -1,0 +1,207 @@
+# Azure AI Foundry vendor-threat overlay (v0.16.0)
+# Covers the Foundry workspace control plane: connections, the MS-managed
+# Agent Service backplane (Cosmos DB), Azure AI Search BYO indexes,
+# Application Insights tracing, and project-level RBAC.
+# Public references:
+#   - https://learn.microsoft.com/en-us/azure/ai-foundry/responsible-ai/openai/data-privacy
+#   - https://learn.microsoft.com/en-us/azure/ai-foundry/agents/how-to/use-connections
+#   - https://msrc.microsoft.com/blog/2024/09/microsoft-ai-bug-bounty-program-update/
+#   - https://www.tenable.com/blog/abusing-azure-ai-foundry  (connection tampering write-up)
+
+- id: T_AZ_FOUNDRY_001
+  title: Foundry connection tampering — endpoint pointer redirected to attacker-controlled service
+  description: |
+    Foundry "connections" wrap external services (Azure OpenAI
+    deployments, Azure AI Search indexes, Cognitive Services accounts,
+    custom OpenAPI tools) behind a named handle that agents reference.
+    The connection definition stores an endpoint URL and an
+    authentication mode (API key, managed identity, service principal).
+    A user with `Microsoft.MachineLearningServices/workspaces/connections/write`
+    can re-target the endpoint URL on an existing connection without
+    needing access to the agents using it — those agents will silently
+    fail over to the new endpoint on next invocation. If the attacker
+    points a `chat-model` connection at their own ngrok endpoint, they
+    capture every prompt, every system message, every retrieved KB
+    chunk — and can return manipulated responses for indirect prompt
+    injection / supply-chain influence.
+    Connection RBAC is commonly delegated more broadly than agent RBAC
+    because "configuration is not code", so this path is under-secured.
+  stride_ai: [Tampering, Spoofing, Information_Disclosure]
+  owasp_llm: [LLM01:2025, LLM03:2025, LLM07:2025]
+  owasp_agentic: [AGT01, AGT12, AGT14]
+  owasp_api: [API5:2023, API8:2023]
+  attack_cloud: [T1098, T1565, T1199]
+  attack_enterprise: [T1199, T1565]
+  atlas: [AML.T0010, AML.T0051.001, AML.T0019]
+  nist: []
+  maestro: [M.L7.04, M.X.02, M.X.01]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "RBAC: scope `connections/write` to a single config-admin role; default deny on AI Engineer / Data Scientist roles"
+    - "Use Azure Policy `audit-foundry-connections-not-private-endpoint` to require Private Endpoint for every connection"
+    - "Lock connection endpoints with Azure Policy `deny` rule on URL patterns outside approved list (`*.openai.azure.com`, internal FQDN)"
+    - "Change-detection: Activity Log alert on `Microsoft.MachineLearningServices/workspaces/connections/write` outside CI service principal"
+    - "Pin connection versions in agent definition; require redeploy to roll forward (treat connections as immutable infrastructure)"
+  refs: [AML.M0019, AML.M0014]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [ai_foundry, foundry, azure_ai_foundry, azure_foundry, foundry_agent_service]
+    component_type: [agent, llm_inference, external_api, tool, mcp_server]
+  applies_to_ai_workflows: true
+
+- id: T_AZ_FOUNDRY_002
+  title: Cosmos DB exfil from Microsoft-managed Agent Service backplane via shared connection
+  description: |
+    Foundry's Agent Service stores agent state (threads, messages,
+    tool-call traces) in a Cosmos DB account that — depending on SKU
+    tier — is either Microsoft-managed (transparent to the customer)
+    or customer-owned via a "bring-your-own Cosmos" connection. When
+    customer-owned, the Cosmos connection string is held in a
+    Connection object; any principal with read on connections can
+    extract the primary key. With that key, an attacker reads every
+    thread, every prompt, every tool argument across every agent in
+    the project — full conversation-history exfil with no per-thread
+    auth. The MS-managed tier likewise stores customer prompts/replies
+    for the documented retention window; in some regional pairs
+    Microsoft engineers may access them for abuse investigation, which
+    is a compliance and data-residency concern not always documented
+    in the threat model.
+  stride_ai: [Information_Disclosure, Spoofing]
+  owasp_llm: [LLM02:2025, LLM07:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API3:2023, API7:2023, API8:2023]
+  attack_cloud: [T1530, T1552, T1213]
+  attack_enterprise: [T1213, T1552]
+  atlas: [AML.T0024, AML.T0057]
+  nist: []
+  maestro: [M.L4.06, M.L2.05, M.L7.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Use customer-managed BYO Cosmos with Entra-only auth (`disableLocalAuth=true`) — eliminates the primary-key exfil path"
+    - "Private endpoint on the Cosmos account; firewall to Foundry subnet only; no public internet ACL"
+    - "RBAC: separate connection-read role from agent-execute role; require PIM elevation to read connection-secrets"
+    - "Customer-managed keys (CMK) on Cosmos; revocable encryption key independent of MS-managed backplane"
+    - "Detective: Cosmos diagnostic logs into Sentinel; alert on `ListConnectionStrings`/`ListKeys` from non-CI principals"
+  refs: [AML.M0007, AML.M0019, AML.M0012]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [ai_foundry, foundry, azure_ai_foundry, azure_foundry, foundry_agent_service]
+    component_type: [agent, database, secrets_vault, rag_vector_store]
+  applies_to_ai_workflows: true
+
+- id: T_AZ_FOUNDRY_003
+  title: Azure AI Search BYO index poisoning via customer-owned ingest path
+  description: |
+    Foundry agents using RAG typically reference an Azure AI Search
+    index via a connection. The index ingest path is customer-owned
+    — typically an Azure Function or Logic App triggered by blob
+    uploads to a customer storage account. If the storage account
+    permits anonymous blob write (a default-allow misconfiguration
+    observed in many tenants per Microsoft's own published findings)
+    OR the ingest function trusts the blob metadata (`title`,
+    `source`, `category`) without sanitisation, an attacker drops a
+    document into the corpus that the agent later retrieves and acts
+    on. Same primitive as Bedrock-KB poisoning but the Foundry attack
+    surface is wider: AI Search supports image embeddings, structured
+    fields, and tag-based filtering, so the attacker can target the
+    poisoning to a specific tenant/category.
+  stride_ai: [Tampering, Spoofing]
+  owasp_llm: [LLM01:2025, LLM04:2025, LLM08:2025]
+  owasp_agentic: [AGT01, AGT06]
+  owasp_api: [API3:2023, API8:2023]
+  attack_cloud: [T1565, T1190]
+  attack_enterprise: [T1565, T1190, T1485]
+  atlas: [AML.T0020, AML.T0010, AML.T0051.001]
+  nist: []
+  maestro: [M.L2.02, M.L1.03]
+  likelihood: 3
+  impact: 4
+  mitigations:
+    - "Storage account: deny anonymous blob access (`allowBlobPublicAccess=false`); enforce Entra-only authentication"
+    - "Ingest pipeline: input validation on blob metadata; reject documents containing instruction-marker patterns"
+    - "Azure AI Search: per-document `tenantId` field + security filters applied at query time, not just indexing"
+    - "Content provenance: signed manifest required before index commit; reject unsigned uploads"
+    - "Detective: Defender for Storage alerts on anomalous blob creation rate; Sentinel rule on ingestion-function errors that include malformed metadata"
+  refs: [AML.M0007, AML.M0008, AML.M0014]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [ai_foundry, foundry, azure_ai_foundry, azure_foundry, ai_search, azure_ai_search, cognitive_search]
+    component_type: [rag_vector_store, data_source, object_storage, agent]
+  applies_to_ai_workflows: true
+
+- id: T_AZ_FOUNDRY_004
+  title: Foundry project role-assignment scope creep — runtime principal gains workspace-wide permission
+  description: |
+    Foundry's resource hierarchy is Hub → Project → Connection /
+    Compute / Agent. Role assignments at the *hub* scope cascade to
+    every project (and every project's agents) underneath. Common
+    misconfiguration: granting `AzureML Data Scientist` or `Contributor`
+    at hub scope so engineers can experiment, intending project-level
+    isolation to come later — but isolation never gets added. A
+    compromise of any agent's managed identity now confers
+    workspace-wide read/write across every tenant's data. Combined
+    with T_AZ_FOUNDRY_001 (connection tampering) and T_AZ_FOUNDRY_002
+    (Cosmos exfil), one foothold cascades into multi-project breach.
+  stride_ai: [Elevation_of_Privilege]
+  owasp_llm: [LLM06:2025]
+  owasp_agentic: [AGT03, AGT09]
+  owasp_api: [API5:2023]
+  attack_cloud: [T1098, T1098.003, T1078.004]
+  attack_enterprise: [T1078]
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.X.03, M.L7.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Assign roles at project scope, never hub scope; ban hub-level `Contributor` via Azure Policy `denyAction`"
+    - "Use the new fine-grained `AzureML Project Reader` / `Project Data Scientist` roles instead of broad RBAC roles"
+    - "Quarterly access review on hub-scope role assignments via Entra ID Governance access reviews"
+    - "Detective: Activity Log alert on `Microsoft.Authorization/roleAssignments/write` at hub scope"
+    - "Permission boundary equivalent — Azure Policy denying role-assignment writes outside change-window"
+  refs: [AML.M0019]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [ai_foundry, foundry, azure_ai_foundry, azure_foundry, foundry_agent_service, machine_learning, azure_machine_learning]
+    component_type: [iam_principal, agent, training_pipeline, fine_tuning_pipeline]
+  applies_to_ai_workflows: true
+
+- id: T_AZ_FOUNDRY_005
+  title: Application Insights prompt/response leakage — Reader-level access reads sensitive traces
+  description: |
+    Foundry agents instrumented with the default OpenTelemetry tracing
+    integration send detailed traces — including prompt, system
+    message, retrieved documents, tool arguments, model response — to
+    a customer-owned Application Insights workspace. App Insights data
+    is queryable from anyone with `Microsoft.Insights/components/read`
+    + the Log Analytics workspace's `*/read` role, which is commonly
+    granted broadly ("Reader on the prod resource group" → reads every
+    AI conversation). The traces persist for the configured retention
+    period (default 90 days) and are unredacted. PII, credentials
+    accidentally pasted by users, regulated-data prompts (PHI, PCI)
+    all sit in App Insights waiting for any Reader to query them.
+  stride_ai: [Information_Disclosure]
+  owasp_llm: [LLM02:2025, LLM07:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API3:2023, API8:2023]
+  attack_cloud: [T1213, T1530]
+  attack_enterprise: [T1213, T1213]
+  atlas: [AML.T0024, AML.T0057]
+  nist: []
+  maestro: [M.L7.03, M.L4.05, M.L2.05]
+  likelihood: 4
+  impact: 4
+  mitigations:
+    - "Redact prompts/responses pre-export: configure the OTel exporter with a span processor that scrubs `gen_ai.prompt.*` / `gen_ai.completion.*` attributes"
+    - "Customer-managed-key on the Log Analytics workspace; short retention (≤30d) for unredacted traces"
+    - "RBAC: split `Application Insights Reader` from broader Reader role; require PIM for trace access"
+    - "Azure Policy `audit-loganalytics-clusters-customer-managed-key` and `deny-log-analytics-public-access`"
+    - "Detective: Sentinel detection rule on burst-read of customEvents/traces by a single principal"
+  refs: [AML.M0007, AML.M0012, AML.M0019]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [ai_foundry, foundry, azure_ai_foundry, azure_foundry, application_insights, app_insights, log_analytics]
+    component_type: [observability_stack, agent, llm_inference]
+  applies_to_ai_workflows: true

@@ -1,0 +1,76 @@
+component_type: legacy_mainframe
+description: |
+  Legacy / mainframe / minicomputer system — IBM AS/400 (IBM i),
+  IBM z/OS mainframe, OpenVMS, Solaris SPARC. Often hosts the
+  authoritative business records (RPG, COBOL, PL/I) that AI / cloud
+  systems integrate with via gateways.
+threats:
+  - id: T_LEG_001
+    title: Default / shared QSECOFR / sysadmin credentials
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    attack_enterprise: [T1078]
+    maestro: [M.L7.03]
+    likelihood: 4
+    impact: 5
+    description: |
+      Mainframe / AS/400 systems frequently retain default OS-level admin
+      accounts (QSECOFR, RACF system administrator, OpenVMS SYSTEM) with
+      passwords that haven't rotated since installation. Compromise =
+      full system access.
+    mitigations:
+      - "Rotate every system-level account; password vault for admin creds"
+      - "MFA via RSA SecurID / Duo where supported"
+      - "Disable / rename default accounts where possible"
+      - "Audit log review of every QSECOFR / system-level login"
+    refs: [T1078]
+
+  - id: T_LEG_002
+    title: Insecure protocol exposure (Telnet / FTP / unencrypted SNA)
+    stride_ai: [Information_Disclosure, Tampering]
+    attack_enterprise: [T1071, T1040]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Mainframes routinely expose Telnet (port 23) and FTP (port 21) for
+      ops access — protocols that send credentials in cleartext. Adversary
+      sniffs the local network and harvests passwords.
+    mitigations:
+      - "SSL/TLS Telnet (TN3270E + TLS) and SFTP only"
+      - "Network segmentation: mainframe access only from PAW subnet"
+      - "Decommission unused listeners (FTP, NFS, SMB)"
+    refs: [T1071, T1040]
+
+  - id: T_LEG_003
+    title: API / gateway between mainframe and modern stack lacks AuthN
+    stride_ai: [Spoofing, Information_Disclosure]
+    owasp_api: [API2:2023, API1:2023]
+    attack_enterprise: [T1190, T1078]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      AS/400 / mainframe data is exposed via a "data services" gateway
+      (REST → SQL400, MQ → COBOL CICS) that trusts callers on the assumption
+      "they're on our network". Any caller on that network reads everything.
+    mitigations:
+      - "Authenticate every call to the gateway (mTLS or signed JWT)"
+      - "Per-caller authorisation; not 'anyone on the network'"
+      - "Rate-limit the gateway to detect mass-extraction"
+    refs: [T1190, API2:2023, API1:2023]
+
+  - id: T_LEG_004
+    title: Vendor end-of-support — no security patches
+    stride_ai: [Tampering]
+    attack_enterprise: [T1190, T1203]
+    maestro: [M.X.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      OS / database version is out of vendor support; security patches
+      no longer issued. Newly discovered CVEs are unpatchable.
+    mitigations:
+      - "Migration plan with funded timeline"
+      - "Compensating controls: stricter network isolation, application-level monitoring"
+      - "Extended-support contract where available (often expensive)"
+    refs: [T1190, T1203]

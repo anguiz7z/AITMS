@@ -1,0 +1,88 @@
+component_type: other
+description: |
+  Catchall component type for assets that don't fit any specific
+  recognised category in ATMS's ComponentType taxonomy. ATMS attaches
+  this minimal playbook as a safety-net so unrecognised assets still
+  surface foundational threats during modelling — but users should
+  re-classify the component to a specific ComponentType whenever
+  possible to access richer threat content.
+threats:
+  - id: T_OTHER_001
+    title: Unauthenticated access / weak authentication
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    attack_enterprise: [T1078, T1110]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Component is reachable without authentication, or with weak /
+      default / shared credentials. Generic enough to apply to any
+      asset class — admin portals, internal APIs, cloud consoles,
+      device management interfaces — and very common in environments
+      with sprawl beyond the architectural intent.
+    mitigations:
+      - "Inventory: confirm authentication required on every exposed endpoint"
+      - "Phishing-resistant MFA on any administrative access path"
+      - "Default credentials removed at provisioning"
+      - "Quarterly access-review with documented business justification per identity"
+    refs: [T1078, AML.M0019]
+
+  - id: T_OTHER_002
+    title: Configuration / data tampering by unauthorised actor
+    stride_ai: [Tampering]
+    attack_enterprise: [T1565, T1098]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Some actor with insufficient privilege modifies the component's
+      configuration, data, or logic — either via insider misuse,
+      stolen credentials, or via vulnerabilities in the management
+      surface. Without specific knowledge of the component class,
+      ATMS surfaces this generic tampering risk so the user can
+      decide which countermeasures apply.
+    mitigations:
+      - "Change-management workflow with approval and audit"
+      - "Integrity monitoring (file / config hash baseline)"
+      - "Backup / restore plan tested for recovery from tamper"
+      - "Least-privilege role assignment with periodic recertification"
+    refs: [T1565, AML.M0019]
+
+  - id: T_OTHER_003
+    title: Sensitive data disclosure via unintended exposure
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1213, T1530]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 3
+    description: |
+      Component holds or processes sensitive data and exposes it
+      via misconfiguration, over-permissive access, or insecure
+      transmission. Generic placeholder threat — the right
+      mitigations depend heavily on the specific component class,
+      so re-classify to a specific ComponentType where possible.
+    mitigations:
+      - "Encryption at rest and in transit"
+      - "Data classification + access-by-classification policy"
+      - "Egress / DLP monitoring on sensitive data flows"
+      - "Periodic access audit for anomalous read patterns"
+    refs: [T1213, AML.M0019]
+
+  - id: T_OTHER_004
+    title: Component unavailability / DoS
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1499, T1498]
+    maestro: [M.L4.04]
+    likelihood: 3
+    impact: 3
+    description: |
+      Component becomes unavailable due to attack, capacity
+      exhaustion, or dependency failure, impacting whatever
+      downstream system depends on it. Generic availability risk
+      common to almost any component class.
+    mitigations:
+      - "Capacity planning + autoscaling where applicable"
+      - "Health monitoring + alerting with documented recovery runbook"
+      - "Rate-limiting / throttling on exposed interfaces"
+      - "Multi-region / multi-AZ deployment where business-critical"
+    refs: [T1499, AML.M0019]

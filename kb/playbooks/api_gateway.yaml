@@ -1,0 +1,108 @@
+component_type: api_gateway
+description: |
+  Public-facing API gateway in front of the AI workload — AWS API Gateway,
+  Azure API Management, GCP Cloud Endpoints, or third-party (Cloudflare,
+  Kong, Apigee). Handles auth, rate-limit, request-shaping.
+threats:
+  - id: T_APIGW_001
+    title: Authentication missing or weak
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API2:2023]
+    attack_cloud: [T1078, T1190]
+    maestro: [M.L7.03]
+    likelihood: 4
+    impact: 5
+    description: |
+      Endpoint accepts requests without authentication, with overly long
+      session tokens, with `alg: none` JWTs, or with missing audience checks.
+      Anyone reaches the inference / agent layer.
+    mitigations:
+      - "Authoriser on every protected endpoint (Cognito, Entra ID, Auth0, custom)"
+      - "Verify JWT signature + audience + issuer; reject `alg: none`"
+      - "Short-lived access tokens; rotate refresh tokens on use"
+      - "Default-deny route policy; explicit allow per route"
+    refs: [AML.M0019]
+
+  - id: T_APIGW_002
+    title: No rate-limit / no cost cap (Denial of Wallet)
+    stride_ai: [Denial_of_Service]
+    owasp_llm: [LLM10:2025]
+    owasp_agentic: [AGT04]
+    owasp_api: [API4:2023]
+    atlas: [AML.T0034, AML.T0029]
+    attack_cloud: [T1499, T1496]
+    maestro: [M.X.05]
+    nist_ai_100_2: [NIST_GAI_DENIAL_OF_SERVICE]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 5
+    impact: 4
+    description: |
+      Inference endpoint exposed without per-identity rate limits or token /
+      request budgets. Attacker (or buggy client) drives the operator's
+      LLM bill into 5- or 6-figure territory before someone notices.
+    mitigations:
+      - "Per-identity rate limit + burst at the gateway"
+      - "Per-tenant cost budget (max-tokens, max-requests) at the gateway"
+      - "Cost dashboards with anomaly alerts (per principal, per region)"
+      - "Circuit breaker that blackholes a tenant exceeding budget"
+    refs: [AML.M0004, AML.M0019]
+
+  - id: T_APIGW_003
+    title: CORS too permissive
+    stride_ai: [Information_Disclosure, Tampering]
+    owasp_api: [API8:2023]
+    attack_cloud: [T1539, T1528]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 3
+    description: |
+      `Access-Control-Allow-Origin: *` (or reflective ACAO with credentials)
+      lets a malicious page steal session-bound responses via the user's
+      browser. For an AI chat widget, that means stealing the user's
+      conversation in real time.
+    mitigations:
+      - "Allowlist exact origins; never `*` with credentials"
+      - "SameSite=Strict cookies for session tokens"
+      - "Subresource integrity on bundled JS"
+    refs: [AML.M0019]
+
+  - id: T_APIGW_004
+    title: WAF bypass / no WAF for AI inference
+    stride_ai: [Tampering, Defense_Evasion]
+    owasp_llm: [LLM01:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0051, AML.T0054]
+    attack_cloud: [T1190]
+    maestro: [M.L6.02]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_DIRECT]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      No WAF in front of the inference endpoint, or WAF rules don't catch
+      AI-specific patterns (jailbreak prompts, oversized payloads, base64-
+      smuggled instructions).
+    mitigations:
+      - "AWS WAF / Azure Front Door WAF / Cloud Armor on the AI endpoint"
+      - "AI-specific managed rule groups (or custom rules) for prompt-injection patterns"
+      - "Request-size limit at the WAF level (don't let huge prompts reach the LLM)"
+    refs: [AML.M0015]
+
+  - id: T_APIGW_005
+    title: Stale / undocumented routes (shadow API)
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API9:2023]
+    attack_cloud: [T1190]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 3
+    description: |
+      Old `/v1` paths still serving traffic 18 months after `/v2` replaced them;
+      staging / debug routes accidentally promoted to prod; routes added during
+      hackathons never decommissioned. Each is an undefended attack surface.
+    mitigations:
+      - "Authoritative API inventory; reject traffic to unlisted paths"
+      - "Sunset old versions on a schedule"
+      - "External attack-surface monitoring to catch shadow APIs"
+    refs: [AML.M0023]

@@ -1,0 +1,155 @@
+# MITRE D3FEND mapping (v0.14).
+# Source: https://d3fend.mitre.org/
+#
+# D3FEND is the defensive counterpart to ATT&CK. Each ATT&CK technique
+# can be mitigated by one or more D3FEND techniques. We curate the
+# subset relevant to ATMS' component-type playbooks and tag every
+# mitigation that covers a given attack pattern.
+#
+# Schema:
+#   - mitigation_match:    substring match against Mitigation.title or .description
+#     control_family:      preventive | detective | responsive | corrective | deterrent
+#     automatable:         true if a sane CI/IaC step can verify the control
+#     validation_test:     one-liner — how an auditor / red-teamer can confirm it works
+#     d3fend:              MITRE D3FEND technique IDs (D3-XXX)
+#     vendor_examples:     concrete tools that implement the control
+
+- mitigation_match: ["mfa fatigue", "number matching", "push spam", "push bombing"]
+  control_family: preventive
+  automatable: true
+  validation_test: "Confirm number-matching enabled in IDP; replay a fatigue scenario + assert auto-deny."
+  d3fend: ["D3-MFA"]
+  vendor_examples: [Microsoft Entra number matching, Duo Verified Push, Okta Verify with biometrics]
+
+- mitigation_match: ["mfa", "multi-factor", "second factor", "phishing-resistant"]
+  control_family: preventive
+  automatable: true
+  validation_test: "Attempt sign-in with stolen creds + confirm MFA prompt + assert phishing-resistant factor (FIDO2 / passkey)."
+  d3fend: ["D3-MFA"]
+  vendor_examples: [Duo, Okta Verify, Microsoft Authenticator, YubiKey, Passkeys/FIDO2]
+
+- mitigation_match: ["least privilege", "rbac", "abac", "role-based"]
+  control_family: preventive
+  automatable: true
+  validation_test: "Run access-graph diff (PMapper / ScoutSuite); assert no role grants `*` on PII / model registry."
+  d3fend: ["D3-DAM", "D3-LPN"]
+  vendor_examples: [AWS IAM Access Analyzer, Azure PIM, GCP Recommender]
+
+- mitigation_match: ["secrets manager", "vault", "key vault", "secret rotation"]
+  control_family: preventive
+  automatable: true
+  validation_test: "grep -r AKIA / sk-ant- on the repo; assert all hits live in vault refs only."
+  d3fend: ["D3-CHN", "D3-SCH"]
+  vendor_examples: [HashiCorp Vault, AWS Secrets Manager, Azure Key Vault, CyberArk]
+
+- mitigation_match: ["encryption at rest", "encrypt at rest", "envelope encryption", "kms"]
+  control_family: preventive
+  automatable: true
+  validation_test: "Storage objects sampled return `ServerSideEncryption=aws:kms` (or equivalent)."
+  d3fend: ["D3-DENCR"]
+  vendor_examples: [AWS KMS, Azure Key Vault Keys, GCP Cloud KMS, CloudHSM]
+
+- mitigation_match: ["tls", "transport", "in transit"]
+  control_family: preventive
+  automatable: true
+  validation_test: "testssl.sh against every endpoint; assert TLS 1.2+ only, no NULL / EXPORT / RC4 ciphers."
+  d3fend: ["D3-NTA", "D3-MA"]
+  vendor_examples: [Let's Encrypt, ACM, mTLS via Istio / Linkerd]
+
+- mitigation_match: ["waf", "web application firewall"]
+  control_family: preventive
+  automatable: true
+  validation_test: "Replay an OWASP top-10 payload set; assert WAF blocks ≥ 95% on baseline."
+  d3fend: ["D3-NTPM"]
+  vendor_examples: [Cloudflare WAF, AWS WAF, Akamai App & API Protector, Imperva]
+
+- mitigation_match: ["rate limit", "rate-limit", "throttle"]
+  control_family: preventive
+  automatable: true
+  validation_test: "Hammer login + inference endpoints from a single IP; assert 429 after configured threshold."
+  d3fend: ["D3-NTA"]
+  vendor_examples: [Cloudflare Rate Limiting, AWS API Gateway throttling, NGINX limit_req]
+
+- mitigation_match: ["edr", "endpoint detection", "endpoint protection"]
+  control_family: detective
+  automatable: false
+  validation_test: "Run a benign Atomic Red Team test on each endpoint type; assert EDR raises an alert within 5 min."
+  d3fend: ["D3-PA", "D3-PSA"]
+  vendor_examples: [CrowdStrike Falcon, Microsoft Defender for Endpoint, SentinelOne]
+
+- mitigation_match: ["siem", "log aggregation", "centralised log", "centralized log"]
+  control_family: detective
+  automatable: true
+  validation_test: "All in-scope hosts visible in SIEM index for the last 24h; alert latency < 10 min."
+  d3fend: ["D3-SYSM"]
+  vendor_examples: [Splunk, Microsoft Sentinel, Elastic Stack, Sumo Logic, Datadog Cloud SIEM]
+
+- mitigation_match: ["network segmentation", "vlan", "purdue", "zero trust"]
+  control_family: preventive
+  automatable: false
+  validation_test: "Drop a benign packet probe between zones; assert blocked unless explicitly allowed."
+  d3fend: ["D3-NI", "D3-ITF"]
+  vendor_examples: [Cisco TrustSec, Palo Alto NGFW, Illumio, Zscaler ZPA]
+
+- mitigation_match: ["backup", "immutable backup", "ransomware protection"]
+  control_family: corrective
+  automatable: true
+  validation_test: "Quarterly restore-from-backup tabletop; assert RPO + RTO targets met."
+  d3fend: ["D3-RIA"]
+  vendor_examples: [Veeam, Rubrik, AWS Backup with Vault Lock, Azure Backup immutable vaults]
+
+- mitigation_match: ["patch", "patch management", "vulnerability management"]
+  control_family: corrective
+  automatable: true
+  validation_test: "Tenable / Qualys scan reports zero CVE on KEV unmitigated > 14 days."
+  d3fend: ["D3-SU"]
+  vendor_examples: [Tanium Patch, Microsoft Defender Vulnerability Management, Qualys VMDR]
+
+- mitigation_match: ["sbom", "supply chain", "signed artefact", "model signing"]
+  control_family: preventive
+  automatable: true
+  validation_test: "Build pipeline produces SPDX/CycloneDX SBOM + Sigstore signature for every artefact."
+  d3fend: ["D3-FH", "D3-SU"]
+  vendor_examples: [Sigstore Cosign, in-toto, Anchore Syft, Snyk Container]
+
+- mitigation_match: ["guardrail", "prompt injection classifier", "input output guardrail"]
+  control_family: preventive
+  automatable: true
+  validation_test: "Run a 200-prompt jailbreak set; assert ≥ 95% blocked with low false positive rate."
+  d3fend: ["D3-IF"]
+  vendor_examples: [Bedrock Guardrails, Azure AI Content Safety, NeMo Guardrails, Lakera Guard]
+
+- mitigation_match: ["pii redaction", "presidio", "dlp"]
+  control_family: preventive
+  automatable: true
+  validation_test: "Replay a synthetic-PII corpus through the redaction layer; assert ≥ 99% match + redaction."
+  d3fend: ["D3-RFS"]
+  vendor_examples: [Microsoft Presidio, AWS Macie + Comprehend, GCP DLP]
+
+- mitigation_match: ["dp-sgd", "differential privacy", "privacy-preserving"]
+  control_family: preventive
+  automatable: true
+  validation_test: "Calibrate ε; rerun membership-inference attack; assert AUC ≤ 0.55."
+  d3fend: ["D3-DTP"]
+  vendor_examples: ["Opacus (PyTorch)", "TensorFlow Privacy", "Google Differential Privacy library"]
+
+- mitigation_match: ["data diode", "one-way", "unidirectional"]
+  control_family: preventive
+  automatable: false
+  validation_test: "Engineer attempts return-traffic injection; assert hardware-enforced one-way break."
+  d3fend: ["D3-NI"]
+  vendor_examples: ["Owl Cyber Defense", "Waterfall Security", "Fox-IT DataDiode"]
+
+- mitigation_match: ["incident response", "ir playbook", "tabletop"]
+  control_family: responsive
+  automatable: false
+  validation_test: "Annual tabletop exercise; document mean time to detect / contain / eradicate."
+  d3fend: ["D3-RIR"]
+  vendor_examples: ["PagerDuty IR runbooks", "Splunk SOAR", "Palo Alto XSOAR"]
+
+- mitigation_match: ["awareness training", "phishing training", "user education"]
+  control_family: deterrent
+  automatable: false
+  validation_test: "Quarterly phishing-simulation campaign; assert click-through trend declining."
+  d3fend: ["D3-OAM"]
+  vendor_examples: ["KnowBe4", "Proofpoint Security Awareness Training", "Hoxhunt"]

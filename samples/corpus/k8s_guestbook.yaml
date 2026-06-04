@@ -1,0 +1,147 @@
+# Kubernetes official "Guestbook" tutorial — multi-doc manifest, verbatim from
+# https://kubernetes.io/docs/tutorials/stateless-application/guestbook/
+# Sourced 2026-05-16 from the Kubernetes website examples repo:
+#   https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/application/guestbook/
+# License: Apache-2.0 (Kubernetes website content).
+#
+# This is the canonical 3-tier reference architecture the Kubernetes
+# project ships in their docs. A real-world frontend + Redis leader +
+# Redis follower set-up used by tens of thousands of tutorials.
+# Used here as an ATMS corpus regression target — proves the K8s
+# ingester handles standard multi-doc manifests.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-leader
+  labels:
+    app: redis
+    role: leader
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        role: leader
+        tier: backend
+    spec:
+      containers:
+        - name: leader
+          image: "registry.k8s.io/redis@sha256:cb111d1bd870a6a471385a4a69ad17469d326e9dd91e0e455350cacf36e1b3ee"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+          ports:
+            - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-leader
+  labels:
+    app: redis
+    role: leader
+    tier: backend
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
+    role: leader
+    tier: backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-follower
+  labels:
+    app: redis
+    role: follower
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        role: follower
+        tier: backend
+    spec:
+      containers:
+        - name: follower
+          image: us-docker.pkg.dev/google-samples/containers/gke/gb-redis-follower:v2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+          ports:
+            - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-follower
+  labels:
+    app: redis
+    role: follower
+    tier: backend
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: redis
+    role: follower
+    tier: backend
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: guestbook
+      tier: frontend
+  template:
+    metadata:
+      labels:
+        app: guestbook
+        tier: frontend
+    spec:
+      containers:
+        - name: php-redis
+          image: us-docker.pkg.dev/google-samples/containers/gke/gb-frontend:v5
+          env:
+            - name: GET_HOSTS_FROM
+              value: "dns"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    app: guestbook
+    tier: frontend
+spec:
+  ports:
+    - port: 80
+  selector:
+    app: guestbook
+    tier: frontend

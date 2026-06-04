@@ -1,0 +1,61 @@
+component_type: embedding_service
+description: |
+  Service that converts text/images into vector embeddings, used for retrieval, similarity
+  search, clustering. Includes OpenAI Embeddings, Cohere, sentence-transformers.
+threats:
+  - id: T_EMB_001
+    title: Embedding inversion / data reconstruction
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM08:2025]
+    atlas: [AML.T0024.001]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_INVERSION]
+    owasp_ml: [ML03:2023]
+    linddun: [I_002, I_001]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      Adversary uses embeddings to reconstruct the source text via gradient-based or
+      decoder-based inversion attacks.
+    mitigations:
+      - "Encrypt embeddings at rest; access controls on the embedding store"
+      - "Don't expose raw embeddings publicly; only similarity scores"
+      - "Tokenize / pseudonymize PII before embedding"
+    refs: [AML.M0012, AML.M0002]
+
+  - id: T_EMB_002
+    title: Adversarial embeddings to manipulate retrieval
+    stride_ai: [Tampering]
+    owasp_llm: [LLM08:2025, LLM04:2025]
+    atlas: [AML.T0043, AML.T0059]
+    nist_ai_100_2: [NIST_PAI_EVASION]
+    owasp_ml: [ML01:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 2
+    impact: 4
+    description: |
+      Adversary crafts text that produces embeddings near a target query's embedding, forcing
+      retrieval of attacker-controlled content.
+    mitigations:
+      - "Source allowlist + provenance tracking"
+      - "Anomaly detection on embedding-distance distributions"
+      - "Retrieval diversification (MMR) to reduce single-source dominance"
+    refs: [AML.M0007, AML.M0015]
+
+  - id: T_EMB_003
+    title: Cross-tenant leakage in shared embedding space
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM08:2025, LLM02:2025]
+    atlas: [AML.T0057]
+    linddun: [I_001, D_001, DD_003]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      Single shared embedding store across tenants; query from one tenant returns vectors from
+      another due to missing partition filters.
+    mitigations:
+      - "Per-tenant indices or strict partition filters"
+      - "Authorization check at retrieval, not just at API entry"
+      - "Audit logs with tenant identity"
+    refs: [AML.M0019]

@@ -1,0 +1,396 @@
+{% extends "web/base.html" %}
+{% block title %}{{ system.name }}{% endblock %}
+{% block content %}
+<h1>{{ system.name }}</h1>
+<p class="muted">{{ system.description }}</p>
+
+{% if notice %}
+<div class="alert"><strong>Heads up.</strong> {{ notice }}</div>
+{% endif %}
+
+<div class="actions">
+  {# v0.18.70 Hibernation Phase 3: each export button shows only when
+     its FEATURE_EXPORT_* flag is on. md + html are KEEP; exec uses
+     the report_html flag (it's just rendered HTML). #}
+  {% if features.report_md %}<a class="btn" href="/download/{{ run_id }}/md">Download .md</a>{% endif %}
+  {% if features.report_html %}<a class="btn" href="/download/{{ run_id }}/html">Download .html</a>{% endif %}
+  {% if features.report_html %}<a class="btn" href="/download/{{ run_id }}/exec" title="One-page executive summary (HTML, prints to PDF)">Exec summary</a>{% endif %}
+  <a class="btn" href="/attack-paths/{{ run_id }}" title="Dedicated attack-path viewer with kill-chain flow + narrative">Attack paths</a>
+  {% if features.export_compliance_matrix %}
+    <a class="btn" href="/download/{{ run_id }}/compliance" title="Per-framework compliance coverage matrix (HTML)">Compliance matrix</a>
+    <a class="btn" href="/download/{{ run_id }}/compliance_csv" title="Compliance coverage as CSV">Compliance CSV</a>
+  {% endif %}
+  {% if features.export_jira %}
+    <a class="btn" href="/download/{{ run_id }}/jira_csv" title="JIRA-importable CSV">JIRA CSV</a>
+    <a class="btn" href="/download/{{ run_id }}/jira_json" title="JIRA REST bulk-create JSON">JIRA JSON</a>
+  {% endif %}
+  {% if features.export_roadmap %}
+    <a class="btn" href="/download/{{ run_id }}/roadmap_md" title="Prioritised mitigation roadmap (Markdown)">Roadmap .md</a>
+    <a class="btn" href="/download/{{ run_id }}/roadmap_json" title="Roadmap as JSON">Roadmap .json</a>
+  {% endif %}
+  {% if features.export_sbom %}<a class="btn" href="/download/{{ run_id }}/sbom" title="CycloneDX 1.5 SBOM">SBOM (CDX)</a>{% endif %}
+  {% if features.export_stix %}<a class="btn" href="/download/{{ run_id }}/stix">STIX 2.1</a>{% endif %}
+  {% if features.export_navigator %}<a class="btn" href="/download/{{ run_id }}/navigator">ATLAS Navigator</a>{% endif %}
+  {% if features.export_csv %}<a class="btn" href="/download/{{ run_id }}/csv">Risk register CSV</a>{% endif %}
+  {% if features.export_csa_table %}<a class="btn" href="/download/{{ run_id }}/csa_table" title="CSA Singapore Table of Attack threat library (HTML)">CSA Table of Attack</a>{% endif %}
+  {% if features.export_csa_table %}<a class="btn" href="/download/{{ run_id }}/csa_table_csv" title="CSA Table of Attack as CSV">CSA Table CSV</a>{% endif %}
+  {% if features.export_csa_risk %}<a class="btn" href="/download/{{ run_id }}/csa_risk" title="CSA Singapore Risk Register — D-E-R likelihood, C-I-A impact, 5x5 bands, 8-element register (HTML)">CSA Risk Register</a>{% endif %}
+  {% if features.export_csa_risk %}<a class="btn" href="/download/{{ run_id }}/csa_risk_csv" title="CSA Risk Register as CSV">CSA Risk CSV</a>{% endif %}
+  <a class="btn btn-secondary" href="/">Analyze another</a>
+</div>
+
+<div class="metrics">
+  <div class="metric"><div class="k">Components</div><div class="v">{{ summary.components }}</div></div>
+  <div class="metric"><div class="k">Threats</div><div class="v">{{ summary.threats }}</div></div>
+  <div class="metric"><div class="k">Attack paths</div><div class="v">{{ summary.attack_paths }}</div></div>
+  <div class="metric"><div class="k">Mitigations</div><div class="v">{{ summary.mitigations }}</div></div>
+  <div class="metric"><div class="k">OWASP LLM</div><div class="v">{{ summary.owasp_coverage|length }}/10</div></div>
+  <div class="metric"><div class="k">OWASP Agentic</div><div class="v">{{ summary.owasp_agentic_coverage|length }}/17</div></div>
+  <div class="metric"><div class="k">OWASP API</div><div class="v">{{ summary.owasp_api_coverage|length }}/10</div></div>
+  <div class="metric"><div class="k">ATLAS techs</div><div class="v">{{ summary.atlas_coverage|length }}</div></div>
+  <div class="metric"><div class="k">ATT&amp;CK Cloud</div><div class="v">{{ summary.attack_cloud_coverage|length }}</div></div>
+  <div class="metric"><div class="k">ATT&amp;CK Enterprise</div><div class="v">{{ (summary.attack_enterprise_coverage or [])|length }}</div></div>
+  <div class="metric"><div class="k">LINDDUN</div><div class="v">{{ (summary.linddun_coverage or [])|length }}</div></div>
+  <div class="metric"><div class="k">NIST AI 100-2</div><div class="v">{{ (summary.nist_ai_100_2_coverage or [])|length }}</div></div>
+  <div class="metric"><div class="k">MAESTRO layers</div><div class="v">{{ summary.maestro_layers|length }}/7</div></div>
+  <div class="metric"><div class="k">Methodology</div><div class="v" style="font-size:13px;" title="backend method ID: {{ summary.methodology or 'stride-ai' }}">STRIDE for AI</div></div>
+  {% if summary.evidence_total %}
+  <div class="metric"><div class="k">Evidence rows</div><div class="v">{{ summary.evidence_total }}</div></div>
+  {% endif %}
+  {% if summary.evidence_kev_hits %}
+  <div class="metric" style="border-color: var(--critical);"><div class="k">KEV hits</div><div class="v" style="color:#ff7b72;">{{ summary.evidence_kev_hits }}</div></div>
+  {% endif %}
+  {% if summary.evidence_unmatched %}
+  <div class="metric" style="border-color: var(--medium);"><div class="k">Unmatched evidence</div><div class="v" style="color:#d29922;">{{ summary.evidence_unmatched }}</div></div>
+  {% endif %}
+  {% if summary.compliance_coverage %}
+  <div class="metric"><div class="k">Compliance controls</div><div class="v">{{ summary.compliance_coverage|length }}</div></div>
+  {% endif %}
+  {% if summary.ale and summary.ale.ale_high_total %}
+  <div class="metric"><div class="k">ALE range ($)</div><div class="v" style="font-size:13px;">${{ "{:,.0f}".format(summary.ale.ale_low_total) }} – ${{ "{:,.0f}".format(summary.ale.ale_high_total) }}</div></div>
+  {% endif %}
+</div>
+
+{% if summary.kev_meta and summary.kev_meta.refreshed %}
+<p class="muted" style="font-size:12px;">
+  CISA KEV snapshot dated <strong>{{ summary.kev_meta.refreshed }}</strong>
+  {% if summary.kev_meta.rows %}({{ summary.kev_meta.rows }} rows){% endif %}
+  · refresh with <code>atms refresh-feeds</code>.
+</p>
+{% endif %}
+
+{% if summary.kill_chain_breakdown %}
+<h2>Cyber Kill Chain breakdown</h2>
+<p>
+{% for phase, n in summary.kill_chain_breakdown.items() %}
+<span class="pill">{{ phase }}: {{ n }}</span>
+{% endfor %}
+</p>
+{% endif %}
+
+{% if summary.evidence_status_breakdown %}
+<h2>Evidence-status breakdown</h2>
+<p class="muted" style="font-size: 13px;">How well-grounded are these threats? Hypothetical = generated by playbook only. Likely = TI signal. Observed = scanner-confirmed. Exploited = KEV / red-team.</p>
+<p>
+{% for status, n in summary.evidence_status_breakdown.items() %}
+<span class="pill">{{ status }}: {{ n }}</span>
+{% endfor %}
+</p>
+{% endif %}
+
+<h2>Severity</h2>
+<p>
+{% for sev in ['critical', 'high', 'medium', 'low', 'info'] -%}
+<span class="severity sev-{{ sev }}">{{ sev }}</span> {{ summary.severity_breakdown.get(sev, 0) }}&nbsp;&nbsp;
+{% endfor %}
+</p>
+
+{# v0.18.13 Cycle CC — Risk heatmap (5×5 likelihood × impact).
+   Pure HTML+CSS, no JS, no extra deps. Renders inline as a CSS
+   grid; cell tooltip lists threat IDs + titles. Skipped silently
+   when threats is empty. #}
+{% if threats %}
+<h2 title="Each dot represents a threat positioned by its likelihood and impact. Bottom-right is the high-risk quadrant.">Risk heatmap (likelihood × impact)</h2>
+<p class="muted" style="font-size: 13px;">5 × 5 grid: rows = impact (high at top), cols = likelihood (high at right). Cell colour reflects the zone; the count is the number of threats in that bucket. Hover a cell to list its threats.</p>
+<style>
+  .atms-heatmap { display: grid; grid-template-columns: 56px repeat(5, 1fr); gap: 4px; max-width: 640px; margin: 8px 0 16px 0; font-size: 12px; }
+  .atms-heatmap .hm-axis  { display: flex; align-items: center; justify-content: center; color: var(--muted, #8b949e); }
+  .atms-heatmap .hm-cell  { aspect-ratio: 1 / 1; border: 1px solid var(--border, #30363d); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-weight: 600; cursor: default; transition: transform 80ms ease; }
+  .atms-heatmap .hm-cell:hover { transform: scale(1.04); border-color: var(--accent, #2f81f7); }
+  .atms-heatmap .hm-cell.hm-empty { opacity: 0.35; }
+  .atms-heatmap .hm-zone-low      { background: rgba(63,185,80,0.18);   }
+  .atms-heatmap .hm-zone-medium   { background: rgba(210,153,34,0.20);  }
+  .atms-heatmap .hm-zone-high     { background: rgba(219,118,16,0.25);  }
+  .atms-heatmap .hm-zone-critical { background: rgba(207,34,46,0.30);   }
+  .atms-heatmap .hm-row-label { writing-mode: horizontal-tb; }
+</style>
+{# Bucket threats by (impact, likelihood). Likelihood + impact are
+   integers in 1..5 in the Threat model. #}
+{% set ns = namespace(buckets={}) %}
+{% for t in threats %}
+  {%- set _l = t.likelihood|int -%}
+  {%- set _i = t.impact|int -%}
+  {%- if 1 <= _l <= 5 and 1 <= _i <= 5 -%}
+    {%- set key = (_i, _l) -%}
+    {%- if key not in ns.buckets -%}
+      {%- set _ = ns.buckets.update({key: []}) -%}
+    {%- endif -%}
+    {%- set _ = ns.buckets[key].append(t) -%}
+  {%- endif -%}
+{% endfor %}
+<div class="atms-heatmap" role="table" aria-label="Risk heatmap, 5 by 5 likelihood and impact">
+  <div class="hm-axis"></div>
+  {% for L in range(1, 6) %}<div class="hm-axis">L={{ L }}</div>{% endfor %}
+  {% for I in [5, 4, 3, 2, 1] %}
+    <div class="hm-axis hm-row-label">I={{ I }}</div>
+    {% for L in range(1, 6) %}
+      {%- set bucket = ns.buckets.get((I, L), []) -%}
+      {%- set risk = I * L -%}
+      {%- if risk >= 20 -%}{%- set zone = 'critical' -%}
+      {%- elif risk >= 12 -%}{%- set zone = 'high' -%}
+      {%- elif risk >= 6 -%}{%- set zone = 'medium' -%}
+      {%- else -%}{%- set zone = 'low' -%}{%- endif -%}
+      <div class="hm-cell hm-zone-{{ zone }}{% if not bucket %} hm-empty{% endif %}"
+           title="L={{ L }} × I={{ I }} (risk={{ risk }}, {{ zone }} zone){% if bucket %}&#10;{% for t in bucket[:12] %}&#10;• {{ t.id }} — {{ t.title }}{% endfor %}{% if bucket|length > 12 %}&#10;…and {{ bucket|length - 12 }} more{% endif %}{% else %}{% endif %}">
+        {{ bucket|length }}
+      </div>
+    {% endfor %}
+  {% endfor %}
+</div>
+{% endif %}
+
+<h2>Architecture (data flow diagram)</h2>
+<div style="background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto;">
+<pre class="mermaid" style="background: transparent; border: none; padding: 0; margin: 0; font-size: 12px;">
+{{ mermaid_dfd }}
+</pre>
+</div>
+<script src="/static/mermaid.min.js"></script>
+<script src="/static/atms-mermaid.js"></script>
+
+{% if summary.priority_mitigation_ids %}
+<h2>Recommended roadmap (top {{ summary.priority_mitigation_ids|length }})</h2>
+<p class="muted">Mitigations ranked by <code>risk_reduction &times; addressed-severity-weight / effort_cost</code> — your "do these first" list. Family / D3FEND / validation-test columns make each row a one-line backlog item, not a wish.</p>
+<table>
+  <thead><tr><th>Rank</th><th>ID</th><th>Title</th><th>Family</th><th>Auto</th><th>D3FEND</th><th>Validation</th><th>Effort</th><th>Reduces</th><th>Addresses</th><th>Frameworks</th></tr></thead>
+  <tbody>
+    {% for mid in summary.priority_mitigation_ids %}
+    {% set m = mitigations | selectattr("id", "equalto", mid) | first %}
+    {% if m %}
+    <tr>
+      <td><strong>{{ loop.index }}</strong></td>
+      <td><code>{{ m.id }}</code></td>
+      <td>{{ m.title }}</td>
+      <td>{% if m.control_family %}<span class="pill">{{ m.control_family }}</span>{% endif %}</td>
+      <td>{% if m.automatable %}<span class="pill" style="background:#1f4a32;color:#fff;">auto</span>{% endif %}</td>
+      <td>{% for d in m.d3fend %}<span class="pill" title="MITRE D3FEND">{{ d }}</span>{% endfor %}</td>
+      <td style="font-size: 12px; max-width: 360px;">{{ m.validation_test or "" }}</td>
+      <td>{{ m.effort }}</td>
+      <td>{{ m.risk_reduction }}/5</td>
+      <td>{{ m.addresses_threat_ids|length }}</td>
+      <td>{% for r in m.framework_refs %}<span class="pill">{{ r }}</span>{% endfor %}{% if not m.framework_refs %}<span class="muted">inline</span>{% endif %}</td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{# v0.18.35 Cycle YY — D3FEND coverage panel. Aggregates D3FEND
+   technique IDs across all mitigations and renders them as a
+   chip grid. Inline JS-free; rolls up which defensive techniques
+   are present in the recommended controls so reviewers can see the
+   defensive stance at a glance. #}
+{% set d3_counts = namespace(map={}) %}
+{% for m in mitigations %}
+  {%- for d in (m.d3fend or []) -%}
+    {%- set _ = d3_counts.map.update({d: d3_counts.map.get(d, 0) + 1}) -%}
+  {%- endfor -%}
+{% endfor %}
+{% if d3_counts.map %}
+<h2 title="MITRE D3FEND defensive techniques covered by the recommended mitigations">D3FEND coverage</h2>
+<p class="muted" style="font-size: 13px;">
+  {{ d3_counts.map|length }} distinct D3FEND technique(s) referenced across {{ mitigations|length }} mitigation(s).
+  Each chip shows technique ID + the count of mitigations contributing.
+</p>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 16px 0;">
+{% for tid, n in d3_counts.map|dictsort %}
+  <span class="pill" title="MITRE D3FEND {{ tid }} — covered by {{ n }} mitigation(s)" style="background: rgba(46,160,67,0.12); border-color: #2da44e; color: #56d364;">
+    {{ tid }} <span style="opacity: 0.7;">×{{ n }}</span>
+  </span>
+{% endfor %}
+</div>
+{% endif %}
+
+<h2>Top threats</h2>
+{# v0.18.20 Cycle JJ — live substring filter for the threat table.
+   Pure inline JS; no external deps. Filters by ID / Component / Title /
+   Severity / framework pills. Toggleable severity-only quick filters. #}
+<div class="threat-filter" role="search">
+  <input id="threat-filter-input" type="search" placeholder="Filter threats by ID, component, title, severity, framework…" autocomplete="off" />
+  <button type="button" class="filter-clear" data-target="threat-filter-input" title="Clear">×</button>
+  <span class="filter-chips">
+    <button type="button" data-severity="critical" class="severity-chip sev-critical">critical</button>
+    <button type="button" data-severity="high" class="severity-chip sev-high">high</button>
+    <button type="button" data-severity="medium" class="severity-chip sev-medium">medium</button>
+    <button type="button" data-severity="low" class="severity-chip sev-low">low</button>
+  </span>
+  <span id="threat-filter-status" class="muted" style="font-size: 12px; margin-left: 8px;"></span>
+</div>
+<style>
+  .threat-filter { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+  .threat-filter input { flex: 1; min-width: 260px; padding: 6px 10px; background: var(--panel); color: inherit; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+  .threat-filter .filter-clear { background: var(--panel); color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+  .threat-filter .filter-clear:hover { color: inherit; border-color: var(--accent); }
+  .threat-filter .filter-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+  .threat-filter .severity-chip { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.55; }
+  .threat-filter .severity-chip.active { opacity: 1; outline: 2px solid var(--accent); }
+  #threats-table tr.hidden-by-filter { display: none; }
+</style>
+<table id="threats-table">
+  <thead><tr><th>ID</th><th>Component</th><th>Title</th><th>Severity</th><th>Risk</th><th title="STRIDE-LM (CSA Singapore Guide to Cyber Threat Modelling) — classic STRIDE + Lateral Movement">STRIDE-LM</th><th>Status</th><th>Evidence</th><th>Kill chain</th><th>OWASP LLM</th><th>OWASP Agentic</th><th>OWASP API</th><th>ATLAS</th><th>ATT&amp;CK Cloud</th><th>ATT&amp;CK Enterprise</th><th>LINDDUN</th><th>NIST AI 100-2</th><th>MAESTRO</th></tr></thead>
+  <tbody>
+    {% for t in threats|sort(attribute="risk_score", reverse=True) %}
+    <tr data-severity="{{ t.severity }}">
+      <td><code>{{ t.id }}</code></td>
+      <td>{{ t.component_name }}</td>
+      <td>{{ t.title }}</td>
+      <td><span class="severity sev-{{ t.severity }}">{{ t.severity }}</span></td>
+      <td>{{ t.risk_score }}</td>
+      <td>{% for s in t.stride_ai %}<span class="pill"{% if s == "Lateral_Movement" %} style="background:#3a330f; border-color:#d4a72c; color:#f0d98c;" title="STRIDE-LM Lateral Movement"{% endif %}>{{ s }}</span>{% endfor %}</td>
+      <td><span class="pill" title="evidence_status">{{ t.evidence_status }}</span></td>
+      <td>
+        {% if t.evidence %}
+          {% for e in t.evidence[:3] %}
+            {% if e.kev %}<span class="pill" style="background:#5a1f1f;border-color:#cf222e;color:#fff;" title="On CISA KEV — actively exploited">KEV</span>{% endif %}
+            <span class="pill" title="{{ e.source }}/{{ e.source_type }}">{{ e.source_id or e.source_type }}</span>
+          {% endfor %}
+          {% if t.evidence|length > 3 %}<span class="pill">+{{ t.evidence|length - 3 }}</span>{% endif %}
+        {% endif %}
+      </td>
+      <td>{% if t.kill_chain_phase %}<span class="pill">{{ t.kill_chain_phase }}</span>{% endif %}</td>
+      <td>{% for o in t.owasp_llm %}<span class="pill">{{ o }}</span>{% endfor %}</td>
+      <td>{% for o in t.owasp_agentic %}<span class="pill">{{ o }}</span>{% endfor %}</td>
+      <td>{% for o in t.owasp_api %}<span class="pill">{{ o }}</span>{% endfor %}</td>
+      <td>{% for a in t.atlas_techniques %}<span class="pill">{{ a }}</span>{% endfor %}</td>
+      <td>{% for a in t.attack_cloud %}<span class="pill">{{ a }}</span>{% endfor %}</td>
+      <td>{% for a in t.attack_enterprise %}<span class="pill">{{ a }}</span>{% endfor %}</td>
+      <td>{% for ld in t.linddun %}<span class="pill">{{ ld }}</span>{% endfor %}</td>
+      <td>{% for n in t.nist_ai_100_2 %}<span class="pill">{{ n }}</span>{% endfor %}</td>
+      <td>{% for m in t.maestro_threats %}<span class="pill">{{ m }}</span>{% endfor %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Attack paths</h2>
+{% if attack_paths %}
+{% for p in attack_paths %}
+<div class="alert">
+  <strong>{{ p.id }} — {{ p.title }}</strong> ·
+  <span class="muted">difficulty {{ p.estimated_difficulty }}/5 · impact {{ p.business_impact }}/5</span>
+  <p style="margin: 6px 0; color: var(--accent); font-family: ui-monospace, monospace; font-size: 12px;">
+    {{ p.tactics_traversed | join(" → ") }}
+  </p>
+  <details><summary>Narrative</summary><pre>{{ p.narrative }}</pre></details>
+</div>
+{% endfor %}
+{% else %}
+<div class="empty">No multi-step attack paths discovered.</div>
+{% endif %}
+
+<h2>Top mitigations</h2>
+<table>
+  <thead><tr><th>ID</th><th>Title</th><th>Effort</th><th>Reduces</th><th>Frameworks</th><th>Threats</th></tr></thead>
+  <tbody>
+    {% for m in mitigations[:25] %}
+    <tr>
+      <td><code>{{ m.id }}</code></td>
+      <td>{{ m.title }}</td>
+      <td>{{ m.effort }}</td>
+      <td>{{ m.risk_reduction }}/5</td>
+      <td>{% for r in m.framework_refs %}<span class="pill">{{ r }}</span>{% endfor %}{% if not m.framework_refs %}<span class="muted">inline</span>{% endif %}</td>
+      <td>{{ m.addresses_threat_ids | length }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% if mitigations|length > 25 %}
+<p class="muted">Showing top 25 of {{ mitigations|length }}. Full list in the downloadable report.</p>
+{% endif %}
+
+<script>
+// v0.18.20 Cycle JJ — Live filter for the threats table.
+(function () {
+  var input  = document.getElementById('threat-filter-input');
+  var status = document.getElementById('threat-filter-status');
+  var table  = document.getElementById('threats-table');
+  if (!input || !table) return;
+  var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr'));
+  var totalRows = rows.length;
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.severity-chip'));
+  var activeSeverities = new Set();
+
+  function debounce(fn, ms) {
+    var t; return function () {
+      clearTimeout(t);
+      var args = arguments, ctx = this;
+      t = setTimeout(function () { fn.apply(ctx, args); }, ms);
+    };
+  }
+
+  function apply() {
+    var q = (input.value || '').trim().toLowerCase();
+    var shown = 0;
+    rows.forEach(function (row) {
+      var text = (row.textContent || '').toLowerCase();
+      var sev = (row.getAttribute('data-severity') || '').toLowerCase();
+      var passesQ = !q || text.indexOf(q) !== -1;
+      var passesSev = activeSeverities.size === 0 || activeSeverities.has(sev);
+      var match = passesQ && passesSev;
+      if (match) {
+        row.classList.remove('hidden-by-filter');
+        shown++;
+      } else {
+        row.classList.add('hidden-by-filter');
+      }
+    });
+    if (q || activeSeverities.size > 0) {
+      status.textContent = 'showing ' + shown + ' of ' + totalRows;
+    } else {
+      status.textContent = '';
+    }
+  }
+
+  input.addEventListener('input', debounce(apply, 120));
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { input.value = ''; apply(); }
+  });
+
+  var clearBtn = document.querySelector('.filter-clear[data-target="threat-filter-input"]');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      input.value = '';
+      activeSeverities.clear();
+      chips.forEach(function (c) { c.classList.remove('active'); });
+      apply();
+      input.focus();
+    });
+  }
+
+  chips.forEach(function (chip) {
+    chip.addEventListener('click', function () {
+      var sev = chip.getAttribute('data-severity');
+      if (activeSeverities.has(sev)) {
+        activeSeverities.delete(sev);
+        chip.classList.remove('active');
+      } else {
+        activeSeverities.add(sev);
+        chip.classList.add('active');
+      }
+      apply();
+    });
+  });
+})();
+</script>
+{% endblock %}

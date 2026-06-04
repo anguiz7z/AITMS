@@ -1,0 +1,70 @@
+component_type: data_warehouse
+description: |
+  Cloud analytics warehouse — Redshift, Synapse, BigQuery, Snowflake. Stores
+  the training-data lake the AI consumes + the analytics on AI usage. RAG
+  pipelines often build vector stores from warehouse extracts; training
+  pipelines read raw warehouse tables.
+threats:
+  - id: T_DWH_001
+    title: PII in training extract → model memorisation + extraction risk
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM05:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    maestro: [M.L1.05, M.L2.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      Training data extracted from the warehouse contains unredacted PII
+      (customer names, emails, account numbers). The trained model memorises
+      it; attackers extract it via membership-inference or prompt-extraction.
+    mitigations:
+      - "Warehouse column-level masking on PII fields used in training extracts"
+      - "Differential-privacy training (DP-SGD) for sensitive datasets"
+      - "Synthetic-data generation for training where real PII not required"
+      - "Pre-training scan: regex + presidio + redact"
+    refs: [AML.M0015]
+
+  - id: T_DWH_002
+    title: External data sharing / data clean rooms leak via inference outputs
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    maestro: [M.L2.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      Snowflake Data Share / BigQuery Authorised View / Redshift Data Sharing
+      exposes data to a partner; partner trains an AI model on it; partner's
+      model outputs leak the shared data back to a wider audience.
+    mitigations:
+      - "Contractual: prohibit using shared data as AI training input"
+      - "Sample-only data shares (cryptographically irreversible aggregation)"
+      - "Data-clean-rooms with row-count + cell-policy enforcement"
+    refs: [AML.M0019]
+
+  - id: T_DWH_003
+    title: Over-permissive Snowflake / BigQuery role grants direct access to training tables
+    stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API1:2023, API5:2023]
+    atlas: [AML.T0024, AML.T0040]
+    attack_cloud: [T1078.004, T1213]
+    attack_enterprise: [T1213]
+    maestro: [M.L4.06, M.L2.02]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 4
+    impact: 5
+    description: |
+      Snowflake `ACCOUNTADMIN` / BigQuery `Owner` / Redshift superuser
+      role granted broadly to analytics-team users for "convenience".
+      Any compromised analyst credential reads or rewrites every AI
+      training table. Compounded by warehouse data-share roles and
+      cross-account replication: one role can expose data far beyond
+      its intended audience.
+    mitigations:
+      - "Role-based access with least-privilege: per-schema / per-warehouse roles"
+      - "Quarterly access review with explicit re-attestation; auto-revoke unused privileges"
+      - "Snowflake `MASKING POLICY` / BigQuery column-level security on PII"
+      - "Query-audit log → SIEM with alerts on bulk-extract patterns"
+    refs: [T1078.004, T1213, API5:2023]

@@ -1,0 +1,228 @@
+# OWASP Machine Learning Security Top 10 (2023)
+# Source: https://owasp.org/www-project-machine-learning-security-top-10/
+#
+# This is the classic ML-pipeline list (predictive ML + MLOps), distinct
+# from OWASP LLM Top 10 (which ATMS already covers). Key for non-LLM ML
+# systems: fraud detection, recommender systems, computer vision, etc.
+
+- id: ML01:2023
+  title: Input Manipulation Attack
+  short: input_manipulation
+  description: |
+    Adversaries craft inputs (adversarial examples, perturbations) to
+    cause an ML model to misclassify. Includes evasion, transferable,
+    and physical-world attacks.
+  applies_to:
+    - llm_inference
+    - embedding_service
+    - guardrails
+    - output_filter
+    - external_api
+  keywords:
+    - adversarial
+    - perturbation
+    - evasion
+    - misclassify
+    - input
+    - manipulation
+  patterns:
+    - Adversarial examples crafted with FGSM / PGD / DeepFool
+    - Physical-world adversarial patches (sticker on a stop sign)
+    - Transferable attacks via surrogate models
+
+- id: ML02:2023
+  title: Data Poisoning Attack
+  short: data_poisoning
+  description: |
+    Adversaries inject malicious examples into the training set to
+    degrade or backdoor the model.
+  applies_to:
+    - training_pipeline
+    - fine_tuning_pipeline
+    - data_source
+    - rag_vector_store
+  keywords:
+    - poisoning
+    - poison
+    - corrupt
+    - tampered
+    - training
+    - data quality
+  patterns:
+    - Label flipping in crowd-sourced data
+    - Backdoor via rare-class injection
+    - Targeted poisoning of one class only
+
+- id: ML03:2023
+  title: Model Inversion Attack
+  short: model_inversion
+  description: |
+    Adversaries reconstruct training-set features (or whole records)
+    from the model's outputs.
+  applies_to:
+    - llm_inference
+    - embedding_service
+    - training_pipeline
+    - fine_tuning_pipeline
+  keywords:
+    - inversion
+    - reconstruct
+    - feature
+    - extraction
+    - regurgitate
+    - memorize
+  patterns:
+    - Face reconstruction from face-recognition model outputs
+    - Verbatim training-text recovery from LLM
+    - Embedding inversion to recover original text
+
+- id: ML04:2023
+  title: Membership Inference Attack
+  short: membership_inference
+  description: |
+    Adversaries determine whether a specific record was in the
+    training set, which itself can be sensitive.
+  applies_to:
+    - llm_inference
+    - training_pipeline
+    - rag_vector_store
+    - embedding_service
+  keywords:
+    - membership
+    - inference
+    - reidentify
+    - training
+    - record
+    - presence
+  patterns:
+    - Confidence-based membership inference
+    - Query-budget exhaustion to mine membership signal
+
+- id: ML05:2023
+  title: Model Theft
+  short: model_theft
+  description: |
+    Adversaries copy a model via repeated queries (model extraction)
+    or by exfiltrating weights from the registry.
+  applies_to:
+    - llm_inference
+    - model_registry
+    - embedding_service
+    - api_gateway
+  keywords:
+    - extraction
+    - theft
+    - clone
+    - distill
+    - shadow model
+  patterns:
+    - Knowledge distillation against a black-box API
+    - Direct registry exfiltration via leaked credentials
+
+- id: ML06:2023
+  title: AI Supply-Chain Attacks
+  short: supply_chain
+  description: |
+    Compromised third-party datasets, pre-trained models, ML
+    libraries, or pickled artefacts.
+  applies_to:
+    - model_registry
+    - training_pipeline
+    - fine_tuning_pipeline
+    - external_api
+    - container_runtime
+  keywords:
+    - supply chain
+    - third-party
+    - pickle
+    - pretrained
+    - typosquat
+    - dependency
+    - sbom
+  patterns:
+    - Malicious pickle in HuggingFace download
+    - Typosquatted ML package on PyPI
+    - Backdoored pre-trained model from public hub
+
+- id: ML07:2023
+  title: Transfer Learning Attack
+  short: transfer_learning
+  description: |
+    Backdoor planted in a pre-trained model that survives fine-tuning
+    and activates in the downstream application.
+  applies_to:
+    - fine_tuning_pipeline
+    - model_registry
+    - llm_inference
+  keywords:
+    - transfer
+    - learning
+    - backdoor
+    - fine-tune
+    - sleeper
+  patterns:
+    - Sleeper-backdoor that triggers only on a specific phrase
+    - Domain-shift backdoor (active only post fine-tune)
+
+- id: ML08:2023
+  title: Model Skewing
+  short: model_skewing
+  description: |
+    Adversary feeds skewed feedback to the model's online-learning
+    loop to bias its future decisions (e.g. recommender abuse).
+  applies_to:
+    - llm_inference
+    - rag_vector_store
+    - data_source
+  keywords:
+    - feedback
+    - skew
+    - online learning
+    - bias
+    - manipulation
+  patterns:
+    - Click-fraud against recommender feedback loop
+    - Brigaded review-bombing against content rankers
+
+- id: ML09:2023
+  title: Output Integrity Attack
+  short: output_integrity
+  description: |
+    Adversary tampers with the model's outputs after inference but
+    before consumption (man-in-the-middle, log tampering, post-process
+    bypass).
+  applies_to:
+    - api_gateway
+    - output_filter
+    - observability_stack
+    - external_api
+  keywords:
+    - output
+    - integrity
+    - tamper
+    - mitm
+    - middleware
+  patterns:
+    - Output filter disabled by config drift
+    - Post-process step bypassed via API gateway misroute
+
+- id: ML10:2023
+  title: Model Poisoning (architectural / weight-level)
+  short: model_poisoning
+  description: |
+    Adversary modifies model weights or architecture directly (vs.
+    data poisoning), e.g. via compromised registry, malicious commit
+    to model repo.
+  applies_to:
+    - model_registry
+    - training_pipeline
+    - fine_tuning_pipeline
+  keywords:
+    - weight
+    - tampering
+    - registry
+    - integrity
+    - signed
+  patterns:
+    - Unsigned model promoted to production
+    - Direct weight edit via compromised CI

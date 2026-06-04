@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "title": "Demo Threat Model",
+    "owner": "Mike Goodwin",
+    "description": "A sample model of a web application, with a queue-decoupled background process.",
+    "id": 0
+  },
+  "detail": {
+    "contributors": [{"name": "Tom Brown"}, {"name": "Albert Moneypenny"}],
+    "_note": "Source: https://raw.githubusercontent.com/OWASP/threat-dragon/main/ThreatDragonModels/demo-threat-model.json (fetched 2026-05-16). Used here as a real-world reference to benchmark ATMS coverage vs. a hand-authored Threat Dragon model. 7 elements (1 actor, 2 processes, 4 stores), 12 data flows, 3 trust boundaries, 14 hand-authored threats.",
+    "reviewer": "Jane Smith"
+  }
+}

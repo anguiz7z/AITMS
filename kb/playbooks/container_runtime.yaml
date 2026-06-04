@@ -1,0 +1,102 @@
+component_type: container_runtime
+description: |
+  Container compute — AWS ECS / Fargate / EKS, Azure Container Apps / AKS,
+  GCP Cloud Run / GKE. Hosts the AI inference / agent / training workloads.
+threats:
+  - id: T_CONT_001
+    title: Container running as root with broad mount access
+    stride_ai: [Elevation_of_Privilege]
+    owasp_api: [API8:2023]
+    attack_cloud: [T1059, T1190]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Container runs as UID 0 with `--privileged` or wide host mounts.
+      Container escape (CVE in runtime, kernel exploit, hostPath misuse)
+      pivots from app compromise to host compromise.
+    mitigations:
+      - "Non-root user in every Dockerfile (`USER 1000`)"
+      - "Drop ALL capabilities; allow only what's needed"
+      - "Pod Security Admission / OPA Gatekeeper enforces baseline"
+      - "No `--privileged`; no host-PID / host-network sharing"
+    refs: [AML.M0019]
+
+  - id: T_CONT_002
+    title: Image from untrusted registry / unsigned
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM03:2025]
+    owasp_agentic: [AGT17]
+    owasp_api: [API10:2023]
+    atlas: [AML.T0010]
+    attack_cloud: [T1525, T1078.004]
+    maestro: [M.L4.01, M.X.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Pod / task pulls images from public Docker Hub (or a public mirror) by
+      tag without signature verification. Tag-mutation or registry-takeover
+      attacks insert backdoored images.
+    mitigations:
+      - "Pin images by digest, not tag (`@sha256:...`)"
+      - "Cosign / Notation signature verification at admission"
+      - "Private registry with vulnerability scanning gate"
+      - "Image admission policy (Kyverno, OPA) enforcing both"
+    refs: [AML.M0011, AML.M0014, AML.M0017]
+
+  - id: T_CONT_003
+    title: Pod identity over-provisioned (IRSA / Workload Identity)
+    stride_ai: [Elevation_of_Privilege]
+    owasp_llm: [LLM06:2025]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0050]
+    attack_cloud: [T1078.004, T1098.003]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Service-account-to-IAM mapping (IRSA on EKS, Workload Identity on GKE,
+      Azure AD Workload Identity on AKS) grants more cloud privileges than the
+      pod needs. Compromise of any container in the pod yields the role.
+    mitigations:
+      - "One service-account per workload; per-workload IAM role"
+      - "Audit IRSA / Workload Identity bindings; least-privilege Resource ARNs"
+      - "OPA / Kyverno policy to flag unbounded role attachments"
+    refs: [AML.M0019]
+
+  - id: T_CONT_004
+    title: Cryptojacking / abuse of GPU compute
+    stride_ai: [Denial_of_Service]
+    owasp_api: [API4:2023]
+    attack_cloud: [T1496]
+    maestro: [M.L4.05]
+    likelihood: 2
+    impact: 4
+    description: |
+      Adversary with cluster access (compromised CI, stolen kubeconfig)
+      schedules cryptominers / unauthorised model training onto GPU nodes.
+      Cost amplification is the visible signal.
+    mitigations:
+      - "ResourceQuota per namespace; limit GPU access to known workloads"
+      - "Admission control on pod spec (image, command, resource requests)"
+      - "GPU utilisation anomaly detection; alert on out-of-pattern jobs"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_CONT_005
+    title: Logs / shell access from compromised dev / CI
+    stride_ai: [Information_Disclosure, Tampering]
+    owasp_api: [API2:2023]
+    attack_cloud: [T1078.004, T1059]
+    maestro: [M.L7.03]
+    likelihood: 3
+    impact: 4
+    description: |
+      Adversary phishes a dev's kubeconfig or compromises a CI runner;
+      `kubectl exec` or `kubectl logs` exposes prompts, customer data,
+      secrets baked into pod env. Same vector as a normal app but
+      AI workloads handle PII at higher density.
+    mitigations:
+      - "Cluster RBAC restricting `exec` / `logs` to break-glass roles"
+      - "Audit log streaming with `exec` / `port-forward` alerts"
+      - "Hardware-backed kubeconfig (yubikey-protected) for any prod access"
+    refs: [AML.M0019, AML.M0023]

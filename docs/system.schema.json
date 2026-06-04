@@ -1,0 +1,362 @@
+{
+  "$defs": {
+    "Component": {
+      "description": "A node in the AI system architecture.",
+      "properties": {
+        "controls": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Controls",
+          "type": "array"
+        },
+        "description": {
+          "default": "",
+          "maxLength": 1000,
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "maestro_layers": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Maestro Layers",
+          "type": "array"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "title": "Metadata",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "trust_zone": {
+          "default": "default",
+          "maxLength": 64,
+          "title": "Trust Zone",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "llm_inference",
+            "rag_vector_store",
+            "agent",
+            "tool",
+            "mcp_server",
+            "training_pipeline",
+            "fine_tuning_pipeline",
+            "embedding_service",
+            "prompt_template_store",
+            "model_registry",
+            "guardrails",
+            "output_filter",
+            "ml_feature_store",
+            "ml_pipeline_orchestrator",
+            "ml_data_labeling",
+            "ml_experiment_tracker",
+            "ml_inference_endpoint",
+            "vision_pipeline",
+            "speech_pipeline",
+            "content_safety_classifier",
+            "data_source",
+            "external_api",
+            "user",
+            "cloud_compute",
+            "serverless_function",
+            "container_runtime",
+            "container_orchestrator",
+            "container_registry",
+            "edge_compute",
+            "batch_compute",
+            "high_performance_compute",
+            "object_storage",
+            "block_storage",
+            "file_storage",
+            "data_lake",
+            "data_warehouse",
+            "cache_store",
+            "backup_service",
+            "database",
+            "nosql_database",
+            "graph_database",
+            "time_series_database",
+            "message_queue",
+            "stream_processor",
+            "etl_orchestrator",
+            "load_balancer",
+            "cdn",
+            "api_gateway",
+            "service_mesh",
+            "private_link",
+            "network_segment",
+            "transit_gateway",
+            "dns_service",
+            "firewall",
+            "waf",
+            "ids_ips",
+            "ddos_mitigation",
+            "web_proxy",
+            "reverse_proxy",
+            "vpn_gateway",
+            "router",
+            "network_switch",
+            "switch_l3",
+            "sdwan_edge",
+            "network_access_control",
+            "bastion_host",
+            "pam_vault",
+            "iam_principal",
+            "directory_service",
+            "identity_provider",
+            "mfa_service",
+            "sso_service",
+            "ciam_platform",
+            "secrets_vault",
+            "kms_key",
+            "certificate_manager",
+            "hsm",
+            "siem",
+            "soar",
+            "edr_agent",
+            "vulnerability_scanner",
+            "casb",
+            "dlp",
+            "cspm",
+            "container_security",
+            "security_data_lake",
+            "observability_stack",
+            "log_aggregator",
+            "metrics_platform",
+            "tracing_platform",
+            "alerting_platform",
+            "endpoint",
+            "server_windows",
+            "server_linux",
+            "server_unix",
+            "mainframe",
+            "legacy_mainframe",
+            "virtual_desktop",
+            "mobile_device",
+            "mdm_emm",
+            "plc",
+            "rtu",
+            "ied",
+            "hmi",
+            "scada",
+            "dcs",
+            "sis",
+            "industrial_protocol",
+            "iot_device",
+            "iot_gateway",
+            "ot_jumphost",
+            "web_application",
+            "email_server",
+            "file_transfer_service",
+            "code_repository",
+            "ci_cd_pipeline",
+            "artifact_registry",
+            "build_runner",
+            "feature_flag_service",
+            "iac_template_registry",
+            "other"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "type"
+      ],
+      "title": "Component",
+      "type": "object"
+    },
+    "Dataflow": {
+      "description": "A directed flow of data between components.",
+      "properties": {
+        "crosses_boundary": {
+          "default": false,
+          "title": "Crosses Boundary",
+          "type": "boolean"
+        },
+        "data_classification": {
+          "default": "internal",
+          "title": "Data Classification",
+          "type": "string"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        },
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "target"
+      ],
+      "title": "Dataflow",
+      "type": "object"
+    },
+    "TrustBoundary": {
+      "description": "A boundary separating components in different trust zones.",
+      "properties": {
+        "components_inside": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Components Inside",
+          "type": "array"
+        },
+        "components_outside": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Components Outside",
+          "type": "array"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "network",
+            "identity",
+            "data_classification",
+            "tenancy",
+            "deployment_zone"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "type"
+      ],
+      "title": "TrustBoundary",
+      "type": "object"
+    }
+  },
+  "$id": "https://raw.githubusercontent.com/anguiz7z/AITMS/main/docs/system.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The user-supplied AI system description (input to the workflow).",
+  "properties": {
+    "business_context": {
+      "default": "",
+      "title": "Business Context",
+      "type": "string"
+    },
+    "components": {
+      "items": {
+        "$ref": "#/$defs/Component"
+      },
+      "title": "Components",
+      "type": "array"
+    },
+    "dataflows": {
+      "items": {
+        "$ref": "#/$defs/Dataflow"
+      },
+      "title": "Dataflows",
+      "type": "array"
+    },
+    "deployment_stage": {
+      "default": "pilot",
+      "enum": [
+        "poc",
+        "pilot",
+        "production"
+      ],
+      "title": "Deployment Stage",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "industry": {
+      "default": "midmarket_other",
+      "enum": [
+        "tier1_bank",
+        "regional_bank",
+        "fintech",
+        "insurer",
+        "healthcare_provider",
+        "pharma_biotech",
+        "tech_saas",
+        "ecommerce",
+        "media_entertainment",
+        "telecom",
+        "manufacturing",
+        "energy_utility",
+        "critical_infrastructure",
+        "government_defense",
+        "education",
+        "smb_other",
+        "midmarket_other"
+      ],
+      "title": "Industry",
+      "type": "string"
+    },
+    "is_high_risk_under_eu_ai_act": {
+      "default": false,
+      "title": "Is High Risk Under Eu Ai Act",
+      "type": "boolean"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "revenue_bucket": {
+      "default": "unknown",
+      "enum": [
+        "under_50m",
+        "50m_to_500m",
+        "500m_to_5b",
+        "over_5b",
+        "unknown"
+      ],
+      "title": "Revenue Bucket",
+      "type": "string"
+    },
+    "trust_boundaries": {
+      "items": {
+        "$ref": "#/$defs/TrustBoundary"
+      },
+      "title": "Trust Boundaries",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "components"
+  ],
+  "title": "System",
+  "type": "object"
+}

@@ -1,0 +1,72 @@
+component_type: virtual_desktop
+description: |
+  Cloud-hosted virtual desktop — Azure Virtual Desktop, Amazon WorkSpaces,
+  Citrix Cloud, VMware Horizon. Used as a hardened workstation for
+  ML researchers / analysts accessing training data and model artifacts.
+threats:
+  - id: T_VDI_001
+    title: Clipboard / drive-redirect exfil of model weights or training data
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0040, AML.T0024]
+    attack_cloud: [T1041]
+    attack_enterprise: [T1052.001]
+    maestro: [M.L7.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      VDI policy allows clipboard pass-through and local-drive redirection.
+      An ML researcher with legitimate VDI access copies model weights,
+      training datasets, or proprietary fine-tuning corpora to their local
+      machine — defeating the whole point of keeping data in the VDI.
+    mitigations:
+      - "Disable clipboard out-bound + local-drive redirection in VDI host pool policy"
+      - "Watermarking of session content (e.g. user identity embedded in screen pixels)"
+      - "DLP at the VDI gateway scans for model-weight / training-data patterns"
+    refs: [AML.M0019]
+
+  - id: T_VDI_002
+    title: VDI image vulnerability / unpatched OS = AI training-host compromise
+    stride_ai: [Elevation_of_Privilege]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0040]
+    attack_cloud: [T1190]
+    attack_enterprise: [T1190]
+    maestro: [M.L4.05]
+    likelihood: 4
+    impact: 4
+    description: |
+      Gold image for VDI is patched monthly at best; rapid OS-CVEs leave
+      a window where any researcher's VDI session is exploitable. A pivot
+      from a compromised VDI session reaches the AI training pipeline,
+      model registry, or feature store the researcher has access to.
+    mitigations:
+      - "Image-bake pipeline runs daily; new sessions always boot from the latest"
+      - "VDI session firewall: egress only to required AI services"
+      - "Researcher MFA + conditional access on every VDI session start"
+    refs: [AML.M0019]
+
+  - id: T_VDI_003
+    title: VDI host-pool credential theft → admin compromise of training fleet
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    owasp_api: [API2:2023, API5:2023]
+    atlas: [AML.T0040]
+    attack_cloud: [T1078.004, T1552.001]
+    attack_enterprise: [T1078, T1552.001, T1003]
+    maestro: [M.L7.03, M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      VDI host-pool service principal / managed identity has broad rights
+      (deploy session hosts, mount storage). Token-replay attacks on the
+      VDI session, NTLM-hash dump from a memory-resident process, or
+      golden-SAML against the host-pool grants the attacker control of
+      every VDI session. From there: lateral pivot into the AI training
+      VPC the host pool peers with.
+    mitigations:
+      - "Host-pool managed identity scoped to its own resource group only; no cross-RG IAM"
+      - "Credential Guard / LSASS-protection on every VDI session host (blocks Mimikatz-style hash extraction)"
+      - "Session-host network-isolation: AI-training VPC reached only via dedicated bastion path with MFA"
+      - "Periodic host-pool credential rotation + offline-monitoring of session-host token usage"
+    refs: [T1078, T1552.001, T1003]

@@ -1,0 +1,105 @@
+component_type: ot_jumphost
+description: |
+  Engineering workstation / jumphost positioned at the IT-OT boundary
+  (typically Purdue Level 3 or 3.5 DMZ). Vendors and internal
+  engineers connect through this host to administer downstream OT
+  assets (PLC / DCS / SIS / HMI / IED / RTU). Crown-jewel target —
+  one compromise opens every controller it reaches.
+threats:
+  - id: T_OTJUMP_001
+    title: Jumphost compromise pivots into entire OT environment
+    stride_ai: [Elevation_of_Privilege, Tampering, Lateral_Movement]
+    attack_enterprise: [T1021, T1078, T1570]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Jumphost has line-of-sight to every controller in the OT zone
+      and stores or relays administrator credentials. RCE on the
+      jumphost (browser exploit, malicious vendor patch, MS-RPC
+      vulnerability) inherits these credentials and the broad
+      egress. The Colonial Pipeline 2021 incident and many other
+      OT pivots used this pattern.
+    mitigations:
+      - "Jumphost dedicated, hardened, no internet browsing, no email"
+      - "Application allowlist (AppLocker / WDAC) and immutable OS image"
+      - "Just-in-time privileged access via PAM vault; no static passwords on the box"
+      - "Session recording on every connection; out-of-band logging"
+    refs: [T0859, T0883, AML.M0019]
+
+  - id: T_OTJUMP_002
+    title: Vendor remote-support session abuse / lingering vendor access
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    attack_enterprise: [T1133, T1078.004]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Vendors connect via TeamViewer / proprietary remote-support /
+      Bomgar to the jumphost for support. Sessions get left open;
+      accounts persist after contract end; vendor's home network
+      is the attacker's actual entry point. Target 2013 entry
+      pattern revisited annually in OT incidents.
+    mitigations:
+      - "All vendor access through corporate PAM vault, time-bound, ticket-bound"
+      - "MFA for every external party; vendor-specific identity store"
+      - "Session-recording + reviewer on high-impact vendor sessions"
+      - "Quarterly access-recert of all vendor accounts"
+    refs: [T0883, T0822, AML.M0019]
+
+  - id: T_OTJUMP_003
+    title: Credential harvesting via jumphost memory / browser saved-passwords
+    stride_ai: [Information_Disclosure, Spoofing]
+    attack_enterprise: [T1003, T1555]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Engineers save passwords for HMI / DCS / SIS engineering tools
+      in browser autofill, or leave Mimikatz-recoverable credentials
+      in LSASS after legitimate logon. Attacker on the jumphost dumps
+      credentials covering the entire OT estate.
+    mitigations:
+      - "Credential Guard / LSA Protection enabled on the jumphost"
+      - "Disable browser password storage via Group Policy"
+      - "Per-session ephemeral credentials from PAM vault; never typed by the user"
+      - "EDR with credential-theft signatures and behavioural detection"
+    refs: [T0859, AML.M0019]
+
+  - id: T_OTJUMP_004
+    title: Outbound internet from jumphost enables C2 / exfiltration
+    stride_ai: [Information_Disclosure, Defense_Evasion]
+    attack_enterprise: [T1071, T1041]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Jumphost has direct internet egress (often "just for patching"
+      or "vendor portal access"). Once compromised, the jumphost is
+      a reliable C2 channel and an exfiltration path for OT-side
+      data (engineering files, historian dumps, project archives).
+    mitigations:
+      - "Default-deny egress; only explicit allowlist (vendor patch FQDNs) over a proxy"
+      - "All outbound through proxy with TLS-inspection and SIEM telemetry"
+      - "Periodic egress-firewall rule audit"
+      - "DNS-RPZ to block known OT-targeting C2 infrastructure"
+    refs: [T0884, T0867, AML.M0019]
+
+  - id: T_OTJUMP_005
+    title: OS / patch lag on jumphost due to OT change-control friction
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1203, T1068]
+    maestro: [M.X.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      OT change control requires plant-management approval for any
+      patch, leading to multi-month patch lag on the jumphost OS.
+      Public CVEs (especially in RDP, Print Spooler, WinRM) provide
+      reliable RCE on the unpatched jumphost.
+    mitigations:
+      - "Critical CVE patching SLA carve-out for jumphost (max 30 days)"
+      - "Microsegmentation: jumphost as its own VLAN with host firewall"
+      - "Virtual-patching at network IPS for known CVE exploits"
+      - "Maintenance-window cadence for jumphost patching aligned with patch-Tuesday +14d"
+    refs: [AML.M0007, T0857]

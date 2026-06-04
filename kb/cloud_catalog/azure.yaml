@@ -1,0 +1,1867 @@
+# ATMS Azure cloud service catalog (v0.16.0)
+# -------------------------------------------------------------------------
+# Canonical list of Microsoft Azure services that may appear inside ATMS
+# threat models. Each entry maps a vendor service to an ATMS ComponentType
+# so that the engine can apply the correct STRIDE / MAESTRO / OWASP-LLM /
+# OWASP-Agentic playbooks automatically when a user picks the service in
+# the GUI editor.
+#
+# Schema (see kb/cloud_catalog/README for the full spec):
+#   vendor                : "Azure" (case-insensitive — matches metadata.vendor)
+#   product               : canonical short ID (snake_case, lowercase)
+#   display_name          : human readable label
+#   component_type        : MUST be in the ATMS ComponentType literal list
+#   service_category      : free-text grouping (compute / storage / ai / ...)
+#   applies_to_ai_workflows: true for AI/ML, identity, anything an LLM agent
+#                            may directly invoke as a tool. False for pure
+#                            infra plumbing.
+#   threats_specific      : per-service threats not already covered by the
+#                            generic playbook (empty unless we have a strong
+#                            signal — over-claiming creates noise).
+#   references            : canonical vendor doc URL(s)
+#   ai_context            : free text — why this matters for AI workflows
+# -------------------------------------------------------------------------
+
+# ────────────────────────── Compute ────────────────────────────────────────
+- vendor: Azure
+  product: virtual_machines
+  display_name: Azure Virtual Machines
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/virtual-machines/
+  ai_context: |
+    Hosts self-managed inference runtimes, RAG indexers, fine-tuning jobs and
+    agent processes. Tenant retains full responsibility for OS patching,
+    secret-handling and outbound network egress used for model calls.
+
+- vendor: Azure
+  product: vmss
+  display_name: Azure Virtual Machine Scale Sets
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/virtual-machine-scale-sets/
+  ai_context: |
+    Common backing for stateless inference fleets and burst RAG ingestion
+    workers. Auto-scaling can mask resource-exhaustion / DoW (Denial-of-Wallet)
+    attacks against LLM endpoints.
+
+- vendor: Azure
+  product: aks
+  display_name: Azure Kubernetes Service (AKS)
+  component_type: container_orchestrator
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/aks/
+  ai_context: |
+    Most common host for KServe / KubeRay / vLLM / Triton deployments and for
+    LangChain/LangGraph agent runtimes. Workload identity and pod-level network
+    policies are the primary controls against lateral movement from a
+    compromised tool container.
+
+- vendor: Azure
+  product: container_instances
+  display_name: Azure Container Instances (ACI)
+  component_type: container_runtime
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/container-instances/
+  ai_context: |
+    Often used to spin up short-lived MCP servers or sandboxed code-execution
+    tools invoked by agents. No shared cluster context limits blast radius
+    but each instance still inherits the managed identity it is bound to.
+
+- vendor: Azure
+  product: app_service
+  display_name: Azure App Service
+  component_type: web_application
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/app-service/
+  ai_context: |
+    Hosts user-facing chat UIs and the public HTTPS surface of agent backends.
+    Combined with Easy Auth this is where most prompt-injection payloads first
+    arrive.
+
+- vendor: Azure
+  product: container_apps
+  display_name: Azure Container Apps
+  component_type: container_runtime
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/container-apps/
+  ai_context: |
+    Serverless containers with KEDA scaling — frequently used for RAG ingestion
+    pipelines and LLM-backed microservices. Dapr integration adds an
+    agent-style sidecar invocation surface worth modelling separately.
+
+- vendor: Azure
+  product: functions
+  display_name: Azure Functions
+  component_type: serverless_function
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-functions/
+  ai_context: |
+    Glue between LLM agents and Azure services. A tool-call from the agent
+    often lands in a Function with a managed identity wider than the agent
+    itself — privilege-elevation pivot point.
+
+- vendor: Azure
+  product: batch
+  display_name: Azure Batch
+  component_type: batch_compute
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/batch/
+  ai_context: |
+    Used for offline embedding generation, large-scale fine-tuning data
+    preprocessing and bulk inference. Pool-level access to storage accounts
+    must be scoped tightly to prevent training-data exfiltration.
+
+- vendor: Azure
+  product: arc
+  display_name: Azure Arc
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-arc/
+  ai_context: |
+    Extends Azure control plane to on-prem and other clouds. When LLM agents
+    run against Arc-enrolled servers, the Arc agent is the trust pivot — its
+    compromise yields multi-cloud lateral movement.
+
+- vendor: Azure
+  product: dedicated_host
+  display_name: Azure Dedicated Host
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/virtual-machines/dedicated-hosts
+  ai_context: |
+    Physical isolation for compliance-bound model workloads (e.g., regulated
+    PII fine-tuning). Reduces side-channel risk from noisy neighbours.
+
+- vendor: Azure
+  product: spring_apps
+  display_name: Azure Spring Apps
+  component_type: web_application
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/spring-apps/
+  ai_context: |
+    Hosts Java-based AI orchestration apps (Spring AI). The platform handles
+    cert rotation and service registry — misconfigured ingress is the main
+    exposure for embedded LLM endpoints.
+
+# ────────────────────────── Storage ───────────────────────────────────────
+- vendor: Azure
+  product: blob_storage
+  display_name: Azure Blob Storage
+  component_type: object_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/storage/blobs/
+  ai_context: |
+    Primary store for RAG corpora, fine-tuning datasets, model artefacts and
+    chat transcripts. Anonymous-blob and over-broad SAS tokens are the
+    leading causes of training-data leakage in Azure-hosted AI systems.
+
+- vendor: Azure
+  product: data_lake_storage_gen2
+  display_name: Azure Data Lake Storage Gen2
+  component_type: data_lake
+  service_category: storage
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction
+  ai_context: |
+    Hierarchical-namespace blob used by Synapse, Databricks and Fabric to back
+    feature stores and training data lakes. ACL drift between filesystem and
+    blob ACLs is a common over-privilege source.
+
+- vendor: Azure
+  product: disk_storage
+  display_name: Azure Managed Disks
+  component_type: block_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/virtual-machines/managed-disks-overview
+  ai_context: |
+    Persistent block storage for GPU VMs running training/inference. Customer
+    managed keys (CMK) on disks scope blast radius if a VM is compromised.
+
+- vendor: Azure
+  product: files
+  display_name: Azure Files
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/storage/files/
+  ai_context: |
+    SMB/NFS share commonly mounted across AKS pods for shared model weights
+    and prompt template stores. Identity-based auth (Entra Kerberos) replaces
+    legacy storage-key auth for AI workloads.
+
+- vendor: Azure
+  product: netapp_files
+  display_name: Azure NetApp Files
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-netapp-files/
+  ai_context: |
+    High-throughput NFS for HPC and large-model training checkpoints. Often
+    chosen for Llama-class fine-tuning runs.
+
+- vendor: Azure
+  product: backup
+  display_name: Azure Backup
+  component_type: backup_service
+  service_category: storage
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/backup/
+  ai_context: |
+    Recovery Services Vaults hold encrypted backups including model weights
+    and vector DBs. Soft-delete + immutability protects against ransomware on
+    training assets.
+
+- vendor: Azure
+  product: site_recovery
+  display_name: Azure Site Recovery
+  component_type: backup_service
+  service_category: storage
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/site-recovery/
+  ai_context: |
+    DR replication for VMs running self-hosted inference. Failover playbooks
+    should be exercised against AI workloads with realistic RPO targets.
+
+- vendor: Azure
+  product: storsimple
+  display_name: Azure StorSimple
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/storsimple/
+  ai_context: |
+    Legacy hybrid storage appliance (retiring). Migration target should be
+    Files or NetApp Files for AI training data.
+
+- vendor: Azure
+  product: storage_mover
+  display_name: Azure Storage Mover
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/storage-mover/
+  ai_context: |
+    Migration service used to onboard on-prem training corpora into Blob/ADLS.
+    Service principal scope should be limited to the migration window.
+
+# ────────────────────────── Database ──────────────────────────────────────
+- vendor: Azure
+  product: sql_database
+  display_name: Azure SQL Database
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-sql/database/
+  ai_context: |
+    Frequently used as a Text-to-SQL target by LLM agents — Always Encrypted
+    + row-level security are the dominant controls against agent-driven
+    data exfiltration.
+
+- vendor: Azure
+  product: sql_managed_instance
+  display_name: Azure SQL Managed Instance
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-sql/managed-instance/
+  ai_context: |
+    Near-100% SQL-Server compatibility with VNet integration. Often the
+    landing zone for lift-and-shifted PII datasets used in RAG pipelines.
+
+- vendor: Azure
+  product: postgresql_flexible_server
+  display_name: Azure Database for PostgreSQL Flexible Server
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/
+  ai_context: |
+    Hosts pgvector — by far the most common low-cost RAG vector store in
+    Azure. Same instance frequently holds both vectors and source PII which
+    amplifies blast radius on agent prompt injection.
+
+- vendor: Azure
+  product: mysql_flexible_server
+  display_name: Azure Database for MySQL Flexible Server
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/mysql/flexible-server/
+  ai_context: |
+    Common backend for application metadata that agents query. Private
+    Endpoint should be enforced if accessible from LLM tool calls.
+
+- vendor: Azure
+  product: mariadb
+  display_name: Azure Database for MariaDB
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/mariadb/
+  ai_context: |
+    Legacy managed MariaDB (retirement announced). Migration target is
+    typically MySQL Flexible Server for AI/analytics workloads.
+
+- vendor: Azure
+  product: cosmos_db
+  display_name: Azure Cosmos DB
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/cosmos-db/
+  ai_context: |
+    Backend store for the Microsoft-hosted Foundry Agent Service — tenant has
+    no direct visibility, increasing supply-chain risk on the Microsoft side.
+    Also widely used as a vector store (Cosmos DB for NoSQL vector search).
+
+- vendor: Azure
+  product: cosmos_db_mongo
+  display_name: Azure Cosmos DB for MongoDB (vCore)
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/cosmos-db/mongodb/vcore/
+  ai_context: |
+    MongoDB-compatible API with native vector search — frequently used as a
+    RAG store with chat-history co-resident, so a single injection can pivot
+    across both surfaces.
+
+- vendor: Azure
+  product: cosmos_db_cassandra
+  display_name: Azure Cosmos DB for Apache Cassandra
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/cosmos-db/cassandra/
+  ai_context: |
+    Cassandra-compatible API. Frequently chosen for high-throughput telemetry
+    backing AI observability stacks.
+
+- vendor: Azure
+  product: cosmos_db_gremlin
+  display_name: Azure Cosmos DB for Gremlin
+  component_type: graph_database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/cosmos-db/gremlin/
+  ai_context: |
+    Graph store sometimes used for GraphRAG style knowledge graphs feeding
+    LLM agents. Inject-via-query patterns are the main concern.
+
+- vendor: Azure
+  product: cosmos_db_table
+  display_name: Azure Cosmos DB for Table
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/cosmos-db/table/
+  ai_context: |
+    Premium evolution of Azure Table Storage. Often paired with Functions for
+    AI event metadata.
+
+- vendor: Azure
+  product: cache_for_redis
+  display_name: Azure Cache for Redis
+  component_type: cache_store
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-cache-for-redis/
+  ai_context: |
+    Holds LLM response caches, agent short-term memory and rate-limit
+    counters. A poisoned cache entry can replay malicious model output to
+    every downstream agent until invalidated.
+
+- vendor: Azure
+  product: sql_server_on_vms
+  display_name: SQL Server on Azure VMs
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-sql/virtual-machines/
+  ai_context: |
+    IaaS SQL Server. Tenant owns CU/CVE patching; commonly holds the system
+    of record that an LLM agent translates natural-language queries against.
+
+- vendor: Azure
+  product: synapse_analytics
+  display_name: Azure Synapse Analytics
+  component_type: data_warehouse
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/synapse-analytics/
+  ai_context: |
+    Unified analytics platform — frequently the source-of-truth used by AI
+    Search / Cognitive Search to populate RAG indices. Workspace identity
+    boundaries are easy to mis-scope.
+
+- vendor: Azure
+  product: fabric
+  display_name: Microsoft Fabric
+  component_type: data_warehouse
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/fabric/
+  ai_context: |
+    Unified data platform (OneLake, Warehouse, Lakehouse, Real-Time) with
+    Copilot integration. Workspace permissions translate directly to
+    Copilot's data reach.
+
+- vendor: Azure
+  product: data_explorer
+  display_name: Azure Data Explorer (Kusto)
+  component_type: time_series_database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/data-explorer/
+  ai_context: |
+    KQL store used by Sentinel and Application Insights — increasingly used
+    as a natural-language analytics target ("ask Copilot to summarise the
+    logs"). Row-level security gates this.
+
+# ────────────────────────── Network ───────────────────────────────────────
+- vendor: Azure
+  product: vnet
+  display_name: Azure Virtual Network
+  component_type: network_segment
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/virtual-network/
+  ai_context: |
+    Foundational network boundary. AI workloads should sit in dedicated
+    subnets with NSGs that block direct internet egress except through a
+    firewall/proxy.
+
+- vendor: Azure
+  product: expressroute
+  display_name: Azure ExpressRoute
+  component_type: vpn_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/expressroute/
+  ai_context: |
+    Private fibre into Azure. Carries on-prem RAG sources, training corpora
+    and inference traffic from regulated workloads.
+
+- vendor: Azure
+  product: vpn_gateway
+  display_name: Azure VPN Gateway
+  component_type: vpn_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/vpn-gateway/
+  ai_context: |
+    Site-to-site / point-to-site IPsec. Often the path through which an
+    on-prem ETL pushes training data into ADLS.
+
+- vendor: Azure
+  product: front_door
+  display_name: Azure Front Door
+  component_type: cdn
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/frontdoor/
+  ai_context: |
+    Global L7 with bundled WAF. Sits in front of public chat UIs and agent
+    APIs — rate-limit and bot-management rules are the first defence against
+    DoW (denial-of-wallet) attacks on LLMs.
+
+- vendor: Azure
+  product: application_gateway
+  display_name: Azure Application Gateway
+  component_type: load_balancer
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/application-gateway/
+  ai_context: |
+    Regional L7 with WAF v2 — fronts AKS-hosted inference services. Custom
+    rules can block prompt-injection signatures at the edge.
+
+- vendor: Azure
+  product: load_balancer
+  display_name: Azure Load Balancer
+  component_type: load_balancer
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/load-balancer/
+  ai_context: |
+    L4 only. Common for internal inference pools where TLS terminates at the
+    pod.
+
+- vendor: Azure
+  product: traffic_manager
+  display_name: Azure Traffic Manager
+  component_type: dns_service
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/traffic-manager/
+  ai_context: |
+    DNS-level traffic distribution. Useful for multi-region active-active
+    LLM endpoints with regional data residency.
+
+- vendor: Azure
+  product: cdn
+  display_name: Azure CDN
+  component_type: cdn
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/cdn/
+  ai_context: |
+    Edge caching. Retiring in favour of Front Door — static assets only,
+    AI APIs should not be cached at the CDN layer.
+
+- vendor: Azure
+  product: ddos_protection
+  display_name: Azure DDoS Protection
+  component_type: ddos_mitigation
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ddos-protection/
+  ai_context: |
+    L3/L4 volumetric protection. AI endpoints are favoured DDoS targets
+    because each request costs significant inference budget.
+
+- vendor: Azure
+  product: firewall
+  display_name: Azure Firewall
+  component_type: firewall
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/firewall/
+  ai_context: |
+    Stateful, managed firewall. Critical egress chokepoint when LLM agents
+    can dynamically construct outbound HTTPS calls — FQDN tags and TLS
+    inspection contain data exfil.
+
+- vendor: Azure
+  product: nat_gateway
+  display_name: Azure NAT Gateway
+  component_type: firewall
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/virtual-network/nat-gateway/
+  ai_context: |
+    Outbound SNAT. Pins source IPs for AI workloads needing IP allowlists at
+    third-party LLM providers (e.g., OpenAI direct).
+
+- vendor: Azure
+  product: bastion
+  display_name: Azure Bastion
+  component_type: bastion_host
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/bastion/
+  ai_context: |
+    Managed RDP/SSH jump host. The proper way to administer GPU VMs hosting
+    self-managed models without exposing 22/3389.
+
+- vendor: Azure
+  product: private_link
+  display_name: Azure Private Link
+  component_type: private_link
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/private-link/
+  ai_context: |
+    Brings PaaS endpoints (OpenAI, Cosmos, Storage, Key Vault) onto VNet
+    private IPs. The primary mitigation against tenant-side data exfiltration
+    via public endpoints.
+
+- vendor: Azure
+  product: virtual_wan
+  display_name: Azure Virtual WAN
+  component_type: transit_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/virtual-wan/
+  ai_context: |
+    Hub-and-spoke SD-WAN for global enterprises. Common transit for branch
+    offices that need to reach centralized AI services.
+
+- vendor: Azure
+  product: route_server
+  display_name: Azure Route Server
+  component_type: router
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/route-server/
+  ai_context: |
+    BGP peering with NVAs. Network-layer trust pivot — a compromised NVA can
+    blackhole AI service traffic.
+
+- vendor: Azure
+  product: dns
+  display_name: Azure DNS
+  component_type: dns_service
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/dns/
+  ai_context: |
+    Authoritative DNS for the chat UI vanity hostname. Hijacking the zone
+    redirects users to a phishing front-end that harvests prompts.
+
+- vendor: Azure
+  product: private_dns
+  display_name: Azure Private DNS
+  component_type: dns_service
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/dns/private-dns-overview
+  ai_context: |
+    Resolves Private Endpoint FQDNs to private IPs. Mis-resolution silently
+    breaks Private Link and falls back to public.
+
+- vendor: Azure
+  product: web_application_firewall
+  display_name: Azure Web Application Firewall
+  component_type: waf
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/web-application-firewall/
+  ai_context: |
+    Hosted on Front Door or App Gateway. Custom rules can drop crude
+    prompt-injection / DAN payloads before they reach the model.
+
+- vendor: Azure
+  product: network_watcher
+  display_name: Azure Network Watcher
+  component_type: observability_stack
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/network-watcher/
+  ai_context: |
+    NSG flow logs, packet capture and connection monitoring. Detective
+    control for unexpected agent egress.
+
+# ────────────────────────── Security / Identity ───────────────────────────
+- vendor: Azure
+  product: entra_id
+  display_name: Microsoft Entra ID (Azure AD)
+  component_type: identity_provider
+  service_category: identity
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/entra/identity/
+  ai_context: |
+    Master identity tenant — workload identities (managed identity, app
+    registrations) are how agents and tools authenticate to every other
+    Azure service. Token theft from an agent host = full impersonation.
+
+- vendor: Azure
+  product: entra_external_id
+  display_name: Microsoft Entra External ID
+  component_type: ciam_platform
+  service_category: identity
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/entra/external-id/
+  ai_context: |
+    CIAM for customer-facing chat assistants. The identity claims it issues
+    flow into the agent's authorization decisions.
+
+- vendor: Azure
+  product: entra_b2c
+  display_name: Microsoft Entra B2C
+  component_type: ciam_platform
+  service_category: identity
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/active-directory-b2c/
+  ai_context: |
+    Legacy CIAM (being merged into External ID). Custom policies are a
+    well-known injection surface during user-journey rendering.
+
+- vendor: Azure
+  product: entra_id_governance
+  display_name: Microsoft Entra ID Governance
+  component_type: iam_principal
+  service_category: identity
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/entra/id-governance/
+  ai_context: |
+    Access reviews and lifecycle workflows. Drives periodic recertification
+    of agent identities and their role assignments.
+
+- vendor: Azure
+  product: entra_id_protection
+  display_name: Microsoft Entra ID Protection
+  component_type: edr_agent
+  service_category: identity
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/entra/id-protection/
+  ai_context: |
+    Risk-based sign-in / user risk signals. Useful detective control for
+    detecting impossible-travel patterns from stolen agent tokens.
+
+- vendor: Azure
+  product: mfa
+  display_name: Microsoft Entra Multifactor Authentication
+  component_type: mfa_service
+  service_category: identity
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/entra/identity/authentication/concept-mfa-howitworks
+  ai_context: |
+    Human MFA only — non-interactive agent identities use cert/federation
+    instead. The split is a frequent design oversight.
+
+- vendor: Azure
+  product: defender_for_cloud
+  display_name: Microsoft Defender for Cloud
+  component_type: cspm
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/defender-for-cloud/
+  ai_context: |
+    CSPM + CWPP. Defender for AI Services (preview) detects abuse against
+    Azure OpenAI deployments — increasingly central to AI threat detection.
+
+- vendor: Azure
+  product: defender_for_endpoint
+  display_name: Microsoft Defender for Endpoint
+  component_type: edr_agent
+  service_category: security
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/defender-endpoint/
+  ai_context: |
+    EDR on VMs hosting self-managed inference and agent runtimes.
+
+- vendor: Azure
+  product: defender_for_identity
+  display_name: Microsoft Defender for Identity
+  component_type: edr_agent
+  service_category: security
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/defender-for-identity/
+  ai_context: |
+    Detects Active Directory lateral movement. Critical when AI workloads
+    reach back into AD DS for service accounts.
+
+- vendor: Azure
+  product: defender_for_cloud_apps
+  display_name: Microsoft Defender for Cloud Apps
+  component_type: casb
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/defender-cloud-apps/
+  ai_context: |
+    CASB — discovers shadow AI usage (employees pasting data into ChatGPT,
+    etc.) and applies session policies via reverse proxy.
+
+- vendor: Azure
+  product: defender_for_office_365
+  display_name: Microsoft Defender for Office 365
+  component_type: dlp
+  service_category: security
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/defender-office-365/
+  ai_context: |
+    Email phishing / collaboration security. Relevant if an LLM agent has
+    Exchange Online tools available.
+
+- vendor: Azure
+  product: sentinel
+  display_name: Microsoft Sentinel
+  component_type: siem
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/sentinel/
+  ai_context: |
+    Cloud SIEM, increasingly Copilot-driven. Both a detection target (model
+    logs ingested) and a Copilot-for-Security risk (prompt injection via
+    log content).
+
+- vendor: Azure
+  product: purview
+  display_name: Microsoft Purview
+  component_type: dlp
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/purview/
+  ai_context: |
+    Unified data governance — classifies and labels data used by Copilot for
+    Microsoft 365. Mis-labelled data leads to over-broad LLM grounding.
+
+- vendor: Azure
+  product: key_vault
+  display_name: Azure Key Vault
+  component_type: secrets_vault
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/key-vault/
+  ai_context: |
+    Secrets and certs used by agent identities. RBAC + private endpoint +
+    purge protection are the standard hardening stack.
+
+- vendor: Azure
+  product: managed_hsm
+  display_name: Azure Key Vault Managed HSM
+  component_type: hsm
+  service_category: security
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/key-vault/managed-hsm/
+  ai_context: |
+    FIPS 140-3 L3 HSM, single-tenant. Holds keys protecting regulated model
+    weights and inference logs.
+
+- vendor: Azure
+  product: information_protection
+  display_name: Microsoft Purview Information Protection (AIP)
+  component_type: dlp
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/purview/information-protection
+  ai_context: |
+    Sensitivity labels travel with the document into Copilot — a properly
+    labelled secret will be honoured by Copilot for M365, an unlabelled one
+    will not.
+
+- vendor: Azure
+  product: conditional_access
+  display_name: Microsoft Entra Conditional Access
+  component_type: identity_provider
+  service_category: identity
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/entra/identity/conditional-access/
+  ai_context: |
+    Policy engine gating access to AI services (Azure OpenAI Studio,
+    Copilot, Foundry portals). The first line for cutting off unauthorised
+    sessions.
+
+- vendor: Azure
+  product: pim
+  display_name: Microsoft Entra Privileged Identity Management
+  component_type: pam_vault
+  service_category: identity
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/entra/id-governance/privileged-identity-management/
+  ai_context: |
+    Just-in-time elevation for admin roles. Reduces persistent privilege on
+    AI subscription owners.
+
+- vendor: Azure
+  product: ad_connect
+  display_name: Microsoft Entra Connect (Azure AD Connect)
+  component_type: directory_service
+  service_category: identity
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/entra/identity/hybrid/connect/
+  ai_context: |
+    Syncs on-prem AD to Entra ID. Compromise of the sync account is a known
+    full-tenant takeover path.
+
+- vendor: Azure
+  product: ad_ds
+  display_name: Active Directory Domain Services (on-prem)
+  component_type: directory_service
+  service_category: identity
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/
+  ai_context: |
+    Legacy directory. AI workloads should not depend on AD DS directly —
+    federate to Entra ID.
+
+- vendor: Azure
+  product: ad_cs
+  display_name: Active Directory Certificate Services
+  component_type: certificate_manager
+  service_category: identity
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/
+  ai_context: |
+    Internal PKI. Issues certs used for mTLS between AI microservices and
+    backend systems.
+
+- vendor: Azure
+  product: ad_fs
+  display_name: Active Directory Federation Services
+  component_type: sso_service
+  service_category: identity
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/windows-server/identity/active-directory-federation-services
+  ai_context: |
+    Legacy SAML/WS-Fed federation. Should be retired in favour of
+    Entra-native federation for AI app SSO.
+
+- vendor: Azure
+  product: entra_domain_services
+  display_name: Microsoft Entra Domain Services
+  component_type: directory_service
+  service_category: identity
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/entra/identity/domain-services/
+  ai_context: |
+    Managed-domain LDAP for legacy apps that AI workloads occasionally
+    integrate with.
+
+# ────────────────────────── Monitoring & Observability ────────────────────
+- vendor: Azure
+  product: monitor
+  display_name: Azure Monitor
+  component_type: observability_stack
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-monitor/
+  ai_context: |
+    Umbrella service for metrics, logs and alerts on AI components. Diag
+    settings shipping OpenAI prompts/completions to Log Analytics is the
+    primary audit trail.
+
+- vendor: Azure
+  product: log_analytics
+  display_name: Azure Log Analytics
+  component_type: log_aggregator
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-monitor/logs/
+  ai_context: |
+    KQL log store ingesting Azure OpenAI / Foundry diagnostic events. Often
+    holds raw user prompts — must be scoped tightly.
+
+- vendor: Azure
+  product: application_insights
+  display_name: Azure Application Insights
+  component_type: tracing_platform
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-monitor/app/
+  ai_context: |
+    APM. With OpenTelemetry SDK it captures end-to-end traces of agent /
+    tool / model calls — invaluable for incident response on hallucinated
+    or hijacked agent runs.
+
+- vendor: Azure
+  product: activity_log
+  display_name: Azure Activity Log
+  component_type: log_aggregator
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/activity-log
+  ai_context: |
+    Control-plane audit for who created/deleted AI resources. Should ship
+    to Sentinel.
+
+- vendor: Azure
+  product: managed_grafana
+  display_name: Azure Managed Grafana
+  component_type: metrics_platform
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/managed-grafana/
+  ai_context: |
+    Visualises Prometheus metrics from AKS-hosted inference (GPU utilisation,
+    token throughput, queue depth).
+
+- vendor: Azure
+  product: managed_prometheus
+  display_name: Azure Monitor managed service for Prometheus
+  component_type: metrics_platform
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-monitor/essentials/prometheus-metrics-overview
+  ai_context: |
+    Managed Prometheus backend. Tracks vLLM/Triton metrics with workspace
+    RBAC.
+
+# ────────────────────────── DevOps & Code ─────────────────────────────────
+- vendor: Azure
+  product: devops
+  display_name: Azure DevOps Services
+  component_type: ci_cd_pipeline
+  service_category: devops
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/devops/
+  ai_context: |
+    Boards/Repos/Pipelines/Artifacts/Test. Pipelines deploy model artefacts
+    and prompt templates — service connections are the supply-chain pivot.
+
+- vendor: Azure
+  product: github_actions_on_azure
+  display_name: GitHub Actions for Azure
+  component_type: ci_cd_pipeline
+  service_category: devops
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/developer/github/github-actions
+  ai_context: |
+    OIDC-federated Actions deploying into Azure. The federation trust on a
+    repo is a high-value target.
+
+- vendor: Azure
+  product: container_registry
+  display_name: Azure Container Registry (ACR)
+  component_type: container_registry
+  service_category: devops
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/container-registry/
+  ai_context: |
+    Holds inference / agent container images. Content trust + image
+    scanning + private link enforcement are the standard hardening stack.
+
+- vendor: Azure
+  product: artifacts
+  display_name: Azure Artifacts
+  component_type: artifact_registry
+  service_category: devops
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/devops/artifacts/
+  ai_context: |
+    Package feed (NuGet/npm/PyPI/Maven). Upstream sources should be locked
+    to mitigate dependency confusion in AI library stacks (e.g., LangChain
+    fork attacks).
+
+- vendor: Azure
+  product: deployment_environments
+  display_name: Azure Deployment Environments
+  component_type: iac_template_registry
+  service_category: devops
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/deployment-environments/
+  ai_context: |
+    Self-service IaC catalog. Helpful for reproducing AI sandbox envs with
+    consistent guardrails.
+
+- vendor: Azure
+  product: dev_box
+  display_name: Microsoft Dev Box
+  component_type: virtual_desktop
+  service_category: devops
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/dev-box/
+  ai_context: |
+    Cloud workstations for developers building AI apps. Reduces local-machine
+    risk of leaking corpus / weights.
+
+# ────────────────────────── Messaging / Integration ───────────────────────
+- vendor: Azure
+  product: service_bus
+  display_name: Azure Service Bus
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/service-bus-messaging/
+  ai_context: |
+    Reliable queue between agent orchestrators and tool workers. Poison
+    messages can carry prompt-injection payloads to downstream consumers.
+
+- vendor: Azure
+  product: event_grid
+  display_name: Azure Event Grid
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/event-grid/
+  ai_context: |
+    Event router triggering AI ingestion pipelines on blob upload. Untrusted
+    sources should land in a quarantine container.
+
+- vendor: Azure
+  product: event_hubs
+  display_name: Azure Event Hubs
+  component_type: stream_processor
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/event-hubs/
+  ai_context: |
+    High-throughput telemetry ingestion. Feeds streaming RAG and real-time
+    feature stores for AI personalisation.
+
+- vendor: Azure
+  product: queue_storage
+  display_name: Azure Queue Storage
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/storage/queues/
+  ai_context: |
+    Simple queue inside a storage account. Lower-assurance than Service Bus
+    for AI workflows.
+
+- vendor: Azure
+  product: notification_hubs
+  display_name: Azure Notification Hubs
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/notification-hubs/
+  ai_context: |
+    Push-notification fan-out for mobile chat apps.
+
+- vendor: Azure
+  product: api_management
+  display_name: Azure API Management
+  component_type: api_gateway
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/api-management/
+  ai_context: |
+    Sits in front of Azure OpenAI to enforce per-team token quotas, rate
+    limits and prompt-shielding policies. Reference architecture pattern
+    for cost control on shared models.
+
+- vendor: Azure
+  product: logic_apps
+  display_name: Azure Logic Apps
+  component_type: serverless_function
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/logic-apps/
+  ai_context: |
+    Low-code workflow engine — sometimes used as a "tool" target by Copilot
+    Studio agents. Connector permissions become agent privileges.
+
+- vendor: Azure
+  product: web_pubsub
+  display_name: Azure Web PubSub
+  component_type: api_gateway
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-web-pubsub/
+  ai_context: |
+    WebSocket fan-out for streaming model responses to chat clients.
+
+- vendor: Azure
+  product: signalr
+  display_name: Azure SignalR Service
+  component_type: api_gateway
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/azure-signalr/
+  ai_context: |
+    Managed SignalR for real-time delivery of token streams to clients.
+
+# ────────────────────────── Data Platform & Analytics ─────────────────────
+- vendor: Azure
+  product: data_factory
+  display_name: Azure Data Factory
+  component_type: etl_orchestrator
+  service_category: data
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/data-factory/
+  ai_context: |
+    ETL/ELT for moving source data into RAG/feature stores. Linked-service
+    credentials are the privileged data-plane that should sit in Key Vault.
+
+- vendor: Azure
+  product: databricks
+  display_name: Azure Databricks
+  component_type: ml_pipeline_orchestrator
+  service_category: data
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/databricks/
+  ai_context: |
+    Azure-hosted Databricks with Unity Catalog. Hosts the dominant managed
+    Mosaic AI / MLflow stack on Azure. Workspace + Unity permissions
+    determine model-training data reach.
+
+- vendor: Azure
+  product: stream_analytics
+  display_name: Azure Stream Analytics
+  component_type: stream_processor
+  service_category: data
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/stream-analytics/
+  ai_context: |
+    Real-time analytics — common feed for online feature stores serving AI
+    personalisation.
+
+- vendor: Azure
+  product: data_share
+  display_name: Azure Data Share
+  component_type: data_lake
+  service_category: data
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/data-share/
+  ai_context: |
+    Outbound data sharing — risk vector for inadvertently sharing fine-tuning
+    datasets with external partners.
+
+- vendor: Azure
+  product: purview_data_map
+  display_name: Microsoft Purview Data Map
+  component_type: dlp
+  service_category: data
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/purview/data-map/
+  ai_context: |
+    Catalog of data assets with classifications. Feeds Copilot grounding
+    decisions and discovery for AI projects.
+
+- vendor: Azure
+  product: ai_search
+  display_name: Azure AI Search (Cognitive Search)
+  component_type: rag_vector_store
+  service_category: data
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/search/
+  ai_context: |
+    Premier managed vector + lexical search backing most Azure-OpenAI RAG
+    apps and Foundry "on your data" deployments. Index-level security
+    filters are the boundary between tenants/users.
+
+- vendor: Azure
+  product: hdinsight
+  display_name: Azure HDInsight
+  component_type: ml_pipeline_orchestrator
+  service_category: data
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/hdinsight/
+  ai_context: |
+    Managed Hadoop/Spark/Kafka clusters. Used for large-scale corpora
+    preprocessing prior to fine-tuning.
+
+# ────────────────────────── AI / ML ───────────────────────────────────────
+- vendor: Azure
+  product: azure_openai
+  display_name: Azure OpenAI Service
+  component_type: llm_inference
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-services/openai/
+  ai_context: |
+    OpenAI models hosted inside the tenant's Azure region with tenant-side
+    abuse monitoring controls. Primary LLM inference surface in Microsoft
+    estates.
+
+- vendor: Azure
+  product: foundry_agent_service
+  display_name: Azure AI Foundry Agent Service
+  component_type: agent
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-services/agents/
+  ai_context: |
+    Managed agent runtime with built-in tool-calling, thread state and
+    Cosmos-backed memory. Threads, runs and assistants are first-class
+    identities deserving explicit threat modelling.
+
+- vendor: Azure
+  product: foundry_models
+  display_name: Azure AI Foundry Models (Model Catalog)
+  component_type: model_registry
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-foundry/
+  ai_context: |
+    Multi-vendor model catalog (OpenAI, Meta, Mistral, Cohere, NVIDIA NIM,
+    Hugging Face). Pay-as-you-go and provisioned throughput deployments —
+    third-party model supply chain is the new risk surface.
+
+- vendor: Azure
+  product: foundry_ai_search
+  display_name: Azure AI Foundry AI Search Integration
+  component_type: rag_vector_store
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-foundry/concepts/retrieval-augmented-generation
+  ai_context: |
+    Out-of-the-box RAG between Foundry projects and AI Search indexes.
+
+- vendor: Azure
+  product: foundry_ai_studio
+  display_name: Azure AI Foundry Portal (AI Studio)
+  component_type: ml_experiment_tracker
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-foundry/
+  ai_context: |
+    Unified portal for building, evaluating and deploying AI apps. Hub +
+    project RBAC determines who can touch which model deployment.
+
+- vendor: Azure
+  product: ml_workspace
+  display_name: Azure Machine Learning Workspace
+  component_type: ml_pipeline_orchestrator
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/machine-learning/
+  ai_context: |
+    Top-level AML container — pipelines, registries, compute and endpoints
+    all derive permissions from the workspace identity.
+
+- vendor: Azure
+  product: ml_compute
+  display_name: Azure Machine Learning Compute
+  component_type: ml_pipeline_orchestrator
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/machine-learning/concept-compute-target
+  ai_context: |
+    Managed GPU clusters for training and batch scoring. Network isolation
+    via managed VNet is the recommended posture.
+
+- vendor: Azure
+  product: ml_endpoints
+  display_name: Azure Machine Learning Managed Online Endpoints
+  component_type: ml_inference_endpoint
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/machine-learning/concept-endpoints
+  ai_context: |
+    Public/private HTTPS endpoint for AML-deployed models. Authentication
+    options: key, token, AAD — only AAD supports per-user attribution.
+
+- vendor: Azure
+  product: ml_pipelines
+  display_name: Azure Machine Learning Pipelines
+  component_type: ml_pipeline_orchestrator
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/machine-learning/concept-ml-pipelines
+  ai_context: |
+    Reusable training and scoring workflows. Component code is a supply
+    chain — sign and version pipeline YAMLs.
+
+- vendor: Azure
+  product: ml_model_registry
+  display_name: Azure Machine Learning Model Registry
+  component_type: model_registry
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/machine-learning/concept-model-management-and-deployment
+  ai_context: |
+    Registry of trained models with lineage. Tampering yields downstream
+    inference compromise.
+
+- vendor: Azure
+  product: cognitive_vision
+  display_name: Azure AI Vision (Computer Vision)
+  component_type: vision_pipeline
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-services/computer-vision/
+  ai_context: |
+    OCR / image-analysis API. Vision-language agents call it as a tool —
+    prompt injection via uploaded image text is the headline risk.
+
+- vendor: Azure
+  product: cognitive_speech
+  display_name: Azure AI Speech
+  component_type: speech_pipeline
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-services/speech-service/
+  ai_context: |
+    STT/TTS/translation. Speech inputs can carry adversarial audio prompts
+    against voicebots.
+
+- vendor: Azure
+  product: cognitive_language
+  display_name: Azure AI Language
+  component_type: content_safety_classifier
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-services/language-service/
+  ai_context: |
+    NER, PII detection, sentiment, summarisation — usable as a guardrail
+    pre-processor for LLM inputs.
+
+- vendor: Azure
+  product: cognitive_decision
+  display_name: Azure AI Decision (Personalizer, Anomaly Detector)
+  component_type: ml_inference_endpoint
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-services/
+  ai_context: |
+    Bundle of decision-making services. Personalizer is retiring — note
+    end-of-life for legacy threat models.
+
+- vendor: Azure
+  product: content_safety
+  display_name: Azure AI Content Safety
+  component_type: content_safety_classifier
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-services/content-safety/
+  ai_context: |
+    Hate/violent/sexual/self-harm classifier with Prompt Shields and
+    Groundedness detection. The standard guardrail on Azure OpenAI traffic.
+
+- vendor: Azure
+  product: document_intelligence
+  display_name: Azure AI Document Intelligence (Form Recognizer)
+  component_type: vision_pipeline
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-services/document-intelligence/
+  ai_context: |
+    Extracts structured data from PDFs/forms — heavily used in RAG ingestion.
+    Malicious documents can inject instructions into extracted text fed to
+    the LLM.
+
+- vendor: Azure
+  product: translator
+  display_name: Azure AI Translator
+  component_type: ml_inference_endpoint
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-services/translator/
+  ai_context: |
+    Translates 100+ languages. Common pre/post-processor for multilingual
+    chat agents — translated text can carry obfuscated injection payloads.
+
+- vendor: Azure
+  product: personalizer
+  display_name: Azure AI Personalizer
+  component_type: ml_inference_endpoint
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-services/personalizer/
+  ai_context: |
+    Contextual-bandit personalisation. Service is retiring (2026) — mark
+    deployments for migration.
+
+- vendor: Azure
+  product: anomaly_detector
+  display_name: Azure AI Anomaly Detector
+  component_type: ml_inference_endpoint
+  service_category: ai
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/ai-services/anomaly-detector/
+  ai_context: |
+    Univariate/multivariate anomaly detection. Service is retiring (2026) —
+    flag for migration.
+
+- vendor: Azure
+  product: bot_service
+  display_name: Azure AI Bot Service
+  component_type: agent
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/bot-service/
+  ai_context: |
+    Channels chat bots out to Teams, Web, Slack, etc. Often the public
+    surface of internal Copilot-style assistants.
+
+- vendor: Azure
+  product: copilot_studio
+  display_name: Microsoft Copilot Studio
+  component_type: agent
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/microsoft-copilot-studio/
+  ai_context: |
+    Low-code agent builder atop Power Platform with knowledge sources,
+    actions and topics. Makers can ship agents to thousands of users —
+    governance is the dominant control gap.
+
+- vendor: Azure
+  product: copilot_for_m365
+  display_name: Microsoft 365 Copilot
+  component_type: agent
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/copilot/microsoft-365/
+  ai_context: |
+    Grounds in Graph data (mail, files, chats, calendar). Over-permissioned
+    SharePoint sites are the classic data-leak path through Copilot.
+
+- vendor: Azure
+  product: copilot_for_security
+  display_name: Microsoft Security Copilot
+  component_type: agent
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/copilot/security/
+  ai_context: |
+    Security-focused Copilot with plugins into Defender/Sentinel/Intune.
+    Prompt injection via attacker-controlled log content is a documented
+    risk.
+
+- vendor: Azure
+  product: github_copilot_enterprise
+  display_name: GitHub Copilot Enterprise
+  component_type: agent
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.github.com/en/copilot/
+  ai_context: |
+    AI pair programmer with knowledge of your repos. Content-exclusion
+    rules and IP-indemnity scope are key procurement / DPO items.
+
+- vendor: Azure
+  product: power_platform_ai_builder
+  display_name: Power Platform AI Builder
+  component_type: ml_inference_endpoint
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/ai-builder/
+  ai_context: |
+    Low-code prediction/extraction models for Power Apps and Power Automate
+    flows — citizen-developer AI surface.
+
+# ────────────────────────── IoT ──────────────────────────────────────────
+- vendor: Azure
+  product: iot_hub
+  display_name: Azure IoT Hub
+  component_type: iot_gateway
+  service_category: iot
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/iot-hub/
+  ai_context: |
+    Device-to-cloud telemetry ingestion. Often feeds anomaly-detection ML
+    pipelines.
+
+- vendor: Azure
+  product: iot_central
+  display_name: Azure IoT Central
+  component_type: iot_gateway
+  service_category: iot
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/iot-central/
+  ai_context: |
+    Managed app platform on top of IoT Hub — pre-built dashboards and
+    rules.
+
+- vendor: Azure
+  product: iot_edge
+  display_name: Azure IoT Edge
+  component_type: edge_compute
+  service_category: iot
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/iot-edge/
+  ai_context: |
+    Runs containerised ML inference on edge devices. Module image signing
+    and DPS attestation are critical for OT environments.
+
+- vendor: Azure
+  product: digital_twins
+  display_name: Azure Digital Twins
+  component_type: graph_database
+  service_category: iot
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/digital-twins/
+  ai_context: |
+    Graph of physical assets. Increasingly queried by LLM agents in smart-
+    building / smart-factory copilots.
+
+- vendor: Azure
+  product: time_series_insights
+  display_name: Azure Time Series Insights
+  component_type: time_series_database
+  service_category: iot
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/time-series-insights/
+  ai_context: |
+    Time-series store for IoT (retiring March 2025) — migration path is
+    typically ADX (Data Explorer).
+
+# ────────────────────────── End-User / Workplace ──────────────────────────
+- vendor: Azure
+  product: avd
+  display_name: Azure Virtual Desktop
+  component_type: virtual_desktop
+  service_category: end_user
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/azure/virtual-desktop/
+  ai_context: |
+    Hosts virtualised desktops where M365 Copilot runs in-tenant — session
+    isolation matters for shared-host AVD pools.
+
+- vendor: Azure
+  product: windows_365
+  display_name: Windows 365 Cloud PC
+  component_type: virtual_desktop
+  service_category: end_user
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/windows-365/
+  ai_context: |
+    Per-user cloud PC. Treat as endpoint with Defender for Endpoint coverage
+    for AI workload access.
+
+- vendor: Azure
+  product: intune
+  display_name: Microsoft Intune
+  component_type: mdm_emm
+  service_category: end_user
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://learn.microsoft.com/en-us/mem/intune/
+  ai_context: |
+    MDM/MAM for devices accessing M365 Copilot. App-protection policies can
+    block paste of corporate data into consumer LLM apps.

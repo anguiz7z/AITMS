@@ -1,0 +1,92 @@
+component_type: dlp
+description: |
+  Data Loss Prevention service — Microsoft Purview DLP (M365 + Endpoint
+  + Cloud), Symantec / Broadcom DLP, Forcepoint DLP, Trellix DLP. Scans
+  content in motion (network, email, browser), in use (endpoint), and
+  at rest (cloud storage, SharePoint, OneDrive) for sensitive data
+  patterns. In AI contexts, DLP is the last-mile control preventing
+  customer PII or proprietary IP from being copy-pasted into LLM
+  prompts.
+threats:
+  - id: T_DLP_001
+    title: DLP signature gap for AI-prompt patterns
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024, AML.T0044]
+    attack_cloud: [T1567]
+    attack_enterprise: [T1567]
+    linddun: [DD_003, I_001]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      Classic DLP regex catches SSN-shaped strings. It does not catch
+      "summarise this customer-support call where the customer mentions
+      their account number is..." pasted into ChatGPT. The
+      semantic-content leakage (a strategy document, a code chunk
+      with embedded business logic, a partial customer-data table) is
+      the actual AI-era risk and is far less amenable to pattern
+      detection. Microsoft Purview's `Sensitivity Auto-Labelling` ML
+      classifier catches some of it; default-tier DLP doesn't.
+    mitigations:
+      - "Deploy ML-based content classifier (Purview Trainable Classifier, Symantec ML DLP, custom Presidio with domain-specific terms)"
+      - "Document-classification labels propagate to copy-paste / upload events — labelled docs cannot have content pasted into unsanctioned AI tools"
+      - "Custom DLP signatures for organisation-specific patterns (customer ID schema, internal project code-names, code-secret patterns like API key prefixes)"
+      - "User awareness training with periodic phishing-style 'shadow-AI' simulation"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_DLP_002
+    title: Endpoint DLP bypassed via screenshot / OCR / dictation
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    attack_cloud: [T1113, T1119]
+    attack_enterprise: [T1113, T1119]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 4
+    impact: 3
+    description: |
+      Endpoint DLP intercepts cleartext copy-paste, file uploads, and
+      print-to-PDF. It does not intercept: screenshot → manual retype
+      into ChatGPT, screenshot → OCR via phone → paste, native voice-
+      dictation into a SaaS field, picture-the-document submission to
+      a vision-capable LLM. Each bypass takes < 30 seconds. The
+      determined insider is already through.
+    mitigations:
+      - "Watermark / fingerprint sensitive documents (Microsoft Information Protection, Vera) — screenshots carry user identity, deterring re-share"
+      - "Endpoint visibility on AI-app processes: Defender for Endpoint / CrowdStrike custom IOCs flag when ChatGPT desktop app or similar starts after a sensitive-document open"
+      - "Camera-based watermarking on high-sensitivity desktops (when company posture allows)"
+      - "Policy + training: clearly communicate insider-risk monitoring; the social control matters more than the technical"
+    refs: [AML.M0012, AML.M0019]
+
+  - id: T_DLP_003
+    title: DLP scan-at-rest discovers training data with un-classified PII
+    stride_ai: [Information_Disclosure, Repudiation]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    attack_cloud: []
+    linddun: [DD_003, NC_001, NC_002]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_MEMBERSHIP]
+    maestro: [M.L5.05]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 4
+    impact: 3
+    description: |
+      DLP scan of the data-science team's OneDrive / Google Drive
+      finds CSVs of customer data, downloaded from production, used
+      for model exploration. Compliance issue (no DPIA, no consent,
+      no retention) was invisible until DLP scanned. The finding has
+      to be remediated, and every dependent model needs re-evaluation
+      to confirm no PII memorisation.
+    mitigations:
+      - "DLP scan-at-rest on every shared storage location used by data scientists; weekly compliance dashboard"
+      - "Sanctioned data-science sandboxes (SageMaker Studio, Vertex Workbench, Azure ML Workspace) with provenance + retention enforced — make these the path of least resistance"
+      - "Pre-download review: any production-data extraction requires ticketed approval + auto-expiring location"
+      - "Quarterly model-training data audit: every model's training corpus traced back to a DPO-approved source"
+    refs: [AML.M0019]

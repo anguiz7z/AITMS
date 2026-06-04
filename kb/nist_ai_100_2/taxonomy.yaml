@@ -1,0 +1,346 @@
+# NIST AI 100-2 — Adversarial Machine Learning Taxonomy
+# Source: NIST.AI.100-2 E2025 (Adversarial Machine Learning: A Taxonomy and
+# Terminology of Attacks and Mitigations).
+# This is the canonical adversarial-ML taxonomy referenced by MITRE ATLAS,
+# CSA MAESTRO, and most national AI-risk frameworks. Curated to focus on
+# the attacks ATMS users actually need to model.
+
+# ─── Predictive AI attacks ─────────────────────────────────────────────────
+- id: NIST_PAI_EVASION
+  category: Predictive_AI
+  family: Evasion
+  title: Evasion attack on predictive model
+  description: |
+    Adversary crafts inputs at inference time that cause the model to
+    misclassify. Includes white-box (full model access), black-box
+    (query access), and transferable attacks (training a surrogate
+    on similar data, then using crafted inputs against the target).
+  applies_to:
+    - llm_inference
+    - embedding_service
+    - guardrails
+    - output_filter
+    - external_api
+  keywords:
+    - evasion
+    - adversarial
+    - misclassify
+    - perturbation
+    - examples
+    - white-box
+    - black-box
+    - transferable
+    - surrogate
+  mitigations:
+    - Adversarial training with robust loss functions
+    - Input preprocessing / canonicalisation
+    - Detection of out-of-distribution inputs
+
+- id: NIST_PAI_POISONING_DATA
+  category: Predictive_AI
+  family: Poisoning
+  title: Data poisoning during training
+  description: |
+    Adversary injects malicious examples into the training set so the
+    resulting model misbehaves on attacker-chosen inputs while
+    appearing normal on benign data.
+  applies_to:
+    - training_pipeline
+    - fine_tuning_pipeline
+    - data_source
+    - rag_vector_store
+  keywords:
+    - poisoning
+    - poison
+    - training
+    - data
+    - inject
+    - tampered
+    - corrupt
+  mitigations:
+    - Training-data provenance tracking + signing
+    - Anomaly detection on training distributions
+    - Data sanitisation pipelines (deduplication, label-flip detection)
+
+- id: NIST_PAI_POISONING_BACKDOOR
+  category: Predictive_AI
+  family: Poisoning
+  title: Backdoor / trojan implanted in model
+  description: |
+    Specialised poisoning where the model behaves normally on clean
+    inputs but produces an attacker-chosen output when the input
+    contains a small trigger pattern.
+  applies_to:
+    - training_pipeline
+    - fine_tuning_pipeline
+    - model_registry
+    - llm_inference
+  keywords:
+    - backdoor
+    - trojan
+    - trigger
+    - poisoned
+    - hidden
+    - functionality
+  mitigations:
+    - Neural cleanse / activation clustering scans before deploy
+    - Model-card disclosure + reproducible training
+    - Differential testing against trusted baseline model
+
+- id: NIST_PAI_POISONING_LABEL_FLIP
+  category: Predictive_AI
+  family: Poisoning
+  title: Label-flipping attack
+  description: |
+    Subset of training labels is modified to a wrong class while
+    inputs remain unchanged, degrading targeted predictions.
+  applies_to:
+    - training_pipeline
+    - fine_tuning_pipeline
+    - data_source
+  keywords:
+    - label
+    - flip
+    - mislabel
+    - annotation
+    - poisoning
+    - quality
+  mitigations:
+    - Multi-annotator agreement + spot audit on labels
+    - Confidence-based label cleaning during training
+    - Source-of-record control on annotation tooling
+
+- id: NIST_PAI_PRIVACY_MEMBERSHIP
+  category: Predictive_AI
+  family: Privacy
+  title: Membership inference attack
+  description: |
+    Adversary determines whether a specific data record was part of
+    the training set, enabling re-identification of individuals
+    whose presence in the data is itself sensitive.
+  applies_to:
+    - llm_inference
+    - training_pipeline
+    - rag_vector_store
+    - embedding_service
+  keywords:
+    - membership
+    - inference
+    - privacy
+    - reidentify
+    - training
+    - record
+  mitigations:
+    - Differential privacy in training (DP-SGD)
+    - Confidence calibration / output rounding
+    - Limit query rate per identity
+
+- id: NIST_PAI_PRIVACY_INVERSION
+  category: Predictive_AI
+  family: Privacy
+  title: Model inversion / training-data extraction
+  description: |
+    Adversary reconstructs training samples (or features of them)
+    from the model's outputs — e.g. recovering verbatim memorised
+    text from an LLM, or reconstructing faces from a face-recognition
+    model.
+  applies_to:
+    - llm_inference
+    - training_pipeline
+    - fine_tuning_pipeline
+    - embedding_service
+  keywords:
+    - inversion
+    - extraction
+    - reconstruct
+    - memorize
+    - regurgitate
+    - leakage
+  mitigations:
+    - Strict deduplication of training data
+    - DP-SGD with calibrated noise
+    - Output PII detection + refusal templates
+
+- id: NIST_PAI_PRIVACY_ATTRIBUTE
+  category: Predictive_AI
+  family: Privacy
+  title: Attribute inference attack
+  description: |
+    Adversary infers sensitive attributes about an individual
+    (e.g. health status, sexual orientation) from model outputs,
+    even though the attribute was never explicitly disclosed.
+  applies_to:
+    - llm_inference
+    - embedding_service
+    - rag_vector_store
+  keywords:
+    - attribute
+    - inference
+    - sensitive
+    - profile
+    - infer
+  mitigations:
+    - Fairness + attribute-leakage testing pre-deploy
+    - Output filtering for sensitive-attribute disclosure
+    - DPIA / privacy impact assessment per use case
+
+# ─── Generative AI attacks ─────────────────────────────────────────────────
+- id: NIST_GAI_PROMPT_INJECTION_DIRECT
+  category: Generative_AI
+  family: Prompt_Injection
+  title: Direct prompt injection
+  description: |
+    User-supplied input contains instructions that override the
+    system prompt or developer-supplied policy, causing the LLM
+    to perform attacker-chosen actions.
+  applies_to:
+    - llm_inference
+    - agent
+    - guardrails
+    - output_filter
+    - prompt_template_store
+  keywords:
+    - prompt
+    - injection
+    - jailbreak
+    - override
+    - ignore
+    - instruction
+    - direct
+    - system
+    - policy
+  mitigations:
+    - Layered guardrails (input + output + tool gating)
+    - Privilege separation between user prompt and system prompt
+    - Prompt-injection classifier in front of inference
+
+- id: NIST_GAI_PROMPT_INJECTION_INDIRECT
+  category: Generative_AI
+  family: Prompt_Injection
+  title: Indirect prompt injection
+  description: |
+    Malicious instructions are embedded in third-party content
+    (web page, retrieved document, email, image alt text) that
+    the model later ingests via tools or RAG, hijacking the
+    agent without the user noticing.
+  applies_to:
+    - rag_vector_store
+    - agent
+    - tool
+    - llm_inference
+    - external_api
+  keywords:
+    - indirect
+    - prompt
+    - injection
+    - retrieval
+    - rag
+    - hidden
+    - third-party
+    - document
+  mitigations:
+    - Provenance/origin tagging on every retrieved chunk
+    - Strip / quote untrusted content; refuse to follow nested instructions
+    - Tool-call review for high-impact actions
+
+- id: NIST_GAI_DATA_EXTRACTION
+  category: Generative_AI
+  family: Data_Extraction
+  title: Training-data / system-prompt extraction
+  description: |
+    Adversary crafts prompts that cause the LLM to reveal verbatim
+    training data, system prompt, or API keys / secrets that were
+    in the prompt context.
+  applies_to:
+    - llm_inference
+    - prompt_template_store
+    - secrets_vault
+    - rag_vector_store
+  keywords:
+    - extraction
+    - leak
+    - system
+    - prompt
+    - reveal
+    - training
+    - data
+    - memorize
+  mitigations:
+    - Never put secrets in the prompt (use tool-mediated retrieval)
+    - System-prompt detection + refusal patterns
+    - Output PII/secret scanner
+
+- id: NIST_GAI_ADVERSARIAL_MISUSE
+  category: Generative_AI
+  family: Misuse
+  title: Adversarial misuse of generative model
+  description: |
+    Bypassing safety guardrails to make the model produce harmful
+    output (phishing emails, malware, CBRN, CSAM, illegal advice).
+  applies_to:
+    - llm_inference
+    - guardrails
+    - output_filter
+    - agent
+  keywords:
+    - jailbreak
+    - bypass
+    - guardrail
+    - misuse
+    - harmful
+    - safety
+    - policy
+  mitigations:
+    - Multi-layer safety classifiers (input + output)
+    - Red-team gate before each model release
+    - Per-use-case policy + abuse monitoring
+
+- id: NIST_GAI_BACKDOOR
+  category: Generative_AI
+  family: Backdoor
+  title: Backdoor in generative / agentic model
+  description: |
+    Specialised poisoning where the LLM behaves normally except
+    when triggered, then produces attacker-chosen output (leaks
+    secrets, calls a specific tool, generates malicious code).
+  applies_to:
+    - training_pipeline
+    - fine_tuning_pipeline
+    - llm_inference
+    - model_registry
+  keywords:
+    - backdoor
+    - trigger
+    - generative
+    - hidden
+    - sleeper
+  mitigations:
+    - Reproducible training with public artefact registry
+    - Behavioural diff between candidate and reference model
+    - Fine-tune only from trusted base weights
+
+- id: NIST_GAI_DENIAL_OF_SERVICE
+  category: Generative_AI
+  family: Availability
+  title: Resource exhaustion / unbounded consumption
+  description: |
+    Adversary abuses generation cost (very long prompts, looping
+    tool calls, recursive agents) to exhaust budget or compute.
+  applies_to:
+    - llm_inference
+    - agent
+    - api_gateway
+    - serverless_function
+  keywords:
+    - dos
+    - resource
+    - exhaust
+    - cost
+    - loop
+    - recursion
+    - unbounded
+    - consumption
+  mitigations:
+    - Per-user rate limiting + max-tokens caps
+    - Tool-call depth + total-cost circuit breakers
+    - Anomaly detection on cost-per-session

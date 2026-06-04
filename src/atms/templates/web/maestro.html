@@ -1,0 +1,40 @@
+{% extends "web/base.html" %}
+{% block title %}MAESTRO{% endblock %}
+{% block content %}
+<h1>MAESTRO — Multi-Agent Environment, Security, Threat, Risk, Outcome</h1>
+<p class="muted">Cloud Security Alliance, February 2025. Seven-layer reference architecture for agentic AI systems with per-layer threat catalogues. ATMS tags every analysed component with its applicable layers and reports each threat's MAESTRO threat IDs.</p>
+<p><a href="https://cloudsecurityalliance.org/blog/2025/02/06/agentic-ai-threat-modeling-framework-maestro" style="color: var(--accent);">CSA blog post</a></p>
+
+<h2>Layers</h2>
+<table>
+  <thead><tr><th>ID</th><th>Layer</th><th>Description</th><th>Typical components</th></tr></thead>
+  <tbody>
+    {% for lid, layer in layers %}
+    <tr>
+      <td><code>{{ lid }}</code></td>
+      <td><strong>{{ layer.name }}</strong></td>
+      <td>{{ layer.description }}</td>
+      <td>{% for c in layer.example_components %}<span class="pill">{{ c }}</span>{% endfor %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Threats</h2>
+{% for layer_id, threats_in_layer in threats_by_layer %}
+<h3>{{ layer_id }} — {{ layer_titles[layer_id] }} <small style="color: var(--muted);">({{ threats_in_layer|length }} threats)</small></h3>
+<table>
+  <thead><tr><th>ID</th><th>Name</th><th title="STRIDE for AI category — see /about">STRIDE</th><th>Applies to</th></tr></thead>
+  <tbody>
+    {% for t in threats_in_layer %}
+    <tr>
+      <td><code>{{ t.id }}</code></td>
+      <td>{{ t.name }}</td>
+      <td>{% for s in t.stride_ai %}<span class="pill">{{ s }}</span>{% endfor %}</td>
+      <td>{% for c in t.applies_to %}<span class="pill">{{ c }}</span>{% endfor %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+{% endblock %}

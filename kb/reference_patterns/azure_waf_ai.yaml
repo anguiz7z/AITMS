@@ -1,0 +1,330 @@
+# Azure Well-Architected Framework — AI workloads (Security pillar)
+#
+# Reference: https://learn.microsoft.com/azure/well-architected/ai/
+# Security pillar specifics:
+# https://learn.microsoft.com/azure/well-architected/ai/security
+#
+# Each entry maps an ATMS mitigation to a published Azure WAF AI
+# Security-pillar recommendation. IDs follow:
+#   Azure_WAF_AI.SEC-<n>   Security pillar
+#   Azure_WAF_AI.OPS-<n>   Operational Excellence (logging / response)
+#   Azure_WAF_AI.REL-<n>   Reliability (cost / capacity controls)
+#
+# All entries are AI-specific (ai_specific: true).
+
+- id: Azure_WAF_AI.SEC-1
+  display_name: Apply Prompt Shields for direct + indirect jailbreaks
+  framework: Azure_WAF_AI
+  category: data
+  applies_to_component_types:
+    - guardrails
+    - content_safety_classifier
+    - llm_inference
+  keywords:
+    - prompt shield
+    - jailbreak
+    - indirect injection
+    - xpia
+    - content safety
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/content-safety/concepts/jailbreak-detection
+  short_summary: |
+    Prompt Shields run on every user message and on every piece of
+    retrieved / tool-returned content to catch direct + indirect (XPIA)
+    prompt-injection attacks before they reach the foundation model.
+
+- id: Azure_WAF_AI.SEC-2
+  display_name: Apply Content Safety filters on completions
+  framework: Azure_WAF_AI
+  category: data
+  applies_to_component_types:
+    - output_filter
+    - content_safety_classifier
+    - llm_inference
+  keywords:
+    - content safety
+    - harm category
+    - protected material
+    - groundedness
+    - completion filter
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/content-safety/concepts/harm-categories
+  short_summary: |
+    Hate / Sexual / Violence / Self-Harm filters + Protected Material
+    detection + Groundedness checks run on every completion before it
+    is returned to the caller.
+
+- id: Azure_WAF_AI.SEC-3
+  display_name: On-behalf-of (OBO) token flow for RAG retrieval ACLs
+  framework: Azure_WAF_AI
+  category: identity
+  applies_to_component_types:
+    - rag_vector_store
+    - iam_principal
+    - agent
+  keywords:
+    - obo
+    - on behalf of
+    - delegated permission
+    - ai search
+    - acl
+    - graph
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-foundry/how-to/connections-add
+  short_summary: |
+    RAG / agent retrieval uses the calling user's delegated token (OBO)
+    to query AI Search / SharePoint / Graph so the result set is
+    already filtered to documents the user is entitled to read. Stops
+    cross-tenant data leakage via shared embeddings.
+
+- id: Azure_WAF_AI.SEC-4
+  display_name: Network isolation for Azure OpenAI / AI Foundry
+  framework: Azure_WAF_AI
+  category: network
+  applies_to_component_types:
+    - llm_inference
+    - private_link
+    - network_segment
+  keywords:
+    - private endpoint
+    - vnet
+    - public access disabled
+    - azure openai
+    - foundry
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/openai/how-to/use-your-data-securely
+  short_summary: |
+    Azure OpenAI and AI Foundry are deployed with Private Endpoints,
+    disabled public access, NSG-controlled subnets and outbound
+    traffic locked to a curated allow-list via Azure Firewall.
+
+- id: Azure_WAF_AI.SEC-5
+  display_name: AI Search private endpoint + integrated vectorization isolation
+  framework: Azure_WAF_AI
+  category: network
+  applies_to_component_types:
+    - rag_vector_store
+    - embedding_service
+    - private_link
+  keywords:
+    - ai search
+    - vector index
+    - private endpoint
+    - integrated vectorization
+    - skillset
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/search/search-security-network-security-perimeter
+  short_summary: |
+    AI Search runs inside a Network Security Perimeter; built-in
+    skills and integrated vectorization use VNet-shared Private
+    Endpoints to the source storage / OpenAI embedding deployment.
+
+- id: Azure_WAF_AI.SEC-6
+  display_name: Customer-managed keys for OpenAI / Foundry / Search
+  framework: Azure_WAF_AI
+  category: data
+  applies_to_component_types:
+    - kms_key
+    - llm_inference
+    - rag_vector_store
+  keywords:
+    - cmk
+    - customer managed key
+    - byok
+    - azure openai
+    - encryption at rest
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/openai/encrypt-data-at-rest
+  short_summary: |
+    Encrypt model deployments, fine-tune artefacts, training datasets
+    and search indexes with customer-managed keys stored in Key Vault
+    Premium / Managed HSM. Rotates via Key Vault events.
+
+- id: Azure_WAF_AI.SEC-7
+  display_name: Tenant-scoped Managed Identity per agent / tool
+  framework: Azure_WAF_AI
+  category: identity
+  applies_to_component_types:
+    - agent
+    - tool
+    - iam_principal
+  keywords:
+    - managed identity
+    - per agent
+    - per tool
+    - rbac
+    - least privilege
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-foundry/how-to/secure-data-playground
+  short_summary: |
+    Each agent / tool / action in AI Foundry binds to a user-assigned
+    managed identity with only the RBAC needed for that action. Stops
+    a compromised tool from impersonating another tool's data scope.
+
+- id: Azure_WAF_AI.SEC-8
+  display_name: Defender for AI workloads threat protection
+  framework: Azure_WAF_AI
+  category: observability
+  applies_to_component_types:
+    - siem
+    - llm_inference
+    - cspm
+  keywords:
+    - defender for ai
+    - prompt injection alert
+    - data leakage
+    - threat protection
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/defender-for-cloud/ai-threat-protection
+  short_summary: |
+    Defender for Cloud's threat protection for AI workloads detects
+    prompt-injection, credential leakage in completions, suspicious
+    model access and wallet-exhaustion patterns. Alerts surface in
+    Sentinel.
+
+- id: Azure_WAF_AI.SEC-9
+  display_name: Prompt + completion logging for audit and incident response
+  framework: Azure_WAF_AI
+  category: observability
+  applies_to_component_types:
+    - log_aggregator
+    - siem
+    - llm_inference
+  keywords:
+    - audit log
+    - prompt log
+    - completion log
+    - diagnostic setting
+    - openai
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/openai/how-to/monitor-openai
+  short_summary: |
+    Diagnostic settings on Azure OpenAI / AI Foundry export request /
+    response audit logs (with content as configured) to Log Analytics +
+    Sentinel for incident investigation of jailbreak or exfiltration.
+
+- id: Azure_WAF_AI.SEC-10
+  display_name: Abuse-monitoring opt-out review for sensitive workloads
+  framework: Azure_WAF_AI
+  category: governance
+  applies_to_component_types:
+    - llm_inference
+    - data_source
+  keywords:
+    - abuse monitoring
+    - opt out
+    - modified content management
+    - confidentiality
+    - data residency
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/openai/concepts/abuse-monitoring
+  short_summary: |
+    For regulated / confidential workloads, request Microsoft's
+    Modified Content Management approval so prompt content is not
+    retained for Microsoft's abuse-monitoring review.
+
+- id: Azure_WAF_AI.SEC-11
+  display_name: Data residency commitments via regional deployment
+  framework: Azure_WAF_AI
+  category: data
+  applies_to_component_types:
+    - llm_inference
+    - data_source
+  keywords:
+    - data residency
+    - region
+    - eu data boundary
+    - data zone
+    - sovereignty
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/openai/concepts/data-privacy
+  short_summary: |
+    Pin OpenAI deployments to specific regions / EU Data Boundary /
+    Data Zones to keep prompts, completions and embeddings inside a
+    regulated geography. Document the boundary in the AI inventory.
+
+# ─── Reliability + Cost guardrails ───────────────────────────────────────
+- id: Azure_WAF_AI.REL-1
+  display_name: Token quotas + rate limits to prevent Denial-of-Wallet
+  framework: Azure_WAF_AI
+  category: resilience
+  applies_to_component_types:
+    - llm_inference
+    - api_gateway
+    - waf
+  keywords:
+    - quota
+    - rate limit
+    - tokens per minute
+    - tpm
+    - rpm
+    - denial of wallet
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/openai/how-to/quota
+  short_summary: |
+    Set per-deployment Tokens-per-Minute / Requests-per-Minute quotas,
+    front the model with API Management for caller-level usage plans,
+    and configure Azure WAF rate-based rules on the public endpoint.
+
+- id: Azure_WAF_AI.REL-2
+  display_name: Provisioned Throughput Units (PTU) for predictable production load
+  framework: Azure_WAF_AI
+  category: resilience
+  applies_to_component_types:
+    - llm_inference
+  keywords:
+    - ptu
+    - provisioned throughput
+    - reserved capacity
+    - latency
+    - openai
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/openai/concepts/provisioned-throughput
+  short_summary: |
+    Use PTU deployments for steady-state production traffic so a noisy
+    neighbour cannot starve your workload. Burst overflow falls back
+    to a pay-as-you-go deployment behind a circuit breaker.
+
+- id: Azure_WAF_AI.OPS-1
+  display_name: Continuous evaluation + red-team in CI/CD for prompt + model changes
+  framework: Azure_WAF_AI
+  category: governance
+  applies_to_component_types:
+    - ml_experiment_tracker
+    - ml_pipeline_orchestrator
+    - llm_inference
+  keywords:
+    - evaluation
+    - red team
+    - prompt flow
+    - regression
+    - safety eval
+    - pyrit
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-foundry/concepts/evaluation-approach-gen-ai
+  short_summary: |
+    Every prompt / model / RAG-source change runs the AI Foundry
+    evaluation suite (quality, groundedness, safety) + a PyRIT
+    red-team battery. Promotion is blocked on any regression beyond
+    the configured threshold.
+
+- id: Azure_WAF_AI.OPS-2
+  display_name: AI BOM + model inventory in Microsoft Purview
+  framework: Azure_WAF_AI
+  category: governance
+  applies_to_component_types:
+    - model_registry
+    - artifact_registry
+    - llm_inference
+  keywords:
+    - aibom
+    - inventory
+    - purview
+    - model card
+    - data lineage
+  ai_specific: true
+  url: https://learn.microsoft.com/purview/ai-microsoft-purview
+  short_summary: |
+    Catalog every foundation-model, fine-tune, prompt template,
+    RAG-source and agent into Microsoft Purview so lineage, owner,
+    risk-tier and Responsible-AI artefacts are discoverable for audit.

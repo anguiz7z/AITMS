@@ -1,0 +1,179 @@
+# Editor palette metadata — emoji_overrides + group_order.
+#
+# Read by scripts/gen_palette.py when generating
+# src/atms/static/palette-data.json. The 121 ComponentType values and
+# their groups come from src/atms/models.py; this file only carries:
+#  - emoji_overrides: per-type 1-2 char display sigil. Defaults to a
+#    deterministic 2-char abbreviation when unset.
+#  - group_order: forces palette display order so AI/ML / Cloud /
+#    Network / Identity / Security / Observability / Endpoints / OT /
+#    Apps / Fallback render in a predictable top-to-bottom sequence.
+
+# v0.16.10: emoji overrides reflect what shipped before the palette
+# regenerated. New types get the deterministic abbreviation from
+# `gen_palette._abbrev()`.
+emoji_overrides:
+  # ─── AI / ML / agentic primitives ────────────────────────────────
+  user: U
+  agent: A
+  tool: T
+  mcp_server: M
+  llm_inference: L
+  embedding_service: E
+  rag_vector_store: R
+  training_pipeline: Tr
+  fine_tuning_pipeline: Ft
+  model_registry: Mr
+  prompt_template_store: P
+  guardrails: G
+  output_filter: O
+  data_source: Ds
+  external_api: Ea
+  ml_feature_store: Mf
+  ml_pipeline_orchestrator: Mp
+  ml_data_labeling: Ml
+  ml_experiment_tracker: Mt
+  ml_inference_endpoint: Me
+  vision_pipeline: Vi
+  speech_pipeline: Sp
+  content_safety_classifier: Cs
+
+  # ─── Cloud compute / serverless / container ──────────────────────
+  cloud_compute: Cc
+  serverless_function: Sf
+  container_runtime: Cr
+  container_orchestrator: Co
+  container_registry: Cg
+  edge_compute: Ec
+  batch_compute: Bc
+  high_performance_compute: Hp
+  api_gateway: Ag
+  message_queue: Mq
+
+  # ─── Cloud storage ───────────────────────────────────────────────
+  object_storage: Os
+  block_storage: Bs
+  file_storage: Fs
+  data_lake: Dl
+  data_warehouse: Dw
+  cache_store: Ca
+  backup_service: Bk
+
+  # ─── Databases / streaming / ETL ─────────────────────────────────
+  database: Db
+  nosql_database: Nd
+  graph_database: Gd
+  time_series_database: Td
+  stream_processor: St
+  etl_orchestrator: Et
+
+  # ─── Cloud network ───────────────────────────────────────────────
+  load_balancer: Lb
+  cdn: Cd
+  service_mesh: Sm
+  private_link: Pl
+  network_segment: Ns
+  transit_gateway: Tg
+  dns_service: Dn
+
+  # ─── Network appliances ──────────────────────────────────────────
+  firewall: Fw
+  waf: Wf
+  ids_ips: Ii
+  ddos_mitigation: Dd
+  web_proxy: Wp
+  reverse_proxy: Rp
+  vpn_gateway: Vp
+  router: Rt
+  network_switch: Sw
+  switch_l3: S3
+  sdwan_edge: Se
+  network_access_control: Nc
+  bastion_host: Bh
+  pam_vault: Pv
+
+  # ─── Identity / secrets / KMS ────────────────────────────────────
+  iam_principal: Id
+  directory_service: Dr
+  identity_provider: Ip
+  mfa_service: Mu
+  sso_service: So
+  ciam_platform: Ci
+  secrets_vault: Sv
+  kms_key: Kk
+  certificate_manager: Cm
+  hsm: Hs
+
+  # ─── Security tooling ────────────────────────────────────────────
+  siem: Si
+  soar: Sx
+  edr_agent: Ed
+  vulnerability_scanner: Vs
+  casb: Cb
+  dlp: Dp
+  cspm: Cp
+  container_security: Ks
+  security_data_lake: Sd
+
+  # ─── Observability ───────────────────────────────────────────────
+  observability_stack: Ob
+  log_aggregator: La
+  metrics_platform: Mx
+  tracing_platform: Tp
+  alerting_platform: Ap
+
+  # ─── Endpoints / servers ─────────────────────────────────────────
+  endpoint: Ep
+  server_windows: Sw1
+  server_linux: Sl
+  server_unix: Su
+  mainframe: Mn
+  legacy_mainframe: Lg
+  virtual_desktop: Vd
+  mobile_device: Mb
+  mdm_emm: Mm
+
+  # ─── OT / SCADA / industrial / IoT ──────────────────────────────
+  plc: Pc
+  rtu: Ru
+  ied: Ie
+  hmi: Hm
+  scada: Sc
+  dcs: Dc
+  sis: Ss
+  industrial_protocol: Ix
+  iot_device: Io
+  iot_gateway: Ig
+  ot_jumphost: Oj
+
+  # ─── Application-tier ───────────────────────────────────────────
+  web_application: Wa
+  email_server: Em
+  file_transfer_service: Fx
+  code_repository: Cx
+  ci_cd_pipeline: Pi
+  artifact_registry: Ar
+  build_runner: Br
+  feature_flag_service: Ff
+  iac_template_registry: It
+
+  # ─── Fallback ───────────────────────────────────────────────────
+  other: Ot
+
+# Group display order — palette renders in this order, top-to-bottom.
+# Names must match exactly the comment-header strings in models.py
+# (case + slash + spaces).
+group_order:
+  - "AI / ML / agentic primitives"
+  - "Cloud compute + serverless + container"
+  - "Cloud storage families"
+  - "Databases + streaming + ETL"
+  - "Cloud network + delivery + edge"
+  - "Network appliances (on-prem + virtual + managed)"
+  - "Identity / secrets / key management"
+  - "Security tooling"
+  - "Observability"
+  - "Endpoints + servers"
+  - "OT / SCADA / industrial / IoT"
+  - "Application-tier components"
+  - "Fallback"

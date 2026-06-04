@@ -1,0 +1,81 @@
+component_type: network_segment
+description: |
+  Cloud network boundary — AWS VPC / subnet / security group / NACL,
+  Azure VNet / NSG, GCP VPC / Firewall. Defines the network reachability
+  between AI components.
+threats:
+  - id: T_NET_001
+    title: Over-permissive ingress (0.0.0.0/0 on inference / training endpoints)
+    stride_ai: [Spoofing, Tampering, Information_Disclosure, Elevation_of_Privilege]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0049]
+    attack_cloud: [T1190, T1078.004]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Security group / NSG / firewall allows ingress from `0.0.0.0/0` on the
+      inference / training / orchestrator endpoints. Plenty of "ssh from
+      anywhere" or "443 from anywhere" rules left over from POC days.
+    mitigations:
+      - "Least-network: SG ingress restricted to known caller CIDRs"
+      - "VPC endpoints (PrivateLink) for service-to-service traffic"
+      - "IaC scanning catches `0.0.0.0/0` ingress pre-merge"
+      - "Periodic detection (Config / Security Hub) for reintroduction"
+    refs: [AML.M0019]
+
+  - id: T_NET_002
+    title: Egress allowed to arbitrary internet (data exfil)
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API7:2023]
+    attack_cloud: [T1567, T1102]
+    maestro: [M.X.04]
+    likelihood: 3
+    impact: 4
+    description: |
+      The training-VPC or inference-runtime can reach arbitrary internet
+      destinations. SSRF / compromised tool / malicious model can dial out
+      to attacker.com and exfil data.
+    mitigations:
+      - "Egress allowlist (NAT gateway + allowlist or service-mesh sidecar)"
+      - "VPC endpoints for required AWS / Azure / GCP services; deny everything else"
+      - "DNS firewall (Route 53 Resolver DNS Firewall, Azure DNS Private Resolver)"
+      - "Egress monitoring with anomaly alerts"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_NET_003
+    title: Public access where private is sufficient
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API8:2023]
+    attack_cloud: [T1190]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Inference endpoint / API Gateway / SageMaker endpoint exposed publicly
+      when only intranet / partner traffic is needed. Reduces effort cost for
+      attacker reconnaissance.
+    mitigations:
+      - "PrivateLink / Private Endpoint where available"
+      - "Internal load balancers; public path only when justified"
+      - "Default-private; explicit exception process"
+    refs: [AML.M0019]
+
+  - id: T_NET_004
+    title: Lateral movement between AI subnets and corp network
+    stride_ai: [Elevation_of_Privilege, Tampering, Lateral_Movement]
+    owasp_api: []
+    attack_cloud: [T1078.004, T1098.003]
+    maestro: [M.X.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      Compromise in the AI workload's network can pivot via VPC peering /
+      Transit Gateway / shared VNet to corp infrastructure. The blast radius
+      extends beyond the AI system.
+    mitigations:
+      - "Separate AI workload accounts / subscriptions / projects"
+      - "Hub-and-spoke topology with explicit peering allowlists"
+      - "East-west firewall (Azure Firewall, AWS Network Firewall) between zones"
+      - "Per-subnet least-privilege NACLs"
+    refs: [AML.M0019]

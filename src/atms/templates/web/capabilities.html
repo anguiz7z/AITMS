@@ -1,0 +1,162 @@
+{% extends "web/base.html" %}
+{% block title %}Capabilities — ATMS{% endblock %}
+{% block content %}
+<style>
+  .cap-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin: 18px 0; }
+  .cap-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+  .cap-card h3 { margin: 0 0 6px 0; font-size: 14px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; }
+  .cap-card .count { font-size: 26px; font-weight: 700; color: #f0f6fc; line-height: 1.0; margin: 4px 0; }
+  .cap-card .desc { font-size: 13px; color: var(--text); margin: 4px 0; }
+  .cap-card ul { margin: 6px 0 0 0; padding-left: 18px; font-size: 12px; color: var(--muted); }
+  .cap-card ul li { padding: 1px 0; }
+  .cap-card code { font-family: ui-monospace, monospace; background: var(--panel2); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+  .cap-pillbar { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .cap-pillbar .pill { background: var(--panel2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; font-size: 11px; font-family: ui-monospace, monospace; }
+</style>
+
+<h1>What ATMS can do</h1>
+<p class="muted">A live inventory of inputs, engines, frameworks, exports, and endpoints. Numbers come straight from the running knowledge base — they don't go stale.</p>
+
+<div class="cap-grid">
+
+  <div class="cap-card">
+    <h3>Input formats</h3>
+    <div class="count">11</div>
+    <div class="desc">Anything you've already drawn or written.</div>
+    <ul>
+      <li><code>.yaml</code> System YAML (native)</li>
+      <li><code>.drawio</code> / <code>.xml</code> draw.io / mxGraph</li>
+      <li><code>.mmd</code> / <code>.mermaid</code> / <code>.md</code> Mermaid flowchart</li>
+      <li><code>.vsdx</code> Microsoft Visio</li>
+      <li><code>.tf</code> Terraform HCL</li>
+      <li><code>.yaml</code> AWS CloudFormation</li>
+      <li><code>.yaml</code> Kubernetes manifests (multi-doc)</li>
+      <li><code>.bicep</code> Azure Bicep DSL</li>
+      <li><code>.json</code> Azure ARM templates</li>
+      <li><code>.yaml</code> Pulumi YAML (AWS / Azure / GCP / K8s)</li>
+      <li><code>.json</code> / <code>.otm</code> Open Threat Model</li>
+      <li><code>docker-compose.yml</code></li>
+    </ul>
+  </div>
+
+  <div class="cap-card">
+    <h3>Playbooks</h3>
+    <div class="count">{{ playbooks_count }}</div>
+    <div class="desc">One YAML playbook per ComponentType — 100% coverage of all 121 supported types. Each playbook fires 3-13 threats with framework refs, STRIDE category, L/I, mitigations.</div>
+  </div>
+
+  <div class="cap-card">
+    <h3>Architectural rules</h3>
+    <div class="count">{{ arch_rules|length }}</div>
+    <div class="desc">Topology-level rules covering external exposure, auth, secrets, supply-chain, operational controls, and AI-specific patterns. Threats use id prefix <code>A_*</code>.</div>
+    <div class="cap-pillbar">
+      {% for r in arch_rules %}<span class="pill" title="{{ r.title }}">{{ r.name }}</span>{% endfor %}
+    </div>
+  </div>
+
+  <div class="cap-card">
+    <h3>Compliance frameworks</h3>
+    <div class="count">{{ frameworks|length }}</div>
+    <div class="desc">{{ compliance_count }} controls across {{ frameworks|length }} frameworks. The matrix renders coverage per-framework with covered / uncovered / mitigated / not-applicable status.</div>
+    <div class="cap-pillbar">
+      {% for f in frameworks %}<span class="pill">{{ f }}</span>{% endfor %}
+    </div>
+  </div>
+
+  <div class="cap-card">
+    <h3>Threat-intel & AI frameworks</h3>
+    <div class="count">{{ atlas_count + owasp_llm_count + owasp_agentic_count + owasp_api_count }}</div>
+    <div class="desc">Citation IDs available to every threat:</div>
+    <ul>
+      <li>MITRE ATLAS techniques: {{ atlas_count }}</li>
+      <li>OWASP LLM Top 10 2025: {{ owasp_llm_count }}</li>
+      <li>OWASP Agentic AI Top 10: {{ owasp_agentic_count }}</li>
+      <li>OWASP API Top 10: {{ owasp_api_count }}</li>
+      <li>NIST AI 100-2, NIST AI RMF, LINDDUN, MAESTRO, CSA Singapore (bundled in KB)</li>
+    </ul>
+  </div>
+
+  <div class="cap-card">
+    <h3>Device catalog</h3>
+    <div class="count">{{ device_count }}</div>
+    <div class="desc">Vendor / product / version entries for evidence matching. Plumbing for SBOMs, CPE / pURL lookups, and the CVE → KEV pipeline.</div>
+  </div>
+
+  <div class="cap-card">
+    <h3>Export formats</h3>
+    <div class="count">12+</div>
+    <div class="desc">Every analysis emits the artefacts auditors / engineers / executives need.</div>
+    <ul>
+      <li>Markdown report</li>
+      <li>HTML report (interactive, filterable, heatmap)</li>
+      <li>Executive summary (1-page, print-clean)</li>
+      <li>STIX 2.1 bundle</li>
+      <li>ATT&amp;CK Navigator layer</li>
+      <li>Risk-register CSV + mitigations CSV</li>
+      <li>SARIF (GHAS-compatible)</li>
+      <li>Open Threat Model (OTM)</li>
+      <li>Compliance matrix HTML + CSV</li>
+      <li>JIRA CSV + REST bulk-create JSON</li>
+      <li>Mitigation roadmap Markdown + JSON</li>
+      <li>CycloneDX 1.5 SBOM</li>
+    </ul>
+  </div>
+
+  <div class="cap-card">
+    <h3>REST API</h3>
+    <div class="count">4</div>
+    <div class="desc">Programmatic surface for CI/CD pipelines.</div>
+    <ul>
+      <li><code>POST /api/v1/analyze</code> — JSON in (YAML body)</li>
+      <li><code>POST /api/v1/scan</code> — multipart upload (any format)</li>
+      <li><code>GET /api/v1/metrics</code> — KB inventory snapshot</li>
+      <li><code>GET /healthz</code> — LB liveness probe</li>
+    </ul>
+  </div>
+
+  <div class="cap-card">
+    <h3>CLI commands</h3>
+    <div class="count">20+</div>
+    <div class="desc">Offline-friendly, scriptable, supports CI workflows.</div>
+    <div class="cap-pillbar">
+      <span class="pill">analyze</span>
+      <span class="pill">scan</span>
+      <span class="pill">watch</span>
+      <span class="pill">ci</span>
+      <span class="pill">diff</span>
+      <span class="pill">init</span>
+      <span class="pill">validate</span>
+      <span class="pill">review</span>
+      <span class="pill">selftest</span>
+      <span class="pill">refresh-feeds</span>
+      <span class="pill">cve-lookup</span>
+      <span class="pill">compliance</span>
+      <span class="pill">devices</span>
+      <span class="pill">kb-search</span>
+      <span class="pill">list-playbooks</span>
+      <span class="pill">ingest-cfn</span>
+      <span class="pill">ingest-k8s</span>
+      <span class="pill">ingest-azure</span>
+      <span class="pill">ingest-pulumi</span>
+      <span class="pill">ingest-otm</span>
+      <span class="pill">ingest-iac</span>
+      <span class="pill">ingest-evidence</span>
+      <span class="pill">ingest-redteam</span>
+      <span class="pill">web</span>
+    </div>
+  </div>
+
+</div>
+
+<h2>Security posture</h2>
+<p>
+ATMS is offline-first by design. Every cycle of development goes through a security gate:
+no clones of untrusted repos, no <code>pip install</code> from research, no shell-out for
+ingest, no <code>eval</code> on user content, no network calls during analysis.
+WeasyPrint is opt-in; the bundled <code>@media print</code> stylesheet means the browser
+can produce audit-ready PDFs without any C-library install.
+</p>
+
+<p class="muted" style="font-size: 12px;">Live counts via <a href="/api/v1/metrics"><code>/api/v1/metrics</code></a> · drift-guarded diagram at <a href="/architecture"><code>/architecture</code></a>.</p>
+
+{% endblock %}

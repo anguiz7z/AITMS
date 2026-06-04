@@ -1,0 +1,110 @@
+component_type: mobile_device
+description: |
+  Mobile endpoint — iOS or Android phone / tablet used by an
+  employee (corp-owned, BYOD, or COPE). Hosts mobile apps that
+  connect to corporate SaaS, MDM-managed configuration, and access
+  to corporate email, chat, and internal apps. In AI estates,
+  mobile is increasingly an interface to corp LLM chat apps and
+  agentic assistants.
+threats:
+  - id: T_MOBILE_001
+    title: Phishing / smishing capturing corporate credentials and MFA
+    stride_ai: [Spoofing, Information_Disclosure]
+    attack_enterprise: [T1660, T1566.002]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.HUMAN.01]
+    likelihood: 5
+    impact: 4
+    description: |
+      Targeted SMS / iMessage / WhatsApp / WeChat message lures the
+      user to a phishing page that captures username, password, and
+      MFA token (Evilginx / Modlishka-class adversary-in-the-middle).
+      Mobile screens make URL spoofing especially effective; users
+      cannot inspect cert chain easily.
+    mitigations:
+      - "FIDO2 / passkey-based MFA — phishing-resistant by design"
+      - "User awareness training with simulated smishing"
+      - "DNS-RPZ / mobile-proxy blocks known phishing infrastructure"
+      - "Conditional Access blocking risky-sign-in regardless of MFA pass"
+    refs: [AML.M0019, T1566]
+
+  - id: T_MOBILE_002
+    title: Sideloaded / malicious app exfiltrating data
+    stride_ai: [Tampering, Information_Disclosure]
+    attack_enterprise: [T1404, T1437]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      User installs an unvetted app from sideload (Android), an
+      enterprise-provisioning profile (iOS), or a private store
+      that abuses entitlements to read contacts, camera, mic,
+      clipboard. Adware-SDKs and SDK-supply-chain compromises in
+      legit apps further widen the surface.
+    mitigations:
+      - "MDM-managed work profile (Android Enterprise / iOS Managed Apps) isolating corp data"
+      - "App allowlist on corp profile; disable sideloading"
+      - "Mobile Threat Defense (Lookout / Wandera / Zimperium / Defender for Mobile)"
+      - "Network DLP for mobile via VPN-on-demand / Microsoft Tunnel"
+    refs: [AML.M0019, T1404]
+
+  - id: T_MOBILE_003
+    title: Zero-click iOS / Android exploit (Pegasus / Predator class)
+    stride_ai: [Tampering, Information_Disclosure, Elevation_of_Privilege]
+    attack_enterprise: [T1404, T1068]
+    maestro: [M.X.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      State-aligned or commercial-grade spyware uses a zero-click
+      (no user interaction) vulnerability in iMessage, WhatsApp,
+      browser, or media-codec to fully compromise the device.
+      Pegasus and Predator have repeatedly demonstrated this against
+      activists, journalists, and executives. Once owned, mic /
+      camera / messages / mailbox are all exposed.
+    mitigations:
+      - "iOS Lockdown Mode / Android Advanced Protection for high-target individuals"
+      - "Aggressive OS update SLA; force-update via MDM within 7d"
+      - "Mobile Threat Defense with mercenary-spyware detection signatures"
+      - "Periodic forensic-check (MVT / iVerify) for high-risk roles"
+    refs: [T1068, AML.M0007]
+
+  - id: T_MOBILE_004
+    title: Lost / stolen device with unencrypted local data
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1530]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 3
+    description: |
+      Phone left in taxi, hotel, or stolen on the street. Despite
+      hardware encryption being on by default, weak PIN / no
+      auto-lock / disabled remote wipe means a determined adversary
+      can extract corp data within hours. Many BYOD policies don't
+      enforce minimum PIN length or wipe.
+    mitigations:
+      - "MDM-enforced strong PIN (6+ digits) or biometric, short auto-lock"
+      - "Remote-wipe capability on every managed device"
+      - "Full-disk encryption (on by default on modern OS; verify in compliance)"
+      - "Out-of-region travel device program for sensitive trips"
+    refs: [AML.M0019]
+
+  - id: T_MOBILE_005
+    title: Jailbreak / root undermines MDM controls
+    stride_ai: [Defense_Evasion, Elevation_of_Privilege]
+    attack_enterprise: [T1574, T1626]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 4
+    description: |
+      User jailbreaks iOS (checkra1n on older devices) or roots
+      Android. Container-separation, work-profile isolation, MDM
+      configuration enforcement all become unreliable. Apps can
+      read other apps' sandboxed data; certs can be installed
+      arbitrarily.
+    mitigations:
+      - "MDM Attestation API (DeviceCheck / Play Integrity API) to detect tampered devices"
+      - "Conditional Access blocks corp resource on tampered devices"
+      - "MTD agent with jailbreak detection"
+      - "Mandatory device-trust posture check before each authn"
+    refs: [T1626, AML.M0019]

@@ -1,0 +1,402 @@
+# MAESTRO threats per layer + cross-layer threats.
+# Source: CSA MAESTRO blog (2025-02-06). Threat names taken verbatim from the
+# published framework where possible. Each entry includes:
+#   id            — ATMS-local ID prefixed with M.<layer>.<n>
+#   layer         — MAESTRO layer ID
+#   name          — verbatim threat name from the framework
+#   keywords      — for keyword-based enrichment
+#   applies_to    — ATMS component types this threat tends to apply to
+#   stride_ai     — the closest STRIDE-AI category mapping (heuristic)
+
+# ─────────────────────────────────────────────────────────────── L1 Foundation
+- id: M.L1.01
+  layer: M.L1
+  name: Adversarial Examples
+  keywords: [adversarial example, evasion, perturbation]
+  applies_to: [llm_inference, output_filter, guardrails]
+  stride_ai: [Defense_Evasion, Tampering]
+
+- id: M.L1.02
+  layer: M.L1
+  name: Model Stealing
+  keywords: [model stealing, model extraction, distillation]
+  applies_to: [llm_inference]
+  stride_ai: [Information_Disclosure]
+
+- id: M.L1.03
+  layer: M.L1
+  name: Backdoor Attacks
+  keywords: [backdoor, trigger, trojan]
+  applies_to: [model_registry, fine_tuning_pipeline, llm_inference]
+  stride_ai: [Tampering]
+
+- id: M.L1.04
+  layer: M.L1
+  name: Membership Inference Attacks
+  keywords: [membership inference, training data leak]
+  applies_to: [llm_inference]
+  stride_ai: [Information_Disclosure]
+
+- id: M.L1.05
+  layer: M.L1
+  name: Data Poisoning (Training Phase)
+  keywords: [training data poisoning, label flip]
+  applies_to: [training_pipeline, fine_tuning_pipeline]
+  stride_ai: [Tampering]
+
+- id: M.L1.06
+  layer: M.L1
+  name: Reprogramming Attacks
+  keywords: [reprogramming, model reuse, prompt reprogram]
+  applies_to: [llm_inference]
+  stride_ai: [Tampering, Elevation_of_Privilege]
+
+- id: M.L1.07
+  layer: M.L1
+  name: Denial of Service (Foundation Model)
+  keywords: [dos, sponge attack, token flood]
+  applies_to: [llm_inference]
+  stride_ai: [Denial_of_Service]
+
+# ─────────────────────────────────────────────────────────────── L2 Data Ops
+- id: M.L2.01
+  layer: M.L2
+  name: Data Poisoning (Operations)
+  keywords: [data poisoning, ingestion poisoning]
+  applies_to: [data_source, rag_vector_store, embedding_service]
+  stride_ai: [Tampering]
+
+- id: M.L2.02
+  layer: M.L2
+  name: Data Exfiltration
+  keywords: [data exfil, leak, embedding inversion, vector leak]
+  applies_to: [rag_vector_store, embedding_service, data_source]
+  stride_ai: [Information_Disclosure]
+
+- id: M.L2.03
+  layer: M.L2
+  name: Denial of Service on Data Infrastructure
+  keywords: [data dos, ingestion dos, vector store dos]
+  applies_to: [rag_vector_store, embedding_service, data_source]
+  stride_ai: [Denial_of_Service]
+
+- id: M.L2.04
+  layer: M.L2
+  name: Data Tampering
+  keywords: [tamper, integrity, data corruption]
+  applies_to: [rag_vector_store, data_source, embedding_service]
+  stride_ai: [Tampering]
+
+- id: M.L2.05
+  layer: M.L2
+  name: Compromised RAG Pipelines
+  keywords: [rag poisoning, rag pipeline compromise]
+  applies_to: [rag_vector_store, embedding_service]
+  stride_ai: [Tampering, Spoofing]
+
+# ─────────────────────────────────────────────────────────────── L3 Frameworks
+- id: M.L3.01
+  layer: M.L3
+  name: Compromised Framework Components
+  keywords: [framework compromise, langchain, autogen, library compromise]
+  applies_to: [agent, tool, prompt_template_store]
+  stride_ai: [Tampering]
+
+- id: M.L3.02
+  layer: M.L3
+  name: Backdoor Attacks (Framework)
+  keywords: [framework backdoor, trojan dependency]
+  applies_to: [agent, tool]
+  stride_ai: [Tampering]
+
+- id: M.L3.03
+  layer: M.L3
+  name: Input Validation Attacks (Framework)
+  keywords: [input validation, schema bypass, framework injection]
+  applies_to: [agent, tool, mcp_server]
+  stride_ai: [Tampering, Elevation_of_Privilege]
+
+- id: M.L3.04
+  layer: M.L3
+  name: Supply Chain Attacks (Framework)
+  keywords: [supply chain, dependency, sbom]
+  applies_to: [agent, tool, mcp_server]
+  stride_ai: [Tampering]
+
+- id: M.L3.05
+  layer: M.L3
+  name: Denial of Service on Framework APIs
+  keywords: [framework dos, agent api dos]
+  applies_to: [agent, tool]
+  stride_ai: [Denial_of_Service]
+
+- id: M.L3.06
+  layer: M.L3
+  name: Framework Evasion
+  keywords: [framework evasion, sandbox escape]
+  applies_to: [agent, guardrails, output_filter]
+  stride_ai: [Defense_Evasion]
+
+# ─────────────────────────────────────────────────────────────── L4 Deployment
+- id: M.L4.01
+  layer: M.L4
+  name: Compromised Container Images
+  keywords: [container image, supply chain image, dockerfile]
+  applies_to: [external_api, mcp_server]
+  stride_ai: [Tampering]
+
+- id: M.L4.02
+  layer: M.L4
+  name: Orchestration Attacks
+  keywords: [kubernetes, orchestration, k8s, mesos]
+  applies_to: [external_api, mcp_server]
+  stride_ai: [Tampering, Elevation_of_Privilege]
+
+- id: M.L4.03
+  layer: M.L4
+  name: Infrastructure-as-Code (IaC) Manipulation
+  keywords: [iac, terraform, helm, manifest tamper]
+  applies_to: [external_api, mcp_server]
+  stride_ai: [Tampering]
+
+- id: M.L4.04
+  layer: M.L4
+  name: Denial of Service (Infrastructure)
+  keywords: [infra dos, capacity exhaustion]
+  applies_to: [external_api, mcp_server, llm_inference]
+  stride_ai: [Denial_of_Service]
+
+- id: M.L4.05
+  layer: M.L4
+  name: Resource Hijacking
+  keywords: [cryptojacking, resource abuse, gpu hijack]
+  applies_to: [external_api, mcp_server, llm_inference]
+  stride_ai: [Elevation_of_Privilege, Denial_of_Service]
+
+- id: M.L4.06
+  layer: M.L4
+  name: Lateral Movement (Infrastructure)
+  keywords: [lateral movement, pivot, east-west traffic]
+  applies_to: [external_api, mcp_server, agent]
+  stride_ai: [Elevation_of_Privilege]
+
+# ─────────────────────────────────────────────────────────────── L5 Evaluation
+- id: M.L5.01
+  layer: M.L5
+  name: Manipulation of Evaluation Metrics
+  keywords: [eval gaming, metric manipulation]
+  applies_to: [output_filter, guardrails]
+  stride_ai: [Tampering, Repudiation]
+
+- id: M.L5.02
+  layer: M.L5
+  name: Compromised Observability Tools
+  keywords: [otel compromise, observability tampering, log tamper]
+  applies_to: [output_filter, guardrails]
+  stride_ai: [Tampering]
+
+- id: M.L5.03
+  layer: M.L5
+  name: Denial of Service on Evaluation Infrastructure
+  keywords: [eval dos, evaluation outage]
+  applies_to: [output_filter, guardrails]
+  stride_ai: [Denial_of_Service]
+
+- id: M.L5.04
+  layer: M.L5
+  name: Evasion of Detection
+  keywords: [evade detection, bypass logging]
+  applies_to: [guardrails, output_filter]
+  stride_ai: [Defense_Evasion]
+
+- id: M.L5.05
+  layer: M.L5
+  name: Data Leakage through Observability
+  keywords: [observability leak, log leak, trace leak]
+  applies_to: [output_filter, guardrails]
+  stride_ai: [Information_Disclosure]
+
+- id: M.L5.06
+  layer: M.L5
+  name: Poisoning Observability Data
+  keywords: [poison logs, fake telemetry]
+  applies_to: [output_filter, guardrails]
+  stride_ai: [Tampering]
+
+# ─────────────────────────────────────────────────────────────── L6 Security
+- id: M.L6.01
+  layer: M.L6
+  name: Security Agent Data Poisoning
+  keywords: [security agent poisoning]
+  applies_to: [guardrails, output_filter]
+  stride_ai: [Tampering]
+
+- id: M.L6.02
+  layer: M.L6
+  name: Evasion of Security AI Agents
+  keywords: [evade security agent, ai-evasion]
+  applies_to: [guardrails, output_filter]
+  stride_ai: [Defense_Evasion]
+
+- id: M.L6.03
+  layer: M.L6
+  name: Compromised Security AI Agents
+  keywords: [compromise guardrail, evil guardrail]
+  applies_to: [guardrails, output_filter]
+  stride_ai: [Tampering, Elevation_of_Privilege]
+
+- id: M.L6.04
+  layer: M.L6
+  name: Regulatory Non-Compliance by AI Security Agents
+  keywords: [non-compliance, gdpr, hipaa]
+  applies_to: [guardrails, output_filter]
+  stride_ai: [Repudiation]
+
+- id: M.L6.05
+  layer: M.L6
+  name: Bias in Security AI Agents
+  keywords: [bias, unfair, discrimination]
+  applies_to: [guardrails, output_filter]
+  stride_ai: [Repudiation]
+
+- id: M.L6.06
+  layer: M.L6
+  name: Lack of Explainability in Security AI Agents
+  keywords: [explainability, interpretability]
+  applies_to: [guardrails, output_filter]
+  stride_ai: [Repudiation]
+
+- id: M.L6.07
+  layer: M.L6
+  name: Model Extraction of AI Security Agents
+  keywords: [security model extraction]
+  applies_to: [guardrails, output_filter]
+  stride_ai: [Information_Disclosure]
+
+# ─────────────────────────────────────────────────────────────── L7 Ecosystem
+- id: M.L7.01
+  layer: M.L7
+  name: Compromised Agents
+  keywords: [compromised agent, hijacked agent]
+  applies_to: [agent, mcp_server]
+  stride_ai: [Tampering, Elevation_of_Privilege]
+
+- id: M.L7.02
+  layer: M.L7
+  name: Agent Impersonation
+  keywords: [agent impersonation, fake agent]
+  applies_to: [agent, mcp_server, user]
+  stride_ai: [Spoofing]
+
+- id: M.L7.03
+  layer: M.L7
+  name: Agent Identity Attack
+  keywords: [agent identity, identity theft]
+  applies_to: [agent, mcp_server]
+  stride_ai: [Spoofing, Elevation_of_Privilege]
+
+- id: M.L7.04
+  layer: M.L7
+  name: Agent Tool Misuse
+  keywords: [tool misuse, unauthorized tool]
+  applies_to: [agent, tool, mcp_server]
+  stride_ai: [Elevation_of_Privilege, Tampering]
+
+- id: M.L7.05
+  layer: M.L7
+  name: Agent Goal Manipulation
+  keywords: [goal manipulation, intent break, plan injection]
+  applies_to: [agent]
+  stride_ai: [Tampering, Elevation_of_Privilege]
+
+- id: M.L7.06
+  layer: M.L7
+  name: Marketplace Manipulation
+  keywords: [agent marketplace, registry manipulation]
+  applies_to: [mcp_server, external_api]
+  stride_ai: [Tampering, Spoofing]
+
+- id: M.L7.07
+  layer: M.L7
+  name: Integration Risks
+  keywords: [integration, connector risk]
+  applies_to: [agent, tool, mcp_server, external_api]
+  stride_ai: [Tampering, Information_Disclosure]
+
+- id: M.L7.08
+  layer: M.L7
+  name: Horizontal/Vertical Solution Vulnerabilities
+  keywords: [horizontal solution, vertical solution]
+  applies_to: [agent, mcp_server]
+  stride_ai: [Tampering]
+
+- id: M.L7.09
+  layer: M.L7
+  name: Repudiation (Ecosystem)
+  keywords: [repudiation, no audit trail]
+  applies_to: [agent, mcp_server]
+  stride_ai: [Repudiation]
+
+- id: M.L7.10
+  layer: M.L7
+  name: Compromised Agent Registry
+  keywords: [agent registry, compromised registry]
+  applies_to: [mcp_server, model_registry]
+  stride_ai: [Tampering]
+
+- id: M.L7.11
+  layer: M.L7
+  name: Malicious Agent Discovery
+  keywords: [malicious discovery, evil agent]
+  applies_to: [mcp_server, agent]
+  stride_ai: [Spoofing, Tampering]
+
+- id: M.L7.12
+  layer: M.L7
+  name: Agent Pricing Model Manipulation
+  keywords: [pricing manipulation, billing abuse]
+  applies_to: [agent, external_api]
+  stride_ai: [Tampering, Denial_of_Service]
+
+- id: M.L7.13
+  layer: M.L7
+  name: Inaccurate Agent Capability Description
+  keywords: [capability misrepresentation]
+  applies_to: [agent, mcp_server]
+  stride_ai: [Spoofing, Repudiation]
+
+# ──────────────────────────────────────────────────────────── Cross-layer
+- id: M.X.01
+  layer: cross
+  name: Supply Chain Attacks (cross-layer)
+  keywords: [supply chain, sbom, dependency]
+  applies_to: [agent, tool, mcp_server, model_registry, training_pipeline, fine_tuning_pipeline]
+  stride_ai: [Tampering]
+
+- id: M.X.02
+  layer: cross
+  name: Lateral Movement (cross-layer)
+  keywords: [lateral movement, pivot]
+  applies_to: [agent, tool, mcp_server, external_api]
+  stride_ai: [Elevation_of_Privilege]
+
+- id: M.X.03
+  layer: cross
+  name: Privilege Escalation (cross-layer)
+  keywords: [privilege escalation, elevation]
+  applies_to: [agent, tool, mcp_server]
+  stride_ai: [Elevation_of_Privilege]
+
+- id: M.X.04
+  layer: cross
+  name: Data Leakage (cross-layer)
+  keywords: [data leakage, cross-layer leak]
+  applies_to: [llm_inference, rag_vector_store, embedding_service, agent]
+  stride_ai: [Information_Disclosure]
+
+- id: M.X.05
+  layer: cross
+  name: Goal Misalignment Cascades
+  keywords: [goal misalignment, cascade, multi-agent drift]
+  applies_to: [agent]
+  stride_ai: [Tampering, Repudiation]

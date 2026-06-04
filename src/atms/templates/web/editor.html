@@ -1,0 +1,204 @@
+{% extends "web/base.html" %}
+{% block title %}Editor{% endblock %}
+{% block content %}
+<style>
+  .editor-shell {
+    display: grid;
+    grid-template-columns: 220px 1fr 320px;
+    grid-template-rows: auto 1fr auto;
+    gap: 12px;
+    height: calc(100vh - 200px);
+    min-height: 640px;
+  }
+  .editor-toolbar {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .editor-toolbar input[type=text],
+  .editor-toolbar select { width: auto; max-width: 220px; }
+  .editor-toolbar .spacer { flex: 1; }
+  .editor-toolbar button.active { background: #3fb950; }
+  #status { color: var(--muted); font-size: 12px; padding-left: 8px; }
+
+  /* v0.16.10: palette wrap contains the search row + the scrollable
+     palette list. The wrap is the grid cell; the palette inside
+     handles its own overflow. */
+  .editor-palette-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px;
+    display: flex; flex-direction: column;
+    min-height: 0;  /* allow inner overflow */
+  }
+  .palette-search-row {
+    display: flex; gap: 4px; margin-bottom: 8px;
+    position: relative;
+  }
+  .palette-search {
+    flex: 1; padding: 6px 8px; padding-right: 28px;
+    font-size: 12px;
+    background: var(--panel2); color: var(--fg, #e6edf3);
+    border: 1px solid var(--border); border-radius: 6px;
+    margin: 0;
+  }
+  .palette-search:focus {
+    outline: none; border-color: var(--accent);
+  }
+  .palette-search-clear {
+    position: absolute; right: 6px; top: 50%;
+    transform: translateY(-50%);
+    background: transparent; border: none;
+    color: var(--muted); cursor: pointer;
+    padding: 0 6px; font-size: 16px; line-height: 1;
+  }
+  .palette-search-clear:hover { color: var(--accent); background: transparent; }
+
+  .editor-palette {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+  .palette-error {
+    color: var(--critical); font-size: 12px; padding: 8px;
+  }
+  .palette-group { margin-bottom: 10px; }
+  .palette-group.hidden { display: none; }
+  .palette-group-header {
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); margin: 4px 0;
+    cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .palette-group-header:hover { color: var(--accent); }
+  .palette-group-header .chevron {
+    display: inline-block; transition: transform 0.15s ease;
+    width: 10px; font-size: 9px;
+  }
+  .palette-group.collapsed .chevron { transform: rotate(-90deg); }
+  .palette-group.collapsed .palette-item { display: none; }
+  .palette-group-header .count {
+    margin-left: auto; color: var(--muted); font-size: 9px;
+    background: var(--panel2); padding: 1px 6px; border-radius: 8px;
+  }
+  .palette-item {
+    display: flex; gap: 6px; align-items: center;
+    padding: 4px 8px; margin-bottom: 3px;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 6px; cursor: grab; font-size: 12px;
+    user-select: none;
+  }
+  .palette-item.hidden { display: none; }
+  .palette-item:hover { border-color: var(--accent); }
+  .palette-item .emoji {
+    width: 22px; height: 22px; line-height: 22px;
+    text-align: center; background: var(--accent);
+    color: white; border-radius: 4px; font-weight: 700; font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  .editor-canvas-wrap {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden; position: relative;
+  }
+  #canvas {
+    width: 100%; height: 100%;
+    background:
+      linear-gradient(var(--border) 1px, transparent 1px) 0 0 / 32px 32px,
+      linear-gradient(90deg, var(--border) 1px, transparent 1px) 0 0 / 32px 32px,
+      var(--bg);
+    cursor: default;
+  }
+  .editor-side {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px; overflow-y: auto;
+  }
+  .editor-side h3 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); margin-top: 14px; margin-bottom: 8px;
+    border-bottom: 1px solid var(--border); padding-bottom: 4px;
+  }
+  .editor-side h3:first-child { margin-top: 0; }
+  .editor-side label { font-size: 11px; }
+  .editor-side input, .editor-side select { font-size: 13px; padding: 5px 8px; margin-bottom: 8px; }
+  .editor-side .placeholder { color: var(--muted); font-size: 13px; }
+  .editor-side .btn-danger {
+    background: var(--critical); color: white; padding: 6px 14px;
+    margin-top: 6px;
+  }
+  .flow-list { list-style: none; padding: 0; margin: 0; }
+  .flow-list li {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 6px; padding: 4px 6px; font-size: 12px;
+  }
+  .flow-list input { flex: 1; margin: 0; }
+  .btn-tiny { padding: 2px 8px; background: var(--critical); color: white; }
+
+  .editor-yaml {
+    grid-column: 1 / -1;
+    max-height: 200px; overflow: auto;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px;
+    font-family: ui-monospace, monospace; font-size: 12px;
+    white-space: pre;
+  }
+</style>
+
+<h1>System editor <span style="color:var(--muted);font-weight:400;font-size:14px;">drag · drop · wire · analyse</span></h1>
+<p style="color:var(--muted);font-size:14px;max-width:780px;">
+Build a system from scratch by dragging components from the palette onto the canvas.
+Click a node to edit its properties; toggle <strong>Connect</strong> mode to wire dataflows
+(click source, then target). Save to YAML or run the threat-model directly.
+This is the recommended way to assemble small or hybrid IT/OT/AI systems where you
+don't already have a Visio diagram.
+</p>
+
+<div class="editor-shell">
+  <div class="editor-toolbar">
+    <label style="margin:0;">System name</label>
+    <input id="sys-name" type="text" value="Untitled system" />
+    <input id="sys-desc" type="text" placeholder="Short description (optional)" style="max-width:280px;" />
+    <select id="methodology" title="Threat-modelling methodology">
+      <option value="stride-ai" selected>AI-native threat model (full pipeline)</option>
+      <option value="pasta">PASTA (attacker)</option>
+      <option value="linddun">LINDDUN (privacy)</option>
+    </select>
+    <select id="deployment-stage" title="Deployment stage — drives FAIR loss-prior tier (POC caps frequency at 1/yr)">
+      <option value="">stage: auto</option>
+      <option value="poc">POC</option>
+      <option value="pilot" selected>Pilot</option>
+      <option value="production">Production</option>
+    </select>
+    <span class="spacer"></span>
+    <button id="edge-btn" class="btn-secondary" title="Toggle wire-mode">Connect</button>
+    <button id="clear-btn" class="btn-secondary">Clear</button>
+    <button id="save-btn" class="btn-secondary">Save YAML</button>
+    <button id="analyze-btn">Analyse</button>
+    <span id="status"></span>
+  </div>
+
+  <div class="editor-palette-wrap">
+    <div class="palette-search-row">
+      <input id="palette-search" class="palette-search" type="text"
+             placeholder="Filter 121 components…" autocomplete="off" />
+      <button id="palette-search-clear" class="palette-search-clear" type="button"
+              title="Clear filter (Esc)">×</button>
+    </div>
+    <div class="editor-palette" id="palette"></div>
+  </div>
+  <div class="editor-canvas-wrap"><svg id="canvas"></svg></div>
+  <div class="editor-side" id="props"></div>
+
+  <pre class="editor-yaml" id="yaml-preview"></pre>
+</div>
+
+<script src="/static/atms-editor.js"></script>
+{% endblock %}

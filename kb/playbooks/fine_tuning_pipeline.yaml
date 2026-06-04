@@ -1,0 +1,64 @@
+component_type: fine_tuning_pipeline
+description: |
+  Pipeline that fine-tunes a pre-trained model on domain data. Includes LoRA, full fine-tune,
+  RLHF, DPO. Inherits training-pipeline threats with extra emphasis on the base-model supply chain.
+threats:
+  - id: T_FT_001
+    title: Backdoored base model from public hub
+    stride_ai: [Tampering]
+    owasp_llm: [LLM03:2025]
+    atlas: [AML.T0010.003, AML.T0018]
+    nist_ai_100_2: [NIST_GAI_BACKDOOR, NIST_PAI_POISONING_BACKDOOR]
+    owasp_ml: [ML06:2023, ML07:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Base model downloaded from a public hub (Hugging Face, etc.) contains a hidden trigger
+      that activates after fine-tuning, leaking data or following injected instructions.
+    mitigations:
+      - "Verify base-model SHA256 / signature against publisher"
+      - "Use private mirrors with signed artifacts"
+      - "Run the model against backdoor-detection tools (e.g., ProtectAI ModelScan, PickleScan)"
+      - "Behavioral test suite against known-bad triggers"
+    refs: [AML.M0014, AML.M0017, AML.M0008]
+
+  - id: T_FT_002
+    title: Fine-tune dataset poisoning (targeted backdoor)
+    stride_ai: [Tampering]
+    owasp_llm: [LLM04:2025]
+    atlas: [AML.T0019, AML.T0020]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA, NIST_PAI_POISONING_BACKDOOR]
+    owasp_ml: [ML02:2023, ML07:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Adversary contributes (or compromises) fine-tune samples that embed a trigger phrase →
+      malicious behavior pattern. Smaller dataset means even few poisoned samples are effective.
+    mitigations:
+      - "Strict provenance on fine-tune data"
+      - "Reviewer approval per dataset version"
+      - "Canary triggers tested post-train"
+    refs: [AML.M0007, AML.M0008]
+
+  - id: T_FT_003
+    title: Sensitive data memorization
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    atlas: [AML.T0024.000, AML.T0057]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_INVERSION, NIST_PAI_PRIVACY_MEMBERSHIP]
+    owasp_ml: [ML03:2023, ML04:2023]
+    linddun: [L_001, I_001, DD_002, NC_002]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      Fine-tune corpus contains PII, secrets, or proprietary text; the model memorizes it and
+      can be probed to surface it.
+    mitigations:
+      - "PII detection + redaction in fine-tune corpus"
+      - "Secret scanning (gitleaks) on fine-tune corpus"
+      - "Differential privacy / DP-SGD where feasible"
+      - "Membership-inference resistance evaluation post-train"
+    refs: [AML.M0007, AML.M0002]

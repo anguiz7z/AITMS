@@ -1,0 +1,134 @@
+component_type: high_performance_compute
+description: |
+  High-performance compute — multi-node GPU / accelerator clusters
+  for AI training and large-scale scientific compute. Examples:
+  Nvidia DGX SuperPOD, AWS Trainium / SageMaker HyperPod, Azure ND
+  H100 series, GCP TPU pods, Cerebras CS-2, HPC schedulers (Slurm,
+  PBS). Multi-million-dollar per-cluster assets, multi-week-long
+  training runs, high-bandwidth interconnect fabric (InfiniBand /
+  NVLink), often shared across many ML teams.
+threats:
+  - id: T_HPC_001
+    title: Cross-tenant data leakage on shared GPU node
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1611, T1213]
+    attack_cloud: [T1611]
+    maestro: [M.X.01]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Multi-instance GPU (MIG) partitions and per-process CUDA
+      contexts have had vulnerabilities allowing one tenant's
+      training to read another's GPU memory (NVIDIAScape /
+      LeftoverLocals 2024 research). Particularly impactful when
+      training data contains proprietary IP or customer data.
+    mitigations:
+      - "Dedicated-host scheduling for sensitive workloads (no co-tenancy)"
+      - "GPU memory-clearing between job runs (cudaMemsetAsync on allocator release)"
+      - "Vendor driver patch SLA aligned to advisory cadence"
+      - "Workload classification: high-sensitivity workloads to single-tenant clusters"
+    refs: [T1611, AML.M0007]
+
+  - id: T_HPC_002
+    title: Long-running training job poisoned mid-run (data or gradient injection)
+    stride_ai: [Tampering, Emergent_Behavior]
+    owasp_llm: [LLM03:2025, LLM04:2025]
+    atlas_techniques: [AML.T0019, AML.T0020]
+    nist_ai_100_2: [NIST_PAI_POISONING_BACKDOOR, NIST_PAI_POISONING_DATA]
+    maestro: [M.L2.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Training runs lasting weeks pull data from a streaming source
+      or use distributed gradient sync. Attacker with write access
+      to the training-data shard or the gradient-aggregator injects
+      poisoned gradients that introduce a backdoor visible only
+      under attacker-specific trigger inputs. Detection at training
+      time is statistically hard.
+    mitigations:
+      - "Cryptographic provenance on every training-data shard read"
+      - "Gradient-anomaly detection in the aggregator (Byzantine-robust averaging)"
+      - "Periodic checkpoint-eval against a held-out backdoor-probe suite"
+      - "Trusted gradient-aggregator with attested execution"
+    refs: [AML.M0007, AML.M0021]
+
+  - id: T_HPC_003
+    title: Scheduler / Slurm controller compromise enables fleet-wide RCE
+    stride_ai: [Elevation_of_Privilege, Tampering]
+    attack_enterprise: [T1078.004, T1059]
+    attack_cloud: [T1078.004]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      Slurm controller / SageMaker HyperPod orchestrator has root-
+      equivalent ability across every node. Compromise (CVE in
+      slurmctld, stolen admin SSH key) yields RCE on every GPU
+      node simultaneously. Used for crypto-mining (expensive) and
+      training-data exfiltration.
+    mitigations:
+      - "Scheduler admin access via PAM with FIDO2 MFA"
+      - "Microsegmentation between scheduler and node fabric"
+      - "Patch SLA <14d on scheduler software"
+      - "Node-side runtime monitoring (eBPF) for anomalous controller commands"
+    refs: [T1078, T1059, AML.M0019]
+
+  - id: T_HPC_004
+    title: GPU firmware / BMC compromise persists across reboots
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1542, T1601]
+    maestro: [M.X.01]
+    likelihood: 1
+    impact: 5
+    description: |
+      Server BMCs (BMC firmware, Nvidia GPU firmware) have shipped
+      vulnerable versions (IPMI defaults, BMC CVEs). Persistence
+      at this level survives OS reinstalls and is invisible to
+      EDR. State-aligned actors have demonstrated this class of
+      implant.
+    mitigations:
+      - "BMC on isolated management network, never reachable from workload"
+      - "Firmware-version attestation at boot; alert on mismatch"
+      - "Vendor-signed firmware only; rotate BMC creds on every install"
+      - "Periodic offline integrity scan via vendor tools"
+    refs: [T1542, AML.M0007]
+
+  - id: T_HPC_005
+    title: Network-fabric (InfiniBand / NVLink) abuse for unauthorised data movement
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1040, T1041]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 4
+    description: |
+      RDMA over InfiniBand bypasses host OS networking; firewall
+      and network IDS coverage is generally weaker. Compromised
+      job on one node can RDMA-read or RDMA-write to neighbouring
+      jobs' memory regions if isolation is insufficiently configured.
+    mitigations:
+      - "Partition keys (P_Keys) on InfiniBand enforce per-tenant isolation"
+      - "RDMA-aware IDS where supported"
+      - "Disable RDMA between unrelated jobs at scheduler level"
+      - "Periodic fabric-config audit"
+    refs: [T1040, AML.M0019]
+
+  - id: T_HPC_006
+    title: Resource starvation by adversarial workload
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1499, T1496]
+    attack_cloud: [T1499]
+    maestro: [M.L4.04]
+    likelihood: 3
+    impact: 3
+    description: |
+      Insider or compromised account submits very long / very
+      large jobs that starve legitimate ML teams of GPU capacity.
+      Multi-week training runs by the most important team get
+      pushed back indefinitely; cost still incurred.
+    mitigations:
+      - "Per-team / per-project quota with fair-share scheduler"
+      - "Pre-emption rules for priority workloads"
+      - "Submission-time max-walltime enforcement"
+      - "Anomaly alert on single-user resource share > N%"
+    refs: [T1499, AML.M0019]

@@ -1,0 +1,1723 @@
+# ATMS Cloud Service Catalog — AWS
+# Maps canonical AWS service IDs to ATMS ComponentType so users can declare
+# metadata: {vendor: AWS, product: <id>} and inherit threats + classification.
+# Matching is case-insensitive on both vendor and product.
+
+# ---------------------------------------------------------------------------
+# Compute
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: ec2
+  display_name: Amazon EC2
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_AWS_EC2_001
+  references:
+    - https://aws.amazon.com/ec2/
+  ai_context: |
+    Hosts self-managed LLM inference servers, vLLM/TGI workers, and agent
+    runtimes. IMDSv1 + over-broad IAM role on the instance is the canonical
+    SSRF-to-cloud-creds escalation path for agentic tools that fetch URLs.
+
+- vendor: AWS
+  product: ecs
+  display_name: Amazon ECS
+  component_type: container_orchestrator
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_AWS_ECS_001
+  references:
+    - https://aws.amazon.com/ecs/
+  ai_context: |
+    Common landing zone for containerized model servers and tool sidecars.
+    Task-role over-permissioning lets a compromised tool container reach
+    DynamoDB/S3 of unrelated tenants.
+
+- vendor: AWS
+  product: eks
+  display_name: Amazon EKS
+  component_type: container_orchestrator
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_AWS_EKS_001
+  references:
+    - https://aws.amazon.com/eks/
+  ai_context: |
+    Hosts multi-tenant LLM platforms; IRSA mis-scoping and pod-to-pod lateral
+    movement enable cross-namespace prompt/embedding theft.
+
+- vendor: AWS
+  product: fargate
+  display_name: AWS Fargate
+  component_type: serverless_function
+  service_category: compute
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/fargate/
+  ai_context: |
+    Serverless container runtime for agents/tools; ephemeral, but task-role
+    scope determines blast radius when a tool gets prompt-injected.
+
+- vendor: AWS
+  product: lambda
+  display_name: AWS Lambda
+  component_type: serverless_function
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_AWS_LAMBDA_001
+  references:
+    - https://aws.amazon.com/lambda/
+  ai_context: |
+    Most common ATMS tool runtime. Execution-role permissions become the
+    agent's effective authority; lack of per-tool scoping = confused-deputy.
+
+- vendor: AWS
+  product: lambda_at_edge
+  display_name: Lambda@Edge
+  component_type: edge_compute
+  service_category: compute
+  applies_to_ai_workflows: false
+  references:
+    - https://docs.aws.amazon.com/lambda/latest/dg/lambda-edge.html
+  ai_context: |
+    Edge request/response mutation; rarely AI-bearing but can inject prompts
+    into upstream Bedrock-backed APIs if abused.
+
+- vendor: AWS
+  product: batch
+  display_name: AWS Batch
+  component_type: batch_compute
+  service_category: compute
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/batch/
+  ai_context: |
+    Runs large-scale training/eval jobs; job-definition envs often contain
+    HF tokens or S3 dataset URIs that leak via logs.
+
+- vendor: AWS
+  product: outposts
+  display_name: AWS Outposts
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/outposts/
+  ai_context: |
+    On-prem AWS rack; relevant when data-residency rules force LLM inference
+    to stay in-country (SG, EU).
+
+- vendor: AWS
+  product: wavelength
+  display_name: AWS Wavelength
+  component_type: edge_compute
+  service_category: compute
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/wavelength/
+  ai_context: |
+    5G/MEC edge; low-latency inference for mobile agents — same IMDS/role
+    risks as EC2 but at the carrier edge.
+
+- vendor: AWS
+  product: local_zones
+  display_name: AWS Local Zones
+  component_type: edge_compute
+  service_category: compute
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/about-aws/global-infrastructure/localzones/
+  ai_context: |
+    Metro-area extension of a Region; same IAM/network model as parent
+    Region, used for latency-sensitive inference.
+
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: s3
+  display_name: Amazon S3
+  component_type: object_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_AWS_S3_001
+  references:
+    - https://aws.amazon.com/s3/
+  ai_context: |
+    The default RAG corpus, training-dataset, and model-weight store.
+    Public-read bucket + indirect prompt injection in PDFs = poisoning at
+    scale. Pre-signed URLs in tool outputs are a common exfil channel.
+
+- vendor: AWS
+  product: ebs
+  display_name: Amazon EBS
+  component_type: block_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/ebs/
+  ai_context: |
+    Block volumes attached to GPU instances; unencrypted snapshots shared
+    across accounts leak proprietary fine-tuned weights.
+
+- vendor: AWS
+  product: efs
+  display_name: Amazon EFS
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/efs/
+  ai_context: |
+    Shared filesystem for distributed training and SageMaker notebooks;
+    POSIX permissions misconfig = cross-team dataset leakage.
+
+- vendor: AWS
+  product: fsx_netapp
+  display_name: Amazon FSx for NetApp ONTAP
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/fsx/netapp-ontap/
+  ai_context: |
+    Enterprise NAS often holding the documents fed into a RAG ingestion
+    pipeline; export-policy laxity leaks corporate docs to indexing jobs.
+
+- vendor: AWS
+  product: fsx_windows
+  display_name: Amazon FSx for Windows File Server
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/fsx/windows/
+  ai_context: |
+    SMB share for Windows workloads; rarely directly AI-bearing unless used
+    as a corpus source for enterprise search.
+
+- vendor: AWS
+  product: fsx_lustre
+  display_name: Amazon FSx for Lustre
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/fsx/lustre/
+  ai_context: |
+    High-throughput parallel FS for ML training; mount-target ACL bypass
+    grants raw dataset access to unrelated training jobs.
+
+- vendor: AWS
+  product: fsx_openzfs
+  display_name: Amazon FSx for OpenZFS
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/fsx/openzfs/
+  ai_context: |
+    NFS for Linux ML workloads; snapshot exposure leaks training artifacts.
+
+- vendor: AWS
+  product: storage_gateway
+  display_name: AWS Storage Gateway
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/storagegateway/
+  ai_context: |
+    Hybrid bridge to S3; can be a sneaky path for on-prem PII to land in
+    RAG corpora without DLP review.
+
+- vendor: AWS
+  product: backup
+  display_name: AWS Backup
+  component_type: backup_service
+  service_category: storage
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/backup/
+  ai_context: |
+    Centralized backup; vault-lock misconfig means a prompt-injected agent
+    with backup:DeleteRecoveryPoint can destroy retention.
+
+- vendor: AWS
+  product: glacier
+  display_name: Amazon S3 Glacier
+  component_type: object_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/s3/storage-classes/glacier/
+  ai_context: |
+    Cold archive; old training data here may still violate GDPR right-to-
+    erasure if not catalogued.
+
+- vendor: AWS
+  product: datasync
+  display_name: AWS DataSync
+  component_type: etl_orchestrator
+  service_category: storage
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/datasync/
+  ai_context: |
+    On-prem -> S3 mover; the unaudited path that drops raw HR/finance docs
+    into a RAG bucket.
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: rds
+  display_name: Amazon RDS
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_AWS_RDS_001
+  references:
+    - https://aws.amazon.com/rds/
+  ai_context: |
+    Often the source of truth queried by agent SQL-tools. SQL injection via
+    LLM-generated queries + over-broad DB user = full table read.
+
+- vendor: AWS
+  product: rds_mysql
+  display_name: Amazon RDS for MySQL
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/rds/mysql/
+  ai_context: |
+    Classic backend for agent SQL tools; prompt-injected SELECT * FROM users
+    is the canonical risk.
+
+- vendor: AWS
+  product: rds_postgres
+  display_name: Amazon RDS for PostgreSQL
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/rds/postgresql/
+  ai_context: |
+    With pgvector, doubles as vector store for RAG; same agent-SQL-tool
+    injection risks plus embedding poisoning.
+
+- vendor: AWS
+  product: rds_oracle
+  display_name: Amazon RDS for Oracle
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/rds/oracle/
+  ai_context: |
+    Enterprise OLTP source for agentic data-lookup tools; PL/SQL injection
+    via generated queries is the chief risk.
+
+- vendor: AWS
+  product: rds_sqlserver
+  display_name: Amazon RDS for SQL Server
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/rds/sqlserver/
+  ai_context: |
+    Microsoft-stack OLTP source for agent tools; xp_cmdshell escalation
+    risk if the agent's DB user has sysadmin.
+
+- vendor: AWS
+  product: aurora
+  display_name: Amazon Aurora
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/rds/aurora/
+  ai_context: |
+    Aurora-pgvector is a common RAG store. Cluster snapshot sharing leaks
+    proprietary embeddings.
+
+- vendor: AWS
+  product: dynamodb
+  display_name: Amazon DynamoDB
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_AWS_DYNAMODB_001
+  references:
+    - https://aws.amazon.com/dynamodb/
+  ai_context: |
+    Standard store for agent chat history and tool-call sessionAttributes;
+    cross-tenant pollution via weak partition keys is the canonical
+    multi-tenant LLM-platform risk.
+
+- vendor: AWS
+  product: documentdb
+  display_name: Amazon DocumentDB
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/documentdb/
+  ai_context: |
+    Mongo-compatible store; sometimes holds agent transcripts. NoSQL injection
+    via LLM-built filters can break tenant isolation.
+
+- vendor: AWS
+  product: neptune
+  display_name: Amazon Neptune
+  component_type: graph_database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/neptune/
+  ai_context: |
+    Knowledge-graph backend for GraphRAG; prompt-built Gremlin/SPARQL can
+    enumerate relationships across tenants.
+
+- vendor: AWS
+  product: memorydb
+  display_name: Amazon MemoryDB for Redis
+  component_type: cache_store
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/memorydb/
+  ai_context: |
+    Durable Redis used for session memory and prompt caching; ACL bypass =
+    cross-session prompt/response leakage.
+
+- vendor: AWS
+  product: timestream
+  display_name: Amazon Timestream
+  component_type: time_series_database
+  service_category: database
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/timestream/
+  ai_context: |
+    Time-series store; relevant when AI ops telemetry (token cost, latency)
+    is queried by agents — can leak per-customer cost patterns.
+
+- vendor: AWS
+  product: elasticache
+  display_name: Amazon ElastiCache
+  component_type: cache_store
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/elasticache/
+  ai_context: |
+    Common prompt/response cache; weak auth + shared key namespace = cache
+    poisoning between tenants.
+
+- vendor: AWS
+  product: redshift
+  display_name: Amazon Redshift
+  component_type: data_warehouse
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/redshift/
+  ai_context: |
+    Analytics warehouse queried by agent BI tools; over-granted role on the
+    Redshift Data API leaks customer cohort PII via text-to-SQL.
+
+- vendor: AWS
+  product: athena
+  display_name: Amazon Athena
+  component_type: data_warehouse
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/athena/
+  ai_context: |
+    Serverless SQL over S3; agent SQL tools frequently expose this and can
+    exfiltrate any data-lake table the workgroup role can read.
+
+- vendor: AWS
+  product: keyspaces
+  display_name: Amazon Keyspaces (Cassandra)
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/keyspaces/
+  ai_context: |
+    Wide-column store; relevant when agent transcripts are stored at scale.
+
+- vendor: AWS
+  product: qldb
+  display_name: Amazon QLDB
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/qldb/
+  ai_context: |
+    Immutable ledger; useful for audit-grade logging of agent tool calls
+    (deprecated July 2025 but still present in legacy stacks).
+
+# ---------------------------------------------------------------------------
+# Network
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: vpc
+  display_name: Amazon VPC
+  component_type: network_segment
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/vpc/
+  ai_context: |
+    Hosts the LLM platform; SG/NACL gaps allow lateral movement between
+    inference, vector store, and tool runtimes.
+
+- vendor: AWS
+  product: direct_connect
+  display_name: AWS Direct Connect
+  component_type: transit_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/directconnect/
+  ai_context: |
+    Dedicated link from on-prem; relevant for data-residency-sensitive
+    fine-tuning pipelines pulling on-prem datasets.
+
+- vendor: AWS
+  product: transit_gateway
+  display_name: AWS Transit Gateway
+  component_type: transit_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/transit-gateway/
+  ai_context: |
+    Hub-and-spoke routing; mis-routed inspection bypasses let Bedrock egress
+    skip the DLP appliance.
+
+- vendor: AWS
+  product: vpn
+  display_name: AWS Site-to-Site VPN
+  component_type: vpn_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/vpn/
+  ai_context: |
+    IPSec to corp; standard hybrid path — relevant only as a transport
+    boundary for AI traffic.
+
+- vendor: AWS
+  product: privatelink
+  display_name: AWS PrivateLink
+  component_type: private_link
+  service_category: network
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/privatelink/
+  ai_context: |
+    Keeps Bedrock/S3/SageMaker traffic off the internet; absence of a
+    PrivateLink endpoint is a top finding for regulated LLM workloads.
+
+- vendor: AWS
+  product: app_mesh
+  display_name: AWS App Mesh
+  component_type: service_mesh
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/app-mesh/
+  ai_context: |
+    Service-to-service mesh; mTLS gaps inside a multi-tenant LLM platform
+    enable replay/spoofing of internal inference calls.
+
+- vendor: AWS
+  product: cloud_map
+  display_name: AWS Cloud Map
+  component_type: dns_service
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/cloud-map/
+  ai_context: |
+    Service discovery; misregistered endpoints can redirect agent tool
+    calls to attacker-controlled services.
+
+- vendor: AWS
+  product: route53
+  display_name: Amazon Route 53
+  component_type: dns_service
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/route53/
+  ai_context: |
+    Public/private DNS; dangling records can be hijacked to spoof tool
+    backends the agent trusts.
+
+- vendor: AWS
+  product: global_accelerator
+  display_name: AWS Global Accelerator
+  component_type: load_balancer
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/global-accelerator/
+  ai_context: |
+    Anycast front door; usually upstream of LLM APIs but not itself AI-
+    bearing.
+
+- vendor: AWS
+  product: cloudfront
+  display_name: Amazon CloudFront
+  component_type: cdn
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/cloudfront/
+  ai_context: |
+    CDN in front of agent UIs; cache poisoning can serve attacker prompts
+    to all users of a chatbot.
+
+- vendor: AWS
+  product: elb
+  display_name: Elastic Load Balancing
+  component_type: load_balancer
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/elasticloadbalancing/
+  ai_context: |
+    Public-facing ALB/NLB in front of inference endpoints; missing WAF/
+    rate-limit makes prompt-cost DoS trivial.
+
+# ---------------------------------------------------------------------------
+# Security / Identity
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: iam
+  display_name: AWS IAM
+  component_type: iam_principal
+  service_category: identity
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_AWS_IAM_001
+  references:
+    - https://aws.amazon.com/iam/
+  ai_context: |
+    Every agent tool resolves to an IAM role. Over-broad action lists
+    (s3:*, bedrock:*) are the dominant cause of LLM blast-radius incidents.
+
+- vendor: AWS
+  product: identity_center
+  display_name: AWS IAM Identity Center (SSO)
+  component_type: sso_service
+  service_category: identity
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/iam/identity-center/
+  ai_context: |
+    SSO into Q/Bedrock consoles; permission-set sprawl = analysts with
+    direct model invocation that bypasses guardrails.
+
+- vendor: AWS
+  product: cognito
+  display_name: Amazon Cognito
+  component_type: ciam_platform
+  service_category: identity
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/cognito/
+  ai_context: |
+    End-user auth for chatbot apps; misscoped identity-pool roles grant the
+    browser direct S3/Bedrock access — full client-side jailbreak.
+
+- vendor: AWS
+  product: guardduty
+  display_name: Amazon GuardDuty
+  component_type: ids_ips
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/guardduty/
+  ai_context: |
+    Threat detection over CloudTrail/VPC flow logs; flags anomalous
+    bedrock:InvokeModel from unusual principals.
+
+- vendor: AWS
+  product: inspector
+  display_name: Amazon Inspector
+  component_type: vulnerability_scanner
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/inspector/
+  ai_context: |
+    Scans EC2/Lambda/ECR; relevant for finding vulnerable CVEs in the
+    container images that host model servers.
+
+- vendor: AWS
+  product: macie
+  display_name: Amazon Macie
+  component_type: dlp
+  service_category: security
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/macie/
+  ai_context: |
+    PII discovery on S3; should run on any RAG corpus bucket before
+    indexing — prevents training-data PII leakage.
+
+- vendor: AWS
+  product: detective
+  display_name: Amazon Detective
+  component_type: siem
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/detective/
+  ai_context: |
+    Investigation graph; triage tool for Bedrock/IAM misuse incidents.
+
+- vendor: AWS
+  product: security_hub
+  display_name: AWS Security Hub
+  component_type: siem
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/security-hub/
+  ai_context: |
+    Aggregates findings; only useful if AI-specific controls (Bedrock
+    guardrails enabled, KMS-encrypted model artifacts) are codified.
+
+- vendor: AWS
+  product: waf
+  display_name: AWS WAF
+  component_type: waf
+  service_category: security
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/waf/
+  ai_context: |
+    First line of defense in front of LLM APIs; rate-limit + prompt-payload
+    inspection mitigate prompt-injection DoS and obvious exfil patterns.
+
+- vendor: AWS
+  product: shield
+  display_name: AWS Shield
+  component_type: ddos_mitigation
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/shield/
+  ai_context: |
+    L3/L4 DDoS protection in front of agent endpoints; not prompt-aware.
+
+- vendor: AWS
+  product: kms
+  display_name: AWS KMS
+  component_type: kms_key
+  service_category: security
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/kms/
+  ai_context: |
+    Encrypts model artifacts, S3 RAG buckets, Bedrock custom models. Key-
+    policy mistakes are the #1 way fine-tuned weights leak across accounts.
+
+- vendor: AWS
+  product: cloudhsm
+  display_name: AWS CloudHSM
+  component_type: hsm
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/cloudhsm/
+  ai_context: |
+    FIPS-140-2 L3 HSM; required when regulators demand customer-managed key
+    material for fine-tuned model artifacts.
+
+- vendor: AWS
+  product: secrets_manager
+  display_name: AWS Secrets Manager
+  component_type: secrets_vault
+  service_category: security
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/secrets-manager/
+  ai_context: |
+    Stores API keys for third-party LLMs (OpenAI, Anthropic). Tool roles
+    that can secretsmanager:GetSecretValue trivially exfil keys via
+    prompt injection.
+
+- vendor: AWS
+  product: acm
+  display_name: AWS Certificate Manager
+  component_type: certificate_manager
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/certificate-manager/
+  ai_context: |
+    TLS certs on LLM endpoints; not directly prompt-bearing.
+
+- vendor: AWS
+  product: acm_pca
+  display_name: AWS Private CA
+  component_type: certificate_manager
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/private-ca/
+  ai_context: |
+    Internal CA for mTLS between agents/tools; trust-anchor compromise
+    enables tool-call spoofing.
+
+- vendor: AWS
+  product: network_firewall
+  display_name: AWS Network Firewall
+  component_type: firewall
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/network-firewall/
+  ai_context: |
+    Stateful inspection at the VPC edge; egress allowlist prevents agents
+    from reaching attacker-controlled exfil endpoints.
+
+- vendor: AWS
+  product: audit_manager
+  display_name: AWS Audit Manager
+  component_type: cspm
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/audit-manager/
+  ai_context: |
+    Evidence collection for compliance — needs AI-specific frameworks
+    (NIST AI RMF, EU AI Act) to be relevant.
+
+# ---------------------------------------------------------------------------
+# Monitoring
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: cloudwatch
+  display_name: Amazon CloudWatch
+  component_type: observability_stack
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/cloudwatch/
+  ai_context: |
+    Logs from agents often contain entire prompts/responses; over-broad
+    Logs:GetLogEvents grants are a quiet PII-leak channel.
+
+- vendor: AWS
+  product: cloudwatch_logs
+  display_name: CloudWatch Logs
+  component_type: log_aggregator
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/
+  ai_context: |
+    Default sink for Lambda/Bedrock invocation logs; logs frequently leak
+    raw prompts and tool inputs — needs DLP scrub.
+
+- vendor: AWS
+  product: cloudwatch_metrics
+  display_name: CloudWatch Metrics
+  component_type: metrics_platform
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/
+  ai_context: |
+    Latency/token-count metrics; useful for prompt-cost DoS detection.
+
+- vendor: AWS
+  product: cloudwatch_alarms
+  display_name: CloudWatch Alarms
+  component_type: alerting_platform
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/AlarmThatSendsEmail.html
+  ai_context: |
+    Threshold alarms on Bedrock invoke errors / token spend = early DoS
+    signal.
+
+- vendor: AWS
+  product: cloudwatch_dashboards
+  display_name: CloudWatch Dashboards
+  component_type: observability_stack
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Dashboards.html
+  ai_context: |
+    Visualization of AI cost/usage; not itself prompt-bearing.
+
+- vendor: AWS
+  product: cloudwatch_events
+  display_name: CloudWatch Events (EventBridge)
+  component_type: stream_processor
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://docs.aws.amazon.com/eventbridge/
+  ai_context: |
+    Routes infra events; spoofed events can trigger agent tool actions.
+
+- vendor: AWS
+  product: cloudwatch_synthetics
+  display_name: CloudWatch Synthetics
+  component_type: observability_stack
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Synthetics_Canaries.html
+  ai_context: |
+    Headless canaries; sometimes used to test prompt regressions against
+    production LLM endpoints.
+
+- vendor: AWS
+  product: cloudwatch_rum
+  display_name: CloudWatch RUM
+  component_type: observability_stack
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-RUM.html
+  ai_context: |
+    Real-user monitoring; PII may be captured from chatbot front-ends if
+    not scrubbed.
+
+- vendor: AWS
+  product: xray
+  display_name: AWS X-Ray
+  component_type: tracing_platform
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/xray/
+  ai_context: |
+    Distributed traces across agent + tools; trace annotations often
+    contain prompt text — same leak class as logs.
+
+- vendor: AWS
+  product: cloudtrail
+  display_name: AWS CloudTrail
+  component_type: log_aggregator
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/cloudtrail/
+  ai_context: |
+    Auditable record of every bedrock:* / sagemaker:* call. Cornerstone
+    for AI incident response.
+
+- vendor: AWS
+  product: config
+  display_name: AWS Config
+  component_type: cspm
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/config/
+  ai_context: |
+    Resource-state recorder; custom rules can enforce "Bedrock guardrail
+    must be attached" type controls.
+
+- vendor: AWS
+  product: service_catalog
+  display_name: AWS Service Catalog
+  component_type: iac_template_registry
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/servicecatalog/
+  ai_context: |
+    Curated IaC products; the recommended path for "approved LLM stack"
+    blueprints to avoid shadow Bedrock usage.
+
+- vendor: AWS
+  product: trusted_advisor
+  display_name: AWS Trusted Advisor
+  component_type: cspm
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/premiumsupport/technology/trusted-advisor/
+  ai_context: |
+    Best-practice checks; limited AI-specific coverage.
+
+# ---------------------------------------------------------------------------
+# DevOps
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: codecommit
+  display_name: AWS CodeCommit
+  component_type: code_repository
+  service_category: devops
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/codecommit/
+  ai_context: |
+    Git for prompt templates and agent code; leaked credentials here are
+    indistinguishable from any other prompt-template leak.
+
+- vendor: AWS
+  product: codebuild
+  display_name: AWS CodeBuild
+  component_type: build_runner
+  service_category: devops
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/codebuild/
+  ai_context: |
+    Builds container images for model servers; supply-chain attacks here
+    inject backdoors into the agent runtime.
+
+- vendor: AWS
+  product: codedeploy
+  display_name: AWS CodeDeploy
+  component_type: ci_cd_pipeline
+  service_category: devops
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/codedeploy/
+  ai_context: |
+    Deployment automation; same supply-chain considerations as CodeBuild.
+
+- vendor: AWS
+  product: codepipeline
+  display_name: AWS CodePipeline
+  component_type: ci_cd_pipeline
+  service_category: devops
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/codepipeline/
+  ai_context: |
+    Orchestrates fine-tuning + eval + deploy. Missing eval gates = bad
+    model promoted; missing guardrail gate = unsafe model promoted.
+
+- vendor: AWS
+  product: codeartifact
+  display_name: AWS CodeArtifact
+  component_type: artifact_registry
+  service_category: devops
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/codeartifact/
+  ai_context: |
+    Stores private PyPI/npm; dep-confusion attacks here poison the
+    transformers/langchain pin used by training jobs.
+
+- vendor: AWS
+  product: codestar
+  display_name: AWS CodeStar
+  component_type: ci_cd_pipeline
+  service_category: devops
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/codestar/
+  ai_context: |
+    Project wrapper around the Code* suite; deprecated July 2024.
+
+- vendor: AWS
+  product: cloudshell
+  display_name: AWS CloudShell
+  component_type: bastion_host
+  service_category: devops
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/cloudshell/
+  ai_context: |
+    Browser-based admin shell; persistent home dir can hoard prompts/keys
+    from operator sessions.
+
+- vendor: AWS
+  product: ecr
+  display_name: Amazon ECR
+  component_type: container_registry
+  service_category: devops
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/ecr/
+  ai_context: |
+    Stores model-server images. Public-pull misconfig leaks proprietary
+    inference stacks; mutable tags enable image swap attacks.
+
+# ---------------------------------------------------------------------------
+# Messaging / Integration
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: sqs
+  display_name: Amazon SQS
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/sqs/
+  ai_context: |
+    Backs async agent workflows; queue messages often carry full prompts +
+    user context — encrypt-in-transit + access policy are non-negotiable.
+
+- vendor: AWS
+  product: sns
+  display_name: Amazon SNS
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/sns/
+  ai_context: |
+    Pub-sub for agent events; cross-account subscribe + prompt content =
+    silent exfil channel.
+
+- vendor: AWS
+  product: eventbridge
+  display_name: Amazon EventBridge
+  component_type: stream_processor
+  service_category: messaging
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/eventbridge/
+  ai_context: |
+    Event bus often used to fan-out tool calls. Misconfigured rule with
+    cross-account target = prompt content to attacker bus.
+
+- vendor: AWS
+  product: step_functions
+  display_name: AWS Step Functions
+  component_type: etl_orchestrator
+  service_category: messaging
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/step-functions/
+  ai_context: |
+    Workflow engine for agentic flows; state objects carry prompts/PII
+    and execution-role determines blast radius.
+
+- vendor: AWS
+  product: mq
+  display_name: Amazon MQ
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/amazon-mq/
+  ai_context: |
+    Managed ActiveMQ/RabbitMQ; relevant when LLM agents replace legacy
+    message-driven workers.
+
+- vendor: AWS
+  product: api_gateway
+  display_name: Amazon API Gateway
+  component_type: api_gateway
+  service_category: messaging
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/api-gateway/
+  ai_context: |
+    Fronts almost every LLM/agent API. Missing throttling = prompt-cost
+    DoS; usage plans + per-key quotas are the cheapest mitigation.
+
+- vendor: AWS
+  product: appsync
+  display_name: AWS AppSync
+  component_type: api_gateway
+  service_category: messaging
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/appsync/
+  ai_context: |
+    GraphQL gateway for chatbot UIs; resolver IAM roles often over-broad,
+    so an injected query reads sibling-tenant chat history.
+
+# ---------------------------------------------------------------------------
+# Data / Analytics
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: kinesis_data_streams
+  display_name: Amazon Kinesis Data Streams
+  component_type: stream_processor
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/kinesis/data-streams/
+  ai_context: |
+    Carries clickstream + prompt-event data for real-time RAG refresh;
+    shard-level IAM = the granularity at which cross-tenant leakage
+    happens.
+
+- vendor: AWS
+  product: kinesis_firehose
+  display_name: Amazon Kinesis Data Firehose
+  component_type: stream_processor
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/kinesis/data-firehose/
+  ai_context: |
+    Streams prompts/logs to S3; default-on means raw PII lands in the
+    data lake without DLP unless transform Lambda is wired up.
+
+- vendor: AWS
+  product: kinesis_analytics
+  display_name: Amazon Kinesis Data Analytics
+  component_type: stream_processor
+  service_category: data
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/kinesis/data-analytics/
+  ai_context: |
+    Managed Flink; transforms event streams that feed ML feature stores.
+
+- vendor: AWS
+  product: kinesis_video
+  display_name: Amazon Kinesis Video Streams
+  component_type: vision_pipeline
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/kinesis/video-streams/
+  ai_context: |
+    Ingests video for Rekognition/Bedrock multimodal; raw stream access =
+    surveillance-grade PII (faces, plates).
+
+- vendor: AWS
+  product: msk
+  display_name: Amazon MSK
+  component_type: stream_processor
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/msk/
+  ai_context: |
+    Managed Kafka; backbone of streaming-RAG and event-sourced agents.
+    ACL gaps = topic-level prompt exfil.
+
+- vendor: AWS
+  product: glue
+  display_name: AWS Glue
+  component_type: etl_orchestrator
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/glue/
+  ai_context: |
+    The pipeline that turns raw S3 docs into RAG-ready chunks. Compromise
+    here = silent training-data poisoning at scale.
+
+- vendor: AWS
+  product: emr
+  display_name: Amazon EMR
+  component_type: ml_pipeline_orchestrator
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/emr/
+  ai_context: |
+    Spark for large-scale embedding generation; cluster-role over-scope
+    leaks raw corpora.
+
+- vendor: AWS
+  product: lake_formation
+  display_name: AWS Lake Formation
+  component_type: data_lake
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/lake-formation/
+  ai_context: |
+    Fine-grained access on the data lake; the place AI workloads actually
+    inherit row/column-level controls — or skip them.
+
+- vendor: AWS
+  product: datazone
+  display_name: Amazon DataZone
+  component_type: data_lake
+  service_category: data
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/datazone/
+  ai_context: |
+    Data catalog/governance; useful for data-product attestations before
+    feeding into AI workflows.
+
+- vendor: AWS
+  product: quicksight
+  display_name: Amazon QuickSight
+  component_type: web_application
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/quicksight/
+  ai_context: |
+    QuickSight Q embeds NL2SQL; same text-to-SQL injection risks as any
+    agent BI tool.
+
+- vendor: AWS
+  product: opensearch
+  display_name: Amazon OpenSearch Service
+  component_type: rag_vector_store
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/opensearch-service/
+  ai_context: |
+    KNN/vector engine — the de facto AWS RAG store. Index-level access
+    control gaps = cross-tenant document retrieval.
+
+# ---------------------------------------------------------------------------
+# AI / ML
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: bedrock
+  display_name: Amazon Bedrock
+  component_type: llm_inference
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_AWS_BEDROCK_001
+  references:
+    - https://aws.amazon.com/bedrock/
+  ai_context: |
+    Managed foundation-model API. Default model-invocation logging is OFF
+    — without it, no IR forensics. Cross-region inference profiles expand
+    data residency surface unexpectedly.
+
+- vendor: AWS
+  product: bedrock_agentcore
+  display_name: Amazon Bedrock AgentCore
+  component_type: agent
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/bedrock/agentcore/
+  ai_context: |
+    Managed agent runtime with built-in memory/identity/gateway. Tool-
+    Identity scoping is the single biggest control — over-scoped tools
+    inherit the whole IAM role.
+
+- vendor: AWS
+  product: bedrock_guardrails
+  display_name: Amazon Bedrock Guardrails
+  component_type: guardrails
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/bedrock/guardrails/
+  ai_context: |
+    Content/topic/PII filters wrapped around Bedrock calls. Guardrails not
+    attached to every InvokeModel pathway = bypass via direct API call.
+
+- vendor: AWS
+  product: sagemaker
+  display_name: Amazon SageMaker
+  component_type: ml_pipeline_orchestrator
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/sagemaker/
+  ai_context: |
+    End-to-end ML platform; cross-cutting risk surface across notebooks,
+    training, endpoints, registry, feature store.
+
+- vendor: AWS
+  product: sagemaker_studio
+  display_name: SageMaker Studio
+  component_type: ml_pipeline_orchestrator
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/sagemaker/studio/
+  ai_context: |
+    IDE for ML engineers; notebooks routinely contain plaintext HF/OpenAI
+    tokens and raw training data — the canonical "shadow AI" source.
+
+- vendor: AWS
+  product: sagemaker_training
+  display_name: SageMaker Training
+  component_type: training_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://docs.aws.amazon.com/sagemaker/latest/dg/train-model.html
+  ai_context: |
+    Managed training jobs; pull-from-S3 data + ECR images = supply-chain
+    surface for poisoned datasets and backdoored model code.
+
+- vendor: AWS
+  product: sagemaker_endpoint
+  display_name: SageMaker Endpoint
+  component_type: ml_inference_endpoint
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://docs.aws.amazon.com/sagemaker/latest/dg/realtime-endpoints.html
+  ai_context: |
+    Serves custom models; missing auth/PrivateLink = open inference,
+    enabling model-extraction and prompt-cost DoS.
+
+- vendor: AWS
+  product: sagemaker_feature_store
+  display_name: SageMaker Feature Store
+  component_type: ml_feature_store
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/sagemaker/feature-store/
+  ai_context: |
+    Online + offline features; serving-time tampering = poisoned
+    predictions; offline-store IAM gaps = training-data leakage.
+
+- vendor: AWS
+  product: sagemaker_pipelines
+  display_name: SageMaker Pipelines
+  component_type: ml_pipeline_orchestrator
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/sagemaker/pipelines/
+  ai_context: |
+    CI/CD for ML; missing approval gates between train -> register ->
+    deploy let unsafe models reach prod without eval/guardrail checks.
+
+- vendor: AWS
+  product: sagemaker_ground_truth
+  display_name: SageMaker Ground Truth
+  component_type: ml_data_labeling
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/sagemaker/groundtruth/
+  ai_context: |
+    Data-labeling workforce; Mechanical-Turk or vendor labelers can poison
+    labels intentionally — classic supply-chain risk.
+
+- vendor: AWS
+  product: sagemaker_model_registry
+  display_name: SageMaker Model Registry
+  component_type: model_registry
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://docs.aws.amazon.com/sagemaker/latest/dg/model-registry.html
+  ai_context: |
+    Authoritative store of approved models; signed lineage missing = no
+    proof which artifact was deployed when.
+
+- vendor: AWS
+  product: sagemaker_jumpstart
+  display_name: SageMaker JumpStart
+  component_type: model_registry
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/sagemaker/jumpstart/
+  ai_context: |
+    Curated public model catalog; pulling untrusted HF weights via
+    JumpStart is a fast path to malicious-pickle execution.
+
+- vendor: AWS
+  product: sagemaker_canvas
+  display_name: SageMaker Canvas
+  component_type: ml_pipeline_orchestrator
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/sagemaker/canvas/
+  ai_context: |
+    No-code ML for business users; shadow-AI risk if analysts train on
+    raw S3 without DLP review.
+
+- vendor: AWS
+  product: sagemaker_clarify
+  display_name: SageMaker Clarify
+  component_type: ml_experiment_tracker
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/sagemaker/clarify/
+  ai_context: |
+    Bias + explainability; the place fairness metrics are computed —
+    skipping it leaves disparate-impact undetected.
+
+- vendor: AWS
+  product: sagemaker_debugger
+  display_name: SageMaker Debugger
+  component_type: ml_experiment_tracker
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/sagemaker/debugger/
+  ai_context: |
+    Training-time tensor capture; debug data in S3 sometimes contains
+    privacy-violating intermediate activations.
+
+- vendor: AWS
+  product: comprehend
+  display_name: Amazon Comprehend
+  component_type: content_safety_classifier
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/comprehend/
+  ai_context: |
+    NLP API (PII, sentiment, topics). Often used as a pre-filter on user
+    prompts to redact PII before they hit Bedrock.
+
+- vendor: AWS
+  product: rekognition
+  display_name: Amazon Rekognition
+  component_type: vision_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/rekognition/
+  ai_context: |
+    Face/object detection; Custom Labels datasets in S3 are sensitive PII;
+    face-search collections need EU AI Act risk classification.
+
+- vendor: AWS
+  product: polly
+  display_name: Amazon Polly
+  component_type: speech_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/polly/
+  ai_context: |
+    TTS; custom voices = deepfake risk if voice-sample consent isn't
+    enforced.
+
+- vendor: AWS
+  product: transcribe
+  display_name: Amazon Transcribe
+  component_type: speech_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/transcribe/
+  ai_context: |
+    STT; call-center transcripts often contain PCI/PII that downstream
+    LLMs then ingest — DLP must run between Transcribe and Bedrock.
+
+- vendor: AWS
+  product: translate
+  display_name: Amazon Translate
+  component_type: external_api
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/translate/
+  ai_context: |
+    NMT; cross-lingual prompt injection bypasses guardrails written only
+    in English.
+
+- vendor: AWS
+  product: textract
+  display_name: Amazon Textract
+  component_type: vision_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/textract/
+  ai_context: |
+    OCR + form extraction; PDFs with embedded prompt-injection text
+    survive OCR and propagate into RAG indices.
+
+- vendor: AWS
+  product: lex
+  display_name: Amazon Lex
+  component_type: agent
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/lex/
+  ai_context: |
+    Conversational bot; slot values become Lambda arguments — a classic
+    confused-deputy / injection vector.
+
+- vendor: AWS
+  product: personalize
+  display_name: Amazon Personalize
+  component_type: ml_inference_endpoint
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/personalize/
+  ai_context: |
+    Recommender; training on PII-rich interaction events without consent
+    is the privacy issue, not prompts.
+
+- vendor: AWS
+  product: forecast
+  display_name: Amazon Forecast
+  component_type: ml_inference_endpoint
+  service_category: ai_ml
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/forecast/
+  ai_context: |
+    Time-series predictions; deprecated for new customers but legacy
+    workloads still exist.
+
+- vendor: AWS
+  product: q
+  display_name: Amazon Q
+  component_type: agent
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/q/
+  ai_context: |
+    Anthropic-grade enterprise assistant connected to internal docs.
+    Connector permissions determine cross-doc leak surface.
+
+# ---------------------------------------------------------------------------
+# End-user
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: workspaces
+  display_name: Amazon WorkSpaces
+  component_type: virtual_desktop
+  service_category: end_user
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/workspaces/
+  ai_context: |
+    VDI; relevant when analysts use it to access LLM consoles — endpoint
+    DLP applies the same way as physical laptops.
+
+- vendor: AWS
+  product: appstream
+  display_name: Amazon AppStream 2.0
+  component_type: virtual_desktop
+  service_category: end_user
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/appstream2/
+  ai_context: |
+    App streaming; rarely AI-bearing unless used to wrap an LLM client.
+
+# ---------------------------------------------------------------------------
+# IoT
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: iot_core
+  display_name: AWS IoT Core
+  component_type: iot_gateway
+  service_category: iot
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/iot-core/
+  ai_context: |
+    MQTT broker for devices; telemetry feeds ML pipelines — spoofed device
+    messages can poison training data.
+
+- vendor: AWS
+  product: iot_greengrass
+  display_name: AWS IoT Greengrass
+  component_type: edge_compute
+  service_category: iot
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/greengrass/
+  ai_context: |
+    Edge runtime that runs ML inference (vision, anomaly) on devices;
+    model artifacts pushed to edge need integrity verification.
+
+- vendor: AWS
+  product: iot_sitewise
+  display_name: AWS IoT SiteWise
+  component_type: time_series_database
+  service_category: iot
+  applies_to_ai_workflows: true
+  references:
+    - https://aws.amazon.com/iot-sitewise/
+  ai_context: |
+    Industrial telemetry store; common feature source for predictive-
+    maintenance ML — corrupted assets = model drift.
+
+- vendor: AWS
+  product: iot_twinmaker
+  display_name: AWS IoT TwinMaker
+  component_type: data_source
+  service_category: iot
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/iot-twinmaker/
+  ai_context: |
+    Digital twin builder; not directly AI-bearing but feeds GenAI summaries.
+
+# ---------------------------------------------------------------------------
+# Other
+# ---------------------------------------------------------------------------
+- vendor: AWS
+  product: mainframe_modernization
+  display_name: AWS Mainframe Modernization
+  component_type: mainframe
+  service_category: other
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/mainframe-modernization/
+  ai_context: |
+    COBOL refactoring service; relevant when an LLM is used as a code-
+    translation co-pilot — review-loop quality determines defect rate.
+
+- vendor: AWS
+  product: transfer_family
+  display_name: AWS Transfer Family
+  component_type: file_transfer_service
+  service_category: other
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/aws-transfer-family/
+  ai_context: |
+    SFTP/FTPS into S3; unaudited path for partners to drop docs that land
+    in a RAG corpus.
+
+- vendor: AWS
+  product: migration_hub
+  display_name: AWS Migration Hub
+  component_type: ci_cd_pipeline
+  service_category: other
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/migration-hub/
+  ai_context: |
+    Migration tracker; not AI-relevant outside of GenAI-assisted refactor
+    projects.
+
+- vendor: AWS
+  product: robomaker
+  display_name: AWS RoboMaker
+  component_type: ml_pipeline_orchestrator
+  service_category: other
+  applies_to_ai_workflows: false
+  references:
+    - https://aws.amazon.com/robomaker/
+  ai_context: |
+    Robotics simulation; relevant for reinforcement-learning policy
+    training where reward hacking is an adversarial concern. EOL Sept 2025.

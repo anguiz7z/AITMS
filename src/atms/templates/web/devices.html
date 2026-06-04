@@ -1,0 +1,56 @@
+{% extends "web/base.html" %}
+{% block title %}Devices{% endblock %}
+{% block content %}
+<h1>Device & product catalog
+  <span style="color:var(--muted);font-weight:400;font-size:14px;">
+    {{ total }} entries · pick a vendor + product + version when you label a component
+  </span>
+</h1>
+<p class="muted" style="max-width:780px;">
+The GUI editor reads this catalog when you click a node — pick a real product (e.g. <em>Microsoft Active Directory Domain Services / Windows Server 2022</em>) and the choice writes to <code>component.metadata</code>, so reports cite the exact platform you're modelling.
+</p>
+
+<form method="get" action="/devices">
+  <div class="row" style="display: flex; gap: 8px; align-items: end;">
+    <div style="flex: 1;">
+      <label>Search (vendor / product / version)</label>
+      <input type="text" name="q" value="{{ q or '' }}" placeholder="active directory, fortigate, claude, AS/400, ..." autofocus>
+    </div>
+    <div style="width: 240px;">
+      <label>Component type</label>
+      <select name="category">
+        <option value="all" {% if category=='all' %}selected{% endif %}>All</option>
+        {% for c in categories %}
+        <option value="{{ c }}" {% if category==c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit">Filter</button>
+  </div>
+</form>
+
+<h2 style="margin-top: 18px;">Catalog ({{ devices|length }} matching)</h2>
+<table>
+  <thead><tr>
+    <th>Category</th><th>Vendor</th><th>Product</th><th>Versions</th><th>OS / runtime</th><th>Description</th>
+  </tr></thead>
+  <tbody>
+    {% for d in devices %}
+    <tr>
+      <td><span class="pill">{{ d.category or "other" }}</span></td>
+      <td>{{ d.vendor }}</td>
+      <td><strong>{{ d.product }}</strong></td>
+      <td>
+        {% for v in d.versions %}<span class="pill">{{ v }}</span>{% endfor %}
+      </td>
+      <td><code>{{ d.os or "—" }}</code></td>
+      <td>{{ d.description or "" }}{% if d.notes %}<br><span class="muted">{{ d.notes }}</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if not devices %}
+<div class="empty">No catalog entries match the current filter.</div>
+{% endif %}
+{% endblock %}

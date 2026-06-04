@@ -1,0 +1,1106 @@
+# MITRE ATT&CK Enterprise + ICS — curated subset for IT, OT, network, identity systems.
+# Source: https://attack.mitre.org/  (Enterprise v15) / https://attack.mitre.org/matrices/ics/  (ICS v15)
+# Curated to cover the threats referenced by playbooks shipped with ATMS v0.10:
+# database, firewall, directory_service, web_application, endpoint, legacy_mainframe,
+# plc, scada, iot_device, load_balancer, vpn_gateway, network_switch, email_server,
+# mfa_service, industrial_protocol — as well as the AI / cloud component types that
+# overlap with general IT attack patterns.
+
+# Initial Access -----------------------------------------------------------------
+- id: T1133
+  name: External Remote Services
+  description: |
+    Adversaries may leverage external-facing remote services (VPNs, Citrix,
+    Windows Remote Management, RDP gateways, SSH bastions) to gain initial
+    access to and persist within an enterprise.
+  tactics: [Initial Access, Persistence]
+  platforms: [Windows, Linux, macOS, Network]
+  applies_to:
+    - vpn_gateway
+    - firewall
+    - directory_service
+    - legacy_mainframe
+    - load_balancer
+    - api_gateway
+    - network_segment
+    - iot_device
+  keywords:
+    - vpn
+    - remote
+    - rdp
+    - ssh
+    - citrix
+    - external
+    - bastion
+    - gateway
+    - exposed
+    - internet-facing
+  references:
+    - https://attack.mitre.org/techniques/T1133/
+
+- id: T1190
+  name: Exploit Public-Facing Application
+  description: |
+    Adversaries exploit a weakness in an Internet-facing application
+    (web app, API, network appliance management plane) to gain initial
+    access. Includes SQL-injection, deserialisation, and CVE-driven RCEs.
+  tactics: [Initial Access]
+  platforms: [Windows, Linux, macOS, Network]
+  applies_to:
+    - web_application
+    - api_gateway
+    - load_balancer
+    - vpn_gateway
+    - firewall
+    - email_server
+    - database
+    - plc
+    - scada
+    - iot_device
+    - serverless_function
+    - container_runtime
+  keywords:
+    - exploit
+    - cve
+    - rce
+    - injection
+    - public
+    - exposed
+    - unpatched
+    - vulnerable
+    - vulnerability
+    - patch
+    - sql
+    - deserialization
+    - ssrf
+  references:
+    - https://attack.mitre.org/techniques/T1190/
+
+- id: T1566
+  name: Phishing
+  description: |
+    Adversaries send phishing messages to gain access to victim systems.
+    All forms of phishing are electronically delivered social engineering.
+  tactics: [Initial Access]
+  platforms: [Windows, Linux, macOS, SaaS, Office 365, Google Workspace]
+  applies_to:
+    - email_server
+    - user
+    - endpoint
+  keywords:
+    - phish
+    - phishing
+    - email
+    - lure
+    - social
+    - engineering
+    - spam
+    - mail
+  references:
+    - https://attack.mitre.org/techniques/T1566/
+
+- id: T1566.001
+  name: Spearphishing Attachment
+  description: |
+    Adversaries send spearphishing emails with a malicious attachment to
+    elicit code execution when the target opens it.
+  tactics: [Initial Access]
+  platforms: [Windows, Linux, macOS]
+  applies_to:
+    - email_server
+    - user
+    - endpoint
+  keywords:
+    - phish
+    - phishing
+    - attachment
+    - email
+    - malicious
+    - macro
+    - office
+    - document
+  references:
+    - https://attack.mitre.org/techniques/T1566/001/
+
+- id: T1566.002
+  name: Spearphishing Link
+  description: |
+    Adversaries send spearphishing emails with a malicious link, distinct
+    from spearphishing with attachments, that the target is lured into
+    clicking. Often resolves to a credential-harvest page or drive-by RCE.
+  tactics: [Initial Access]
+  platforms: [Windows, Linux, macOS, SaaS]
+  applies_to:
+    - email_server
+    - user
+    - endpoint
+  keywords:
+    - phish
+    - phishing
+    - link
+    - url
+    - credential
+    - harvest
+    - email
+  references:
+    - https://attack.mitre.org/techniques/T1566/002/
+
+# Execution ----------------------------------------------------------------------
+- id: T1059
+  name: Command and Scripting Interpreter
+  description: |
+    Adversaries abuse command and script interpreters (PowerShell, cmd,
+    bash, Python, JavaScript, Visual Basic) to execute commands. This
+    parent technique covers cases where the adversary's choice of shell
+    is unspecified or varied — see T1059.001 (PowerShell), T1059.003
+    (cmd), T1059.007 (JavaScript), etc. for the specific sub-techniques.
+  tactics: [Execution]
+  platforms: [Windows, Linux, macOS, Network]
+  applies_to:
+    - endpoint
+    - scada
+    - plc
+    - legacy_mainframe
+    - web_application
+    - api_gateway
+    - container_runtime
+  keywords:
+    - powershell
+    - cmd
+    - bash
+    - shell
+    - interpreter
+    - script
+    - command-line
+  references:
+    - https://attack.mitre.org/techniques/T1059/
+
+- id: T1059.007
+  name: "Command and Scripting Interpreter: JavaScript"
+  description: |
+    Adversaries abuse JavaScript to execute commands or evade defenses.
+    On the web, this manifests as XSS/DOM-based code injection and is
+    a key vector against custom web apps.
+  tactics: [Execution]
+  platforms: [Windows, Linux, macOS]
+  applies_to:
+    - web_application
+    - endpoint
+    - api_gateway
+  keywords:
+    - javascript
+    - js
+    - xss
+    - script
+    - injection
+    - dom
+    - browser
+  references:
+    - https://attack.mitre.org/techniques/T1059/007/
+
+- id: T1203
+  name: Exploitation for Client Execution
+  description: |
+    Adversaries exploit a vulnerability in a client application (browser,
+    Office, PDF reader) to execute code on a user's endpoint, typically
+    delivered via T1566.
+  tactics: [Execution]
+  platforms: [Windows, Linux, macOS]
+  applies_to:
+    - endpoint
+    - user
+  keywords:
+    - exploit
+    - browser
+    - office
+    - macro
+    - pdf
+    - client
+    - drive-by
+    - rce
+    - vulnerability
+    - cve
+  references:
+    - https://attack.mitre.org/techniques/T1203/
+
+# Persistence --------------------------------------------------------------------
+- id: T1098
+  name: Account Manipulation
+  description: |
+    Adversaries manipulate accounts (add roles, modify credentials, add
+    SSH keys) to maintain or elevate access to victim systems.
+  tactics: [Persistence, Privilege Escalation]
+  platforms: [Windows, Linux, macOS, SaaS, Azure AD, Google Workspace]
+  applies_to:
+    - directory_service
+    - iam_principal
+    - mfa_service
+    - vpn_gateway
+    - email_server
+    - database
+  keywords:
+    - account
+    - permission
+    - role
+    - privilege
+    - group
+    - manipulate
+    - add
+    - membership
+    - admin
+  references:
+    - https://attack.mitre.org/techniques/T1098/
+
+- id: T1098.002
+  name: "Account Manipulation: Additional Email Delegate Permissions"
+  description: |
+    Adversaries grant additional permissions on a target's mailbox
+    (delegate access, "Send As", auto-forwarding rules) to silently
+    persist and exfiltrate.
+  tactics: [Persistence]
+  platforms: [Office 365, Google Workspace]
+  applies_to:
+    - email_server
+  keywords:
+    - mailbox
+    - delegate
+    - forward
+    - inbox
+    - rule
+    - email
+    - exfil
+    - permission
+  references:
+    - https://attack.mitre.org/techniques/T1098/002/
+
+# Privilege Escalation / Credential Access --------------------------------------
+- id: T1078
+  name: Valid Accounts
+  description: |
+    Adversaries use compromised credentials of an existing account to
+    gain initial access, persist, escalate, or evade defenses. Applies
+    across cloud, on-prem and IoT.
+  tactics: [Defense Evasion, Persistence, Privilege Escalation, Initial Access]
+  platforms: [Windows, Linux, macOS, SaaS, Azure AD, Network, Containers]
+  applies_to:
+    - directory_service
+    - iam_principal
+    - vpn_gateway
+    - email_server
+    - mfa_service
+    - database
+    - legacy_mainframe
+    - network_switch
+    - firewall
+    - load_balancer
+    - iot_device
+    - endpoint
+    - user
+    - api_gateway
+  keywords:
+    - credential
+    - password
+    - account
+    - login
+    - default
+    - reuse
+    - shared
+    - admin
+    - root
+    - service
+  references:
+    - https://attack.mitre.org/techniques/T1078/
+
+- id: T1003
+  name: OS Credential Dumping
+  description: |
+    Adversaries attempt to dump credentials (LSASS, SAM, NTDS.dit,
+    /etc/shadow) to obtain account login and credential material,
+    typically to enable lateral movement.
+  tactics: [Credential Access]
+  platforms: [Windows, Linux, macOS]
+  applies_to:
+    - directory_service
+    - endpoint
+    - legacy_mainframe
+  keywords:
+    - credential
+    - dump
+    - lsass
+    - ntds
+    - sam
+    - mimikatz
+    - hash
+    - password
+  references:
+    - https://attack.mitre.org/techniques/T1003/
+
+- id: T1110
+  name: Brute Force
+  description: |
+    Adversaries try to gain access to accounts when passwords are unknown
+    or hashes are obtained. Includes password spraying, credential
+    stuffing and online guessing.
+  tactics: [Credential Access]
+  platforms: [Windows, Linux, macOS, SaaS, Azure AD, Office 365, Network]
+  applies_to:
+    - vpn_gateway
+    - mfa_service
+    - directory_service
+    - email_server
+    - web_application
+    - api_gateway
+    - load_balancer
+    - iot_device
+    - legacy_mainframe
+  keywords:
+    - brute
+    - force
+    - guess
+    - spray
+    - stuff
+    - password
+    - credential
+    - lockout
+    - attempt
+  references:
+    - https://attack.mitre.org/techniques/T1110/
+
+- id: T1539
+  name: Steal Web Session Cookie
+  description: |
+    Adversaries steal web application or service session cookies and
+    replay them to access systems without needing credentials,
+    bypassing MFA in the process.
+  tactics: [Credential Access]
+  platforms: [Windows, Linux, macOS, SaaS]
+  applies_to:
+    - web_application
+    - mfa_service
+    - endpoint
+    - user
+  keywords:
+    - cookie
+    - session
+    - token
+    - replay
+    - browser
+    - infostealer
+    - stealer
+  references:
+    - https://attack.mitre.org/techniques/T1539/
+
+- id: T1552
+  name: Unsecured Credentials
+  description: |
+    Adversaries search for credentials stored in cleartext or weakly
+    protected locations: scripts, config files, registry, command
+    history, source code, public repos.
+  tactics: [Credential Access]
+  platforms: [Windows, Linux, macOS, Containers, IaaS]
+  applies_to:
+    - vpn_gateway
+    - secrets_vault
+    - container_runtime
+    - endpoint
+    - web_application
+    - serverless_function
+    - iam_principal
+    - kms_key
+  keywords:
+    - credential
+    - hardcoded
+    - cleartext
+    - password
+    - config
+    - secret
+    - .env
+    - script
+    - registry
+  references:
+    - https://attack.mitre.org/techniques/T1552/
+
+- id: T1555
+  name: Credentials from Password Stores
+  description: |
+    Adversaries search for common password storage locations to obtain
+    credentials: browser saved passwords, keychain, Windows Credential
+    Manager, KeePass / 1Password files.
+  tactics: [Credential Access]
+  platforms: [Windows, Linux, macOS]
+  applies_to:
+    - endpoint
+    - mfa_service
+    - user
+  keywords:
+    - credential
+    - browser
+    - keychain
+    - vault
+    - password
+    - store
+    - manager
+    - infostealer
+    - stealer
+  references:
+    - https://attack.mitre.org/techniques/T1555/
+
+- id: T1555.003
+  name: "Credentials from Password Stores: Credentials from Web Browsers"
+  description: |
+    Adversaries acquire credentials from web browsers by reading files
+    or accessing decryption keys (Login Data SQLite DB on Chromium-based
+    browsers).
+  tactics: [Credential Access]
+  platforms: [Windows, Linux, macOS]
+  applies_to:
+    - endpoint
+    - mfa_service
+    - user
+  keywords:
+    - browser
+    - chrome
+    - firefox
+    - edge
+    - cookie
+    - login
+    - password
+    - infostealer
+  references:
+    - https://attack.mitre.org/techniques/T1555/003/
+
+- id: T1556
+  name: Modify Authentication Process
+  description: |
+    Adversaries modify authentication mechanisms and processes to access
+    user credentials or enable bypass: pluggable auth modules, password
+    filter DLLs, MFA enrollment changes.
+  tactics: [Credential Access, Defense Evasion, Persistence]
+  platforms: [Windows, Linux, macOS, SaaS, Azure AD]
+  applies_to:
+    - directory_service
+    - mfa_service
+    - iam_principal
+  keywords:
+    - authentication
+    - mfa
+    - reset
+    - enroll
+    - bypass
+    - help-desk
+    - social
+    - engineering
+  references:
+    - https://attack.mitre.org/techniques/T1556/
+
+- id: T1556.006
+  name: "Modify Authentication Process: Multi-Factor Authentication"
+  description: |
+    Adversaries disable or modify multi-factor authentication mechanisms
+    to enable persistent access without re-prompting for the second
+    factor.
+  tactics: [Credential Access, Defense Evasion, Persistence]
+  platforms: [SaaS, Azure AD, Office 365]
+  applies_to:
+    - mfa_service
+    - directory_service
+    - iam_principal
+  keywords:
+    - mfa
+    - second
+    - factor
+    - bypass
+    - disable
+    - sim
+    - swap
+    - sms
+    - otp
+  references:
+    - https://attack.mitre.org/techniques/T1556/006/
+
+- id: T1558
+  name: Steal or Forge Kerberos Tickets
+  description: |
+    Adversaries forge or steal Kerberos tickets to enable lateral
+    movement: Golden Ticket, Silver Ticket, Kerberoasting,
+    AS-REP Roasting.
+  tactics: [Credential Access]
+  platforms: [Windows]
+  applies_to:
+    - directory_service
+    - legacy_mainframe
+  keywords:
+    - kerberos
+    - ticket
+    - golden
+    - silver
+    - kerberoast
+    - as-rep
+    - tgt
+    - tgs
+    - krbtgt
+  references:
+    - https://attack.mitre.org/techniques/T1558/
+
+- id: T1621
+  name: Multi-Factor Authentication Request Generation
+  description: |
+    Adversaries with valid credentials repeatedly trigger MFA push
+    notifications hoping the user accepts one out of fatigue or
+    confusion (push-bombing / MFA fatigue).
+  tactics: [Credential Access]
+  platforms: [SaaS, Office 365, Azure AD, Google Workspace]
+  applies_to:
+    - mfa_service
+    - user
+  keywords:
+    - mfa
+    - push
+    - fatigue
+    - bombing
+    - prompt
+    - approve
+    - notification
+  references:
+    - https://attack.mitre.org/techniques/T1621/
+
+- id: T1111
+  name: Multi-Factor Authentication Interception
+  description: |
+    Adversaries target multi-factor authentication mechanisms (SMS, TOTP
+    seeds, smartcard PIN cache) to gain access to credentials and use
+    them for authentication.
+  tactics: [Credential Access]
+  platforms: [Windows, Linux, macOS, SaaS]
+  applies_to:
+    - mfa_service
+    - user
+  keywords:
+    - mfa
+    - sms
+    - otp
+    - sim
+    - swap
+    - intercept
+    - token
+    - seed
+  references:
+    - https://attack.mitre.org/techniques/T1111/
+
+# Defense Evasion ---------------------------------------------------------------
+- id: T1562
+  name: Impair Defenses
+  description: |
+    Adversaries maliciously modify components of a victim environment to
+    hinder or disable defensive mechanisms: disable EDR, modify
+    firewall rules, disable logging.
+  tactics: [Defense Evasion]
+  platforms: [Windows, Linux, macOS, Network, Containers]
+  applies_to:
+    - endpoint
+    - firewall
+    - directory_service
+    - observability_stack
+    - container_runtime
+    - legacy_mainframe
+  keywords:
+    - disable
+    - edr
+    - antivirus
+    - logging
+    - firewall
+    - bypass
+    - tamper
+    - audit
+  references:
+    - https://attack.mitre.org/techniques/T1562/
+
+- id: T1484
+  name: Domain Policy Modification
+  description: |
+    Adversaries with elevated rights modify the configuration of a
+    domain (Group Policy, trust relationships) to evade defenses or
+    persist.
+  tactics: [Defense Evasion, Privilege Escalation]
+  platforms: [Windows, Azure AD]
+  applies_to:
+    - directory_service
+  keywords:
+    - gpo
+    - group
+    - policy
+    - domain
+    - trust
+    - modify
+    - logon
+    - script
+  references:
+    - https://attack.mitre.org/techniques/T1484/
+
+# Discovery ----------------------------------------------------------------------
+- id: T1040
+  name: Network Sniffing
+  description: |
+    Adversaries sniff network traffic to capture information about an
+    environment, including authentication material passed over an
+    insecure, unencrypted protocol.
+  tactics: [Credential Access, Discovery]
+  platforms: [Windows, Linux, macOS, Network]
+  applies_to:
+    - network_switch
+    - network_segment
+    - endpoint
+    - load_balancer
+    - industrial_protocol
+  keywords:
+    - sniff
+    - pcap
+    - tcpdump
+    - wireshark
+    - traffic
+    - mitm
+    - intercept
+    - cleartext
+  references:
+    - https://attack.mitre.org/techniques/T1040/
+
+# Lateral Movement --------------------------------------------------------------
+- id: T1021
+  name: Remote Services
+  description: |
+    Adversaries use valid accounts to log into a service over the
+    network: SMB, RDP, SSH, VNC, WinRM, distributed COM.
+  tactics: [Lateral Movement]
+  platforms: [Windows, Linux, macOS, Network]
+  applies_to:
+    - endpoint
+    - directory_service
+    - network_segment
+    - mfa_service
+    - vpn_gateway
+    - legacy_mainframe
+  keywords:
+    - lateral
+    - rdp
+    - smb
+    - ssh
+    - winrm
+    - vnc
+    - remote
+    - service
+  references:
+    - https://attack.mitre.org/techniques/T1021/
+
+- id: T1550
+  name: Use Alternate Authentication Material
+  description: |
+    Adversaries use alternative authentication material (Kerberos
+    tickets, NTLM hashes, application access tokens) to bypass
+    normal authentication controls and move laterally.
+  tactics: [Defense Evasion, Lateral Movement]
+  platforms: [Windows, Linux, macOS, SaaS, Azure AD]
+  applies_to:
+    - directory_service
+    - iam_principal
+    - mfa_service
+    - api_gateway
+  keywords:
+    - hash
+    - ticket
+    - token
+    - pass-the-hash
+    - pass-the-ticket
+    - kerberos
+    - ntlm
+    - lateral
+  references:
+    - https://attack.mitre.org/techniques/T1550/
+
+# Collection / Adversary-in-the-Middle ------------------------------------------
+- id: T1557
+  name: Adversary-in-the-Middle
+  description: |
+    Adversaries place themselves between two networked devices to support
+    follow-on behaviors such as Network Sniffing, Transmitted Data
+    Manipulation, or replayed authentication. Includes ARP cache
+    poisoning, LLMNR/NBT-NS spoofing, DHCP spoofing.
+  tactics: [Credential Access, Collection]
+  platforms: [Windows, Linux, macOS, Network]
+  applies_to:
+    - network_switch
+    - network_segment
+    - endpoint
+    - load_balancer
+  keywords:
+    - mitm
+    - arp
+    - dhcp
+    - llmnr
+    - nbt-ns
+    - poison
+    - spoof
+    - relay
+  references:
+    - https://attack.mitre.org/techniques/T1557/
+
+- id: T1114
+  name: Email Collection
+  description: |
+    Adversaries target user email to collect sensitive information.
+    May be obtained via mailbox auto-forwarding, mailbox export
+    (PST/OST) or direct mailbox API access.
+  tactics: [Collection]
+  platforms: [Windows, Office 365, Google Workspace]
+  applies_to:
+    - email_server
+  keywords:
+    - email
+    - mailbox
+    - inbox
+    - forward
+    - export
+    - pst
+    - mail
+  references:
+    - https://attack.mitre.org/techniques/T1114/
+
+- id: T1114.003
+  name: "Email Collection: Email Forwarding Rule"
+  description: |
+    Adversaries set up an inbox rule to silently forward all (or
+    keyword-filtered) mail from a compromised mailbox to an attacker-
+    controlled address.
+  tactics: [Collection]
+  platforms: [Office 365, Google Workspace, Windows]
+  applies_to:
+    - email_server
+  keywords:
+    - inbox
+    - rule
+    - forward
+    - mailbox
+    - exfil
+    - email
+  references:
+    - https://attack.mitre.org/techniques/T1114/003/
+
+- id: T1213
+  name: Data from Information Repositories
+  description: |
+    Adversaries leverage information repositories (Confluence,
+    SharePoint, Jira, code repos, file shares) to mine valuable
+    information including credentials, designs and customer data.
+  tactics: [Collection]
+  platforms: [SaaS, Office 365, Google Workspace, Linux, Windows, macOS]
+  applies_to:
+    - object_storage
+    - data_source
+    - email_server
+    - web_application
+    - database
+  keywords:
+    - repository
+    - sharepoint
+    - confluence
+    - wiki
+    - jira
+    - share
+    - document
+    - mine
+  references:
+    - https://attack.mitre.org/techniques/T1213/
+
+- id: T1071
+  name: Application Layer Protocol
+  description: |
+    Adversaries communicate with their C2 over common application
+    layer protocols (HTTPS, DNS, SMTP) to blend in with legitimate
+    traffic and evade detection.
+  tactics: [Command and Control]
+  platforms: [Windows, Linux, macOS, Network]
+  applies_to:
+    - endpoint
+    - firewall
+    - network_segment
+    - serverless_function
+    - container_runtime
+  keywords:
+    - c2
+    - command
+    - control
+    - https
+    - dns
+    - tunnel
+    - exfil
+    - beacon
+    - protocol
+  references:
+    - https://attack.mitre.org/techniques/T1071/
+
+# Exfiltration ------------------------------------------------------------------
+- id: T1048.003
+  name: "Exfiltration Over Alternative Protocol: Exfiltration Over Unencrypted Non-C2 Protocol"
+  description: |
+    Adversaries steal data by exfiltrating it over an unencrypted
+    network protocol other than the existing command and control
+    channel (FTP, SMTP, plain HTTP, IRC).
+  tactics: [Exfiltration]
+  platforms: [Windows, Linux, macOS, Network]
+  applies_to:
+    - email_server
+    - endpoint
+    - firewall
+    - network_segment
+  keywords:
+    - exfil
+    - ftp
+    - smtp
+    - http
+    - cleartext
+    - protocol
+    - upload
+  references:
+    - https://attack.mitre.org/techniques/T1048/003/
+
+- id: T1052
+  name: Exfiltration Over Physical Medium
+  description: |
+    Adversaries exfiltrate data via a physical medium: USB drive,
+    optical media, mobile phone tethered as storage. Critical for
+    air-gapped or otherwise network-restricted environments.
+  tactics: [Exfiltration]
+  platforms: [Windows, Linux, macOS]
+  applies_to:
+    - endpoint
+    - user
+    - legacy_mainframe
+  keywords:
+    - usb
+    - removable
+    - drive
+    - exfil
+    - physical
+    - media
+    - thumb
+  references:
+    - https://attack.mitre.org/techniques/T1052/
+
+- id: T1567
+  name: Exfiltration Over Web Service
+  description: |
+    Adversaries exfiltrate data over a legitimate web service
+    (Dropbox, Google Drive, Pastebin) to blend in with normal
+    traffic and bypass DLP.
+  tactics: [Exfiltration]
+  platforms: [Windows, Linux, macOS, SaaS]
+  applies_to:
+    - email_server
+    - endpoint
+    - web_application
+    - object_storage
+    - serverless_function
+  keywords:
+    - exfil
+    - cloud
+    - dropbox
+    - drive
+    - pastebin
+    - web
+    - upload
+    - bypass
+    - dlp
+  references:
+    - https://attack.mitre.org/techniques/T1567/
+
+# Collection ---------------------------------------------------------------------
+- id: T1530
+  name: Data from Cloud Storage
+  description: |
+    Adversaries access data from misconfigured cloud storage (S3, Azure
+    Blob, GCS) and on-premises object stores. Database backups,
+    historian dumps, and OPC-UA archive nodes parked on cheap object
+    storage are the textbook mistake.
+  tactics: [Collection]
+  platforms: [IaaS, SaaS]
+  applies_to:
+    - database
+    - object_storage
+    - kms_key
+    - scada
+    - legacy_mainframe
+  keywords:
+    - cloud-storage
+    - bucket
+    - blob
+    - s3
+    - backup
+    - dump
+    - historian
+    - export
+    - archive
+  references:
+    - https://attack.mitre.org/techniques/T1530/
+
+# Impact ------------------------------------------------------------------------
+- id: T1485
+  name: Data Destruction
+  description: |
+    Adversaries destroy data and files on specific systems or in large
+    numbers to interrupt availability. May overwrite, delete or
+    encrypt-without-ransom.
+  tactics: [Impact]
+  platforms: [Windows, Linux, macOS, IaaS, Containers]
+  applies_to:
+    - database
+    - object_storage
+    - endpoint
+    - legacy_mainframe
+  keywords:
+    - destruction
+    - wipe
+    - delete
+    - overwrite
+    - destroy
+    - data
+    - drop
+    - table
+  references:
+    - https://attack.mitre.org/techniques/T1485/
+
+- id: T1499
+  name: Endpoint Denial of Service
+  description: |
+    Adversaries perform endpoint DoS attacks to degrade or block the
+    availability of services. Includes resource exhaustion, network-
+    layer floods, and application-protocol abuse such as VLAN
+    hopping causing broadcast storms.
+  tactics: [Impact]
+  platforms: [Windows, Linux, macOS, Network, IaaS]
+  applies_to:
+    - load_balancer
+    - firewall
+    - api_gateway
+    - web_application
+    - network_switch
+    - vpn_gateway
+    - iot_device
+  keywords:
+    - dos
+    - denial
+    - flood
+    - exhaust
+    - resource
+    - service
+    - amplification
+    - storm
+  references:
+    - https://attack.mitre.org/techniques/T1499/
+
+# ---------------------------------------------------------------------------------
+# MITRE ATT&CK ICS  (Industrial Control Systems)
+# https://attack.mitre.org/matrices/ics/
+# ---------------------------------------------------------------------------------
+
+- id: T0855
+  name: "ICS: Unauthorized Command Message"
+  description: |
+    Adversaries send unauthorized command messages to control system
+    devices (PLCs, RTUs) over the OT bus, taking advantage of the
+    lack of authentication in legacy industrial protocols.
+  tactics: [Impair Process Control, Inhibit Response Function]
+  platforms: [Control Server, Engineering Workstation, RTU, PLC, HMI]
+  applies_to:
+    - plc
+    - scada
+    - industrial_protocol
+    - iot_device
+  keywords:
+    - modbus
+    - dnp3
+    - ethernet/ip
+    - command
+    - unauthorized
+    - control
+    - write
+    - coil
+    - register
+    - ot
+    - ics
+    - operate
+  references:
+    - https://attack.mitre.org/techniques/T0855/
+
+- id: T0836
+  name: "ICS: Modify Parameter"
+  description: |
+    Adversaries modify parameters used by industrial control system
+    processes (setpoints, alarm thresholds, control loops) to
+    cause physical-world impact.
+  tactics: [Impair Process Control]
+  platforms: [Control Server, Engineering Workstation, PLC, RTU]
+  applies_to:
+    - plc
+    - scada
+    - industrial_protocol
+  keywords:
+    - setpoint
+    - parameter
+    - threshold
+    - alarm
+    - process
+    - tampering
+    - tamper
+    - logic
+    - ot
+    - ics
+  references:
+    - https://attack.mitre.org/techniques/T0836/
+
+- id: T0856
+  name: "ICS: Spoof Reporting Message"
+  description: |
+    Adversaries spoof reporting messages sent from operations devices
+    to control or operator systems, masking the true state of the
+    process while malicious activity continues.
+  tactics: [Impair Process Control, Evasion]
+  platforms: [Control Server, HMI, Data Historian]
+  applies_to:
+    - scada
+    - industrial_protocol
+    - plc
+  keywords:
+    - spoof
+    - report
+    - hmi
+    - historian
+    - mask
+    - state
+    - ot
+    - ics
+    - replay
+  references:
+    - https://attack.mitre.org/techniques/T0856/
+
+- id: T0830
+  name: "ICS: Adversary-in-the-Middle"
+  description: |
+    Adversaries position themselves between two ICS endpoints to
+    intercept or manipulate command/response traffic on the OT
+    bus.
+  tactics: [Collection]
+  platforms: [Control Server, Engineering Workstation, PLC, RTU, Network]
+  applies_to:
+    - industrial_protocol
+    - scada
+    - plc
+    - network_switch
+  keywords:
+    - mitm
+    - middle
+    - ot
+    - ics
+    - relay
+    - intercept
+    - replay
+  references:
+    - https://attack.mitre.org/techniques/T0830/

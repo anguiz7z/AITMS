@@ -1,0 +1,101 @@
+component_type: mcp_server
+description: |
+  A Model Context Protocol (MCP) server exposing tools, resources, and prompts to LLM clients.
+  Treated as a special case of "tool" but with broader trust boundary implications.
+threats:
+  - id: T_MCP_001
+    title: Malicious MCP server (supply chain)
+    stride_ai: [Spoofing, Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM03:2025, LLM06:2025]
+    owasp_agentic: [AGT17, AGT16]
+    atlas: [AML.T0010, AML.T0053]
+    maestro: [M.L4.01, M.X.01, M.L7.10]
+    nist_ai_100_2: [NIST_GAI_BACKDOOR]
+    csa_singapore: [CSA_AI.DEVELOP.01, CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      User installs an MCP server from untrusted source; server includes backdoors or harmful
+      tools that execute when the agent calls them.
+    mitigations:
+      - "MCP server allowlist by SHA / signature"
+      - "Vendor risk review before enabling new MCP servers"
+      - "MCP capability scopes — never grant full system access by default"
+    refs: [AML.M0011, AML.M0014, AML.M0017]
+
+  - id: T_MCP_002
+    title: MCP server prompt injection via resource content
+    stride_ai: [Spoofing, Tampering]
+    owasp_llm: [LLM01:2025]
+    owasp_agentic: [AGT01, AGT16]
+    atlas: [AML.T0051.001, AML.T0053]
+    maestro: [M.L7.04, M.L3.03]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      MCP server returns resources (file contents, search results) that include injected
+      instructions; LLM follows them.
+    mitigations:
+      - "Treat MCP resource output as untrusted"
+      - "Sanitize / scan resources before re-prompting"
+    refs: [AML.M0015]
+
+  - id: T_MCP_003
+    title: Excessive MCP capabilities granted
+    stride_ai: [Elevation_of_Privilege]
+    owasp_llm: [LLM06:2025]
+    owasp_agentic: [AGT02, AGT03]
+    atlas: [AML.T0050]
+    maestro: [M.L7.04, M.L3.03]
+    csa_singapore: [CSA_AI.HUMAN.01, CSA_AI.DEPLOY.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      MCP server has access to filesystem write, shell exec, network — agent uses these in
+      unintended ways via prompt injection or hallucination.
+    mitigations:
+      - "Per-task capability scoping; ephemeral grants"
+      - "Sandbox MCP server with seccomp/cgroups"
+      - "Audit logs of every MCP capability invocation"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_MCP_004
+    title: Insecure inter-agent protocol abuse (MCP / A2A)
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    owasp_llm: [LLM06:2025]
+    owasp_agentic: [AGT16, AGT12, AGT09]
+    atlas: [AML.T0049, AML.T0053]
+    maestro: [M.L7.07, M.L3.03]
+    likelihood: 3
+    impact: 4
+    description: |
+      Attacks against MCP / A2A protocols themselves — consent bypass, context hijacking,
+      adversary-in-the-middle on agent-to-agent traffic, malformed metadata that misleads tool
+      selection.
+    mitigations:
+      - "Strong inter-agent authentication; mTLS where feasible"
+      - "Sanitize and validate all protocol-level payloads (context, tool metadata)"
+      - "Restrict agent-to-agent delegation to tightly scoped functions"
+      - "Encrypt inter-agent traffic; log every call for post-incident analysis"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_MCP_005
+    title: Compromised agent registry / malicious agent discovery
+    stride_ai: [Spoofing, Tampering]
+    owasp_llm: [LLM03:2025]
+    owasp_agentic: [AGT17, AGT09]
+    atlas: [AML.T0010]
+    maestro: [M.L7.10, M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      Agent registry / marketplace lists compromised or impersonating agents that legitimate
+      clients then enable. Capability descriptions can also be inaccurate, misleading reviewers.
+    mitigations:
+      - "Signed agent manifests; pinned versions"
+      - "Curation and review workflow for new entries"
+      - "Behavioural attestation of advertised capabilities"
+    refs: [AML.M0013, AML.M0014, AML.M0017]

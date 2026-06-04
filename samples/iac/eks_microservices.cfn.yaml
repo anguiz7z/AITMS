@@ -1,0 +1,114 @@
+# Canonical CloudFormation sample — EKS microservices stack.
+# Use:  atms scan samples/iac/eks_microservices.cfn.yaml
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ATMS canonical sample — EKS + RDS + S3 + WAF + KMS.
+
+Resources:
+  ProductionVpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+
+  AppSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: { Ref: ProductionVpc }
+      CidrBlock: "10.0.1.0/24"
+
+  DataSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: { Ref: ProductionVpc }
+      CidrBlock: "10.0.2.0/24"
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "app-tier sg"
+      VpcId: { Ref: ProductionVpc }
+
+  EksCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: "prod-eks"
+      RoleArn: { "Fn::GetAtt": [ "EksClusterRole", "Arn" ] }
+      ResourcesVpcConfig:
+        SubnetIds:
+          - { Ref: AppSubnet }
+          - { Ref: DataSubnet }
+
+  EksClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: eks.amazonaws.com }
+            Action: "sts:AssumeRole"
+
+  WebApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: "prod-api"
+
+  WebAppLb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+
+  Waf:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: "prod-waf"
+      Scope: REGIONAL
+      DefaultAction: { Allow: {} }
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: "waf"
+
+  PrimaryDb:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: postgres
+      DBInstanceClass: "db.t3.medium"
+      AllocatedStorage: "100"
+      MasterUsername: admin
+      MasterUserPassword: "{{resolve:secretsmanager:DbSecret:SecretString:password}}"
+      VPCSecurityGroups: [ { Ref: AppSecurityGroup } ]
+      KmsKeyId: { Ref: DbKmsKey }
+      StorageEncrypted: true
+      DependsOn: [ DataSubnet ]
+
+  DbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: "DbSecret"
+
+  DbKmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: "RDS encryption key"
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { AWS: "*" }
+            Action: "kms:*"
+            Resource: "*"
+
+  UploadsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: "atms-uploads-canonical"
+
+  ApiLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: "/aws/api/prod"
+
+  IdpUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: "prod-users"

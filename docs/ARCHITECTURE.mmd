@@ -1,0 +1,251 @@
+%% ATMS v0.18.43 — comprehensive architecture diagram
+%% Generated 2026-05-16 during Phase 0 audit.
+%% Open in any Mermaid renderer (or /architecture in the web UI).
+
+flowchart LR
+
+  %% ============================================================
+  %% INPUT FORMATS (12) — what users can drop in
+  %% ============================================================
+  subgraph INPUTS["INPUT FORMATS · 12"]
+    direction TB
+    i_yaml["System YAML<br/>(native)"]
+    i_drawio["draw.io / mxGraph<br/>.drawio · .xml"]
+    i_mermaid["Mermaid flowchart<br/>.mmd · .md"]
+    i_vsdx["Microsoft Visio<br/>.vsdx"]
+    i_tm7["MS Threat Modeling Tool<br/>.tm7"]
+    i_tf["Terraform HCL<br/>.tf"]
+    i_cfn["AWS CloudFormation<br/>.yaml · .json"]
+    i_k8s["Kubernetes manifests<br/>.yaml · multi-doc"]
+    i_bicep["Azure Bicep DSL<br/>.bicep"]
+    i_arm["Azure ARM JSON<br/>.json"]
+    i_pulumi["Pulumi YAML<br/>AWS · Azure · GCP · K8s"]
+    i_otm["Open Threat Model<br/>.otm · .json"]
+    i_compose["docker-compose<br/>.yml"]
+    i_png["Diagram image (opt-in)<br/>.png · .jpg + vision"]
+  end
+
+  %% ============================================================
+  %% INGEST PIPELINE — format-aware translators
+  %% ============================================================
+  subgraph INGEST["INGEST PIPELINE · src/atms/ingest/"]
+    direction TB
+    ing_drawio[drawio.py]
+    ing_mermaid[mermaid.py]
+    ing_vsdx[vsdx.py]
+    ing_tm7[tm7.py]
+    ing_terraform[terraform.py]
+    ing_cfn[cloudformation.py]
+    ing_k8s[kubernetes.py]
+    ing_azure[azure_arm.py]
+    ing_pulumi[pulumi_yaml.py]
+    ing_otm[otm.py]
+    ing_compose[docker_compose.py]
+    ing_vision["vision/<br/>(optional anthropic dep)"]
+    autocorrect["yaml_autocorrect.py<br/>~150 synonyms"]
+    scan["atms scan<br/>auto-detect router"]
+  end
+
+  i_yaml --> autocorrect
+  i_drawio --> ing_drawio
+  i_mermaid --> ing_mermaid
+  i_vsdx --> ing_vsdx
+  i_tm7 --> ing_tm7
+  i_tf --> ing_terraform
+  i_cfn --> ing_cfn
+  i_k8s --> ing_k8s
+  i_bicep --> ing_azure
+  i_arm --> ing_azure
+  i_pulumi --> ing_pulumi
+  i_otm --> ing_otm
+  i_compose --> ing_compose
+  i_png --> ing_vision
+  ing_drawio & ing_mermaid & ing_vsdx & ing_tm7 & ing_terraform --> scan
+  ing_cfn & ing_k8s & ing_azure & ing_pulumi & ing_otm & ing_compose & ing_vision --> scan
+  autocorrect --> scan
+
+  %% ============================================================
+  %% CORE MODELS — Pydantic types
+  %% ============================================================
+  subgraph MODELS["CORE MODELS · src/atms/models.py"]
+    direction LR
+    m_system["System<br/>(components + dataflows + boundaries)"]
+    m_component["Component<br/>121 ComponentTypes"]
+    m_dataflow[Dataflow]
+    m_boundary["TrustBoundary<br/>5 types"]
+    m_threat["Threat<br/>+ StrideAI cat + L×I + refs"]
+    m_path[AttackPath]
+    m_mitig["Mitigation<br/>+ D3FEND + family + effort"]
+    m_model[ThreatModel]
+  end
+
+  scan --> m_system
+  m_system --> m_component & m_dataflow & m_boundary
+
+  %% ============================================================
+  %% KNOWLEDGE BASE — bundled at install
+  %% ============================================================
+  subgraph KB["KNOWLEDGE BASE · kb/ · 166 YAML files"]
+    direction TB
+    kb_playbooks["playbooks/<br/>121 (100% ComponentType)"]
+    kb_compliance["compliance/<br/>117 controls · 15 frameworks"]
+    kb_atlas["mitre_atlas/<br/>41 techniques · 18 mitigations"]
+    kb_attack["mitre_attack_*/<br/>cloud 33 · enterprise 35+"]
+    kb_owasp["owasp_*/<br/>LLM 10 · Agentic 17 · API 10 · ML"]
+    kb_linddun["linddun/<br/>14 entries"]
+    kb_maestro["maestro/<br/>7 layers · 55 threats"]
+    kb_nist["nist_ai_*/<br/>RMF + 100-2"]
+    kb_csa["csa_singapore/"]
+    kb_devices["devices/catalog.yaml<br/>274 vendor/product entries"]
+    kb_cloud["cloud_catalog/<br/>~500 AWS/Azure/GCP services"]
+    kb_vendor["vendor_threats/<br/>12 overlays · 75 threats"]
+    kb_priors["priors/loss_priors.yaml<br/>scale-aware FAIR tiers"]
+    kb_d3fend["d3fend/<br/>defensive techniques"]
+    kb_stride["stride_ai_matrix.yaml"]
+    kb_provenance["methodology_provenance.yaml"]
+    kb_refpat["reference_patterns/<br/>AWS SRA · Azure LZA"]
+    kb_palette["palette_meta.yaml"]
+  end
+
+  %% ============================================================
+  %% ENGINES — the analysis pipeline (24 modules)
+  %% ============================================================
+  subgraph ENGINES["ENGINES · src/atms/engines/ · 24 modules"]
+    direction TB
+    e_ai_scope["ai_scope.py<br/>AI-component detection + blast radius"]
+    e_boundaries["boundaries.py<br/>infer + annotate crossings"]
+    e_applic["applicability.py<br/>topology-aware filter"]
+    e_stride["stride_ai.py<br/>per-component playbook fire"]
+    e_arch["architectural_rules.py<br/>25 topology-pattern rules"]
+    e_cloud["cloud.py<br/>cloud-service enrichment"]
+    e_attack["attack_paths.py<br/>NetworkX kill-chain finder"]
+    e_kill_chain["kill_chain.py<br/>Lockheed phase tagging"]
+    e_mappings["mapping.py · frameworks.py<br/>OWASP / ATLAS / ATT&amp;CK cross-walk"]
+    e_linddun["linddun.py<br/>privacy categories"]
+    e_maestro["maestro.py<br/>MAESTRO 7-layer"]
+    e_nist["nist_ai_100_2.py<br/>adversarial ML"]
+    e_owasp_ml["owasp_ml.py"]
+    e_evidence["evidence.py<br/>VAPT/red-team/STIX overlay"]
+    e_controls["controls.py<br/>per-component control suppression"]
+    e_compliance["compliance.py<br/>15-framework mapping"]
+    e_risk["risk.py<br/>severity rollup"]
+    e_quant["quantitative.py<br/>FAIR-lite ALE"]
+    e_mitig["mitigations.py · d3fend.py<br/>D3FEND-mapped roadmap"]
+    e_struct["structural.py<br/>architecture-edit proposals"]
+    e_refpat["reference_patterns.py<br/>AWS SRA / Azure LZA tags"]
+    pipeline["pipeline.py<br/>stage registry + invariants"]
+    workflow["workflow.py<br/>orchestrator"]
+  end
+
+  m_system --> e_ai_scope --> e_boundaries --> e_applic --> e_stride
+  e_stride --> e_arch --> e_cloud --> e_attack --> e_kill_chain
+  e_kill_chain --> e_mappings --> e_linddun & e_maestro & e_nist & e_owasp_ml
+  e_mappings --> e_evidence --> e_controls --> e_compliance
+  e_compliance --> e_risk --> e_quant --> e_mitig --> e_struct --> e_refpat
+  e_refpat --> m_model
+
+  workflow -.orchestrates.-> e_ai_scope
+  pipeline -.invariants.-> workflow
+  kb_playbooks -.feeds.-> e_stride
+  kb_atlas & kb_attack -.feeds.-> e_mappings
+  kb_owasp -.feeds.-> e_mappings
+  kb_compliance -.feeds.-> e_compliance
+  kb_linddun -.feeds.-> e_linddun
+  kb_maestro -.feeds.-> e_maestro
+  kb_nist -.feeds.-> e_nist
+  kb_devices & kb_cloud -.feeds.-> e_cloud
+  kb_priors -.feeds.-> e_quant
+  kb_d3fend & kb_refpat -.feeds.-> e_mitig
+  kb_vendor -.feeds.-> e_stride
+  kb_stride & kb_provenance -.feeds.-> e_stride
+
+  %% ============================================================
+  %% REPORTING — what comes out
+  %% ============================================================
+  subgraph REPORTING["REPORTING · src/atms/reporting/ · 14 modules"]
+    direction TB
+    r_md["markdown.py<br/>.md"]
+    r_html["html.py<br/>.html (interactive)"]
+    r_exec["exec_summary.py<br/>.exec.html (1-page)"]
+    r_stix["stix.py<br/>STIX 2.1 bundle"]
+    r_nav["navigator.py<br/>ATT&amp;CK Navigator layer"]
+    r_sarif["sarif_export.py<br/>SARIF (GHAS)"]
+    r_otm_out["otm_export.py<br/>OTM round-trip"]
+    r_csv["csv_export.py<br/>risk register · mitigations"]
+    r_mermaid_render["mermaid.py<br/>DFD inline"]
+    r_compliance["compliance_matrix.py<br/>.compliance.html + .csv"]
+    r_jira["jira_export.py<br/>JIRA CSV + REST JSON"]
+    r_roadmap["roadmap_export.py<br/>roadmap.md + .json"]
+    r_sbom["sbom_export.py<br/>CycloneDX 1.5"]
+  end
+
+  m_model --> r_md & r_html & r_exec & r_stix & r_nav
+  m_model --> r_sarif & r_otm_out & r_csv & r_mermaid_render
+  m_model --> r_compliance & r_jira & r_roadmap & r_sbom
+
+  %% ============================================================
+  %% DELIVERY SURFACES — 4 ways to drive ATMS
+  %% ============================================================
+  subgraph SURFACES["DELIVERY SURFACES"]
+    direction TB
+    cli["CLI · 28 commands<br/>analyze · scan · watch · ingest-* · ci · diff · etc."]
+    webui["Web UI · 32 routes<br/>/ /editor /report /capabilities /compliance /attack-paths /methodology /architecture /diff /etc."]
+    rest["REST API<br/>/api/v1/analyze · /api/v1/scan · /api/v1/metrics · /healthz"]
+    mcp["MCP stdio server<br/>5 tools for Claude Code"]
+    pyinst["PyInstaller .exe<br/>Windows installer + portable"]
+  end
+
+  r_md & r_html & r_exec --> cli
+  r_compliance & r_jira & r_roadmap & r_sbom --> cli & webui
+  r_stix & r_nav & r_sarif & r_otm_out & r_csv --> cli & rest
+  cli --> webui
+  webui --> rest
+  cli --> pyinst
+  m_model --> mcp
+  cli --> mcp
+
+  %% ============================================================
+  %% EVIDENCE OVERLAY — optional ingest path that runs alongside
+  %% ============================================================
+  subgraph EVIDENCE["EVIDENCE PARSERS · src/atms/evidence/"]
+    direction LR
+    ev_nessus[nessus.py<br/>.nessus]
+    ev_sarif[sarif.py]
+    ev_stix[stix.py]
+    ev_csv[csv_parser.py]
+    ev_red[redteam.py<br/>Caldera · Atomic · BAS]
+    ev_match[matcher.py<br/>CPE · pURL · hostname · IP]
+  end
+
+  ev_nessus & ev_sarif & ev_stix & ev_csv & ev_red --> ev_match --> e_evidence
+
+  %% ============================================================
+  %% FEEDS — live KEV / EPSS / NVD lookups (optional, opt-in)
+  %% ============================================================
+  subgraph FEEDS["FEEDS · src/atms/feeds/"]
+    direction TB
+    f_kev["CISA KEV<br/>(atms refresh-feeds)"]
+    f_epss[EPSS]
+    f_nvd["NVD / OSV<br/>(atms cve-lookup)"]
+  end
+
+  f_kev & f_epss & f_nvd --> ev_match
+
+  %% ============================================================
+  %% STYLING
+  %% ============================================================
+  classDef input fill:#1f6feb,stroke:#58a6ff,color:#fff,stroke-width:1px
+  classDef ingest fill:#2da44e,stroke:#3fb950,color:#fff
+  classDef model fill:#bf8700,stroke:#d29922,color:#fff
+  classDef engine fill:#a371f7,stroke:#8957e5,color:#fff
+  classDef kb fill:#db6d28,stroke:#fb8500,color:#fff
+  classDef report fill:#cf222e,stroke:#ff7b72,color:#fff
+  classDef surface fill:#0e1116,stroke:#58a6ff,color:#58a6ff,stroke-width:2px
+
+  class i_yaml,i_drawio,i_mermaid,i_vsdx,i_tm7,i_tf,i_cfn,i_k8s,i_bicep,i_arm,i_pulumi,i_otm,i_compose,i_png input
+  class ing_drawio,ing_mermaid,ing_vsdx,ing_tm7,ing_terraform,ing_cfn,ing_k8s,ing_azure,ing_pulumi,ing_otm,ing_compose,ing_vision,autocorrect,scan ingest
+  class m_system,m_component,m_dataflow,m_boundary,m_threat,m_path,m_mitig,m_model model
+  class e_ai_scope,e_boundaries,e_applic,e_stride,e_arch,e_cloud,e_attack,e_kill_chain,e_mappings,e_linddun,e_maestro,e_nist,e_owasp_ml,e_evidence,e_controls,e_compliance,e_risk,e_quant,e_mitig,e_struct,e_refpat,pipeline,workflow engine
+  class kb_playbooks,kb_compliance,kb_atlas,kb_attack,kb_owasp,kb_linddun,kb_maestro,kb_nist,kb_csa,kb_devices,kb_cloud,kb_vendor,kb_priors,kb_d3fend,kb_stride,kb_provenance,kb_refpat,kb_palette kb
+  class r_md,r_html,r_exec,r_stix,r_nav,r_sarif,r_otm_out,r_csv,r_mermaid_render,r_compliance,r_jira,r_roadmap,r_sbom report
+  class cli,webui,rest,mcp,pyinst surface

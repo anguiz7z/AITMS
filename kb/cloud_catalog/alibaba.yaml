@@ -1,0 +1,934 @@
+# ATMS Alibaba Cloud service catalog (v0.16.0)
+# -------------------------------------------------------------------------
+# Canonical list of Alibaba Cloud (Aliyun) services for ATMS threat models.
+# Each entry maps a vendor service to an ATMS ComponentType so the engine
+# can apply the correct STRIDE / MAESTRO / OWASP-LLM / OWASP-Agentic
+# playbooks automatically when a user picks the service in the GUI editor.
+#
+# Schema documented in kb/cloud_catalog/azure.yaml.
+# -------------------------------------------------------------------------
+
+# ────────────────────────── Compute ────────────────────────────────────────
+- vendor: Alibaba
+  product: ecs
+  display_name: Alibaba Elastic Compute Service (ECS)
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/ecs/
+  ai_context: |
+    General-purpose VMs (incl. GPU shapes — gn7, ebmgn7) hosting self-
+    managed inference, fine-tuning and agent runtimes. RAM role attached
+    to ECS instance is the identity the workload uses to reach OSS / RDS
+    — over-broad role policy is the leading pivot.
+
+- vendor: Alibaba
+  product: ack
+  display_name: Alibaba Container Service for Kubernetes (ACK)
+  component_type: container_orchestrator
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/ack/
+  ai_context: |
+    Managed Kubernetes — primary host for KServe, vLLM and PAI-EAS-on-K8s.
+    RRSA (RAM Roles for Service Accounts) is the workload identity pattern
+    that keeps tool containers least-privileged.
+
+- vendor: Alibaba
+  product: container_registry
+  display_name: Alibaba Container Registry (ACR)
+  component_type: container_registry
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/acr/
+  ai_context: |
+    Holds inference / agent images. EE-tier supports signing, image scanning
+    and global replication — critical for cross-region AI deployment.
+
+- vendor: Alibaba
+  product: function_compute
+  display_name: Alibaba Function Compute (FC)
+  component_type: serverless_function
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/fc/
+  ai_context: |
+    Serverless functions — common back-end for LLM tool calls and Model
+    Studio plugins. FC's GPU instances also serve lightweight inference.
+
+- vendor: Alibaba
+  product: sae
+  display_name: Alibaba Serverless App Engine (SAE)
+  component_type: container_runtime
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/sae/
+  ai_context: |
+    Serverless Spring Cloud / Dubbo / containers. Sometimes used for
+    AI orchestration apps written in Java.
+
+- vendor: Alibaba
+  product: eci
+  display_name: Alibaba Elastic Container Instance (ECI)
+  component_type: container_runtime
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/eci/
+  ai_context: |
+    Cluster-less container instances — common backing for ACK virtual node
+    autoscaling on AI workloads with spiky demand.
+
+- vendor: Alibaba
+  product: ebm
+  display_name: Alibaba Elastic Bare Metal (EBM)
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/ebm/
+  ai_context: |
+    Bare metal GPU hosts for large-model fine-tuning where hypervisor
+    overhead is unacceptable.
+
+# ────────────────────────── Storage ───────────────────────────────────────
+- vendor: Alibaba
+  product: oss
+  display_name: Alibaba Object Storage Service (OSS)
+  component_type: object_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/oss/
+  ai_context: |
+    Primary corpus / model-weights / chat-log store. Public-read buckets
+    and over-broad STS tokens are the leading cause of training-data leak
+    on Alibaba Cloud — the equivalent of the public-S3-bucket problem.
+
+- vendor: Alibaba
+  product: nas
+  display_name: Alibaba Apsara File Storage (NAS)
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/nas/
+  ai_context: |
+    NFS/SMB shared file system mounted across ACK pods for shared model
+    weights and tokenizer files.
+
+- vendor: Alibaba
+  product: ebs
+  display_name: Alibaba Elastic Block Storage (ESSD / EBS)
+  component_type: block_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/ecs/user-guide/block-storage-overview
+  ai_context: |
+    Persistent block storage for GPU ECS. CMK encryption via KMS protects
+    weights at rest.
+
+- vendor: Alibaba
+  product: hbr
+  display_name: Alibaba Hybrid Backup Recovery (HBR)
+  component_type: backup_service
+  service_category: storage
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/hbr/
+  ai_context: |
+    Backup of ECS, NAS, OSS and on-prem servers. Immutable snapshots
+    protect AI training data from ransomware.
+
+- vendor: Alibaba
+  product: oss_hdfs
+  display_name: Alibaba OSS-HDFS (JindoFS)
+  component_type: data_lake
+  service_category: storage
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/oss/user-guide/oss-hdfs-overview
+  ai_context: |
+    HDFS-compatible namespace on top of OSS — substrate for E-MapReduce and
+    MaxCompute lakehouse use including AI feature pipelines.
+
+# ────────────────────────── Database ──────────────────────────────────────
+- vendor: Alibaba
+  product: rds_mysql
+  display_name: Alibaba ApsaraDB RDS for MySQL
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/rds/
+  ai_context: |
+    Fully managed MySQL. Common back-end for application metadata that
+    LLM agents query via NL2SQL.
+
+- vendor: Alibaba
+  product: rds_postgresql
+  display_name: Alibaba ApsaraDB RDS for PostgreSQL
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/rds/
+  ai_context: |
+    Managed Postgres with pgvector + Ganos extensions. Common low-cost RAG
+    vector store on Alibaba Cloud.
+
+- vendor: Alibaba
+  product: rds_sqlserver
+  display_name: Alibaba ApsaraDB RDS for SQL Server
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/rds/
+  ai_context: |
+    Managed SQL Server. Frequently the system of record an LLM agent
+    translates natural language against.
+
+- vendor: Alibaba
+  product: rds_mariadb
+  display_name: Alibaba ApsaraDB RDS for MariaDB
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/rds/
+  ai_context: |
+    Managed MariaDB — less common; legacy app metadata.
+
+- vendor: Alibaba
+  product: polardb
+  display_name: Alibaba PolarDB (MySQL / PostgreSQL / Oracle-compatible)
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/polardb/
+  ai_context: |
+    Cloud-native relational database with built-in vector capabilities
+    (PolarDB for AI). Single platform hosts both vectors and source PII —
+    blast radius concern on agent prompt injection.
+
+- vendor: Alibaba
+  product: analyticdb_mysql
+  display_name: Alibaba AnalyticDB for MySQL
+  component_type: data_warehouse
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/analyticdb-for-mysql/
+  ai_context: |
+    Cloud-native data warehouse with vector engine. RAG store on Alibaba
+    Cloud for cases needing OLAP + vector in one place.
+
+- vendor: Alibaba
+  product: analyticdb_postgresql
+  display_name: Alibaba AnalyticDB for PostgreSQL
+  component_type: data_warehouse
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/analyticdb-for-postgresql/
+  ai_context: |
+    MPP Postgres compatible warehouse with vector support — Alibaba's
+    Redshift / Synapse analog.
+
+- vendor: Alibaba
+  product: mongodb
+  display_name: Alibaba ApsaraDB for MongoDB
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/mongodb/
+  ai_context: |
+    Managed MongoDB with vector search (Atlas-equivalent). Common agent
+    memory store.
+
+- vendor: Alibaba
+  product: redis
+  display_name: Alibaba ApsaraDB for Redis (Tair)
+  component_type: cache_store
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/redis/
+  ai_context: |
+    Tair-flavoured Redis with native vector module — used for hybrid LLM
+    cache + short-term agent memory.
+
+- vendor: Alibaba
+  product: memcache
+  display_name: Alibaba ApsaraDB for Memcache
+  component_type: cache_store
+  service_category: database
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/apsaradb-for-memcache
+  ai_context: |
+    Legacy in-memory cache. New AI workloads usually choose Redis/Tair.
+
+- vendor: Alibaba
+  product: maxcompute
+  display_name: Alibaba MaxCompute
+  component_type: data_warehouse
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/maxcompute/
+  ai_context: |
+    EB-scale data warehouse. Source-of-truth for many large-scale corpora
+    preprocessing pipelines feeding PAI fine-tuning.
+
+- vendor: Alibaba
+  product: hbase
+  display_name: Alibaba ApsaraDB for HBase
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/hbase/
+  ai_context: |
+    Wide-column store for high-throughput AI telemetry.
+
+# ────────────────────────── Network ───────────────────────────────────────
+- vendor: Alibaba
+  product: vpc
+  display_name: Alibaba Virtual Private Cloud (VPC)
+  component_type: network_segment
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/vpc/
+  ai_context: |
+    Foundational private network. AI workloads should sit in private
+    subnets with NAT Gateway for outbound calls.
+
+- vendor: Alibaba
+  product: slb
+  display_name: Alibaba Server Load Balancer (SLB / CLB)
+  component_type: load_balancer
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/slb/
+  ai_context: |
+    Classic load balancer (L4/L7). Fronts internal inference pools or
+    public chat UIs.
+
+- vendor: Alibaba
+  product: alb
+  display_name: Alibaba Application Load Balancer (ALB)
+  component_type: load_balancer
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/alb/
+  ai_context: |
+    L7 ALB with WAF integration. Standard ingress for AI APIs requiring
+    advanced routing and prompt-injection blocking at the edge.
+
+- vendor: Alibaba
+  product: nlb
+  display_name: Alibaba Network Load Balancer (NLB)
+  component_type: load_balancer
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/nlb/
+  ai_context: |
+    L4 NLB — used for high-throughput internal inference traffic.
+
+- vendor: Alibaba
+  product: cen
+  display_name: Alibaba Cloud Enterprise Network (CEN)
+  component_type: transit_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/cen/
+  ai_context: |
+    Cross-region / cross-account WAN backbone. Carries AI traffic between
+    regions and to/from on-prem.
+
+- vendor: Alibaba
+  product: express_connect
+  display_name: Alibaba Express Connect
+  component_type: vpn_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/express-connect/
+  ai_context: |
+    Private leased line into Alibaba Cloud — typical path for on-prem
+    training data into MaxCompute / OSS.
+
+- vendor: Alibaba
+  product: vpn_gateway
+  display_name: Alibaba VPN Gateway
+  component_type: vpn_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/vpn-gateway/
+  ai_context: |
+    IPsec site-to-site / SSL VPN.
+
+- vendor: Alibaba
+  product: anti_ddos
+  display_name: Alibaba Anti-DDoS
+  component_type: ddos_mitigation
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/anti-ddos/
+  ai_context: |
+    Basic + Pro + Premium DDoS scrubbing. AI endpoints are favoured DDoS
+    targets due to inference cost per request (denial-of-wallet).
+
+- vendor: Alibaba
+  product: waf
+  display_name: Alibaba Web Application Firewall (WAF 3.0)
+  component_type: waf
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/waf/
+  ai_context: |
+    Native WAF with AI Threat Protection for LLM apps — built-in rules
+    for prompt injection, jailbreak detection, and abnormal request
+    patterns against Model Studio / DashScope endpoints.
+
+- vendor: Alibaba
+  product: ddos_protection
+  display_name: Alibaba DDoS Protection (Pro / Premium)
+  component_type: ddos_mitigation
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/ddos-protection/
+  ai_context: |
+    Cleaning centre with Tbps+ capacity in front of public AI services.
+
+- vendor: Alibaba
+  product: dns
+  display_name: Alibaba Cloud DNS / PrivateZone
+  component_type: dns_service
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/dns/
+  ai_context: |
+    Authoritative + private DNS. Private zones resolve PrivateLink endpoint
+    names for AI services within VPC.
+
+- vendor: Alibaba
+  product: private_link
+  display_name: Alibaba PrivateLink
+  component_type: private_link
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/privatelink/
+  ai_context: |
+    Private endpoint for OSS, RDS, Model Studio etc. Primary mitigation
+    against AI data exfil via public service endpoints.
+
+- vendor: Alibaba
+  product: cloud_firewall
+  display_name: Alibaba Cloud Firewall
+  component_type: firewall
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/cloud-firewall/
+  ai_context: |
+    East-west and north-south stateful firewall. Egress chokepoint for
+    LLM agent outbound calls — FQDN allowlist contains exfil.
+
+- vendor: Alibaba
+  product: nat_gateway
+  display_name: Alibaba NAT Gateway
+  component_type: firewall
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/nat-gateway/
+  ai_context: |
+    Outbound SNAT for VPCs. Pins source IPs for third-party LLM API allowlists.
+
+- vendor: Alibaba
+  product: bastion_host
+  display_name: Alibaba Bastion Host
+  component_type: bastion_host
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/bastion-host/
+  ai_context: |
+    Managed jump host with session recording. Required for admin access
+    to GPU ECS hosting self-managed inference.
+
+# ────────────────────────── Security / Identity ───────────────────────────
+- vendor: Alibaba
+  product: ram
+  display_name: Alibaba Resource Access Management (RAM)
+  component_type: identity_provider
+  service_category: identity
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/ram/
+  ai_context: |
+    Master IAM. RAM roles attached to ECS / FC / ACK pods are how AI
+    workloads authenticate to OSS / Model Studio — over-broad role policy
+    is the standard misconfiguration.
+
+- vendor: Alibaba
+  product: idaas
+  display_name: Alibaba IDaaS (Identity as a Service)
+  component_type: identity_provider
+  service_category: identity
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/idaas/
+  ai_context: |
+    Workforce / customer IDaaS with SSO, MFA, conditional access — gates
+    console / API access to AI services.
+
+- vendor: Alibaba
+  product: kms
+  display_name: Alibaba Key Management Service (KMS)
+  component_type: kms_key
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/kms/
+  ai_context: |
+    Holds CMKs protecting model weights at rest, training data, and TDE
+    for RDS. Vault-equivalent for secrets via KMS Secrets Manager.
+
+- vendor: Alibaba
+  product: security_center
+  display_name: Alibaba Security Center (SAS)
+  component_type: cspm
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/security-center/
+  ai_context: |
+    Cloud workload protection + CSPM + threat detection. Detects misconfig
+    on AI compute hosts and abnormal usage on AI services.
+
+- vendor: Alibaba
+  product: cloud_config
+  display_name: Alibaba Cloud Config
+  component_type: cspm
+  service_category: security
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/cloud-config/
+  ai_context: |
+    Continuous compliance evaluation. Wire custom rules to flag overly
+    open OSS buckets holding training data.
+
+- vendor: Alibaba
+  product: actiontrail
+  display_name: Alibaba ActionTrail
+  component_type: log_aggregator
+  service_category: security
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/actiontrail/
+  ai_context: |
+    Control-plane audit log of who created/deleted AI resources. Should
+    ship to SLS and Security Center.
+
+- vendor: Alibaba
+  product: data_security_center
+  display_name: Alibaba Data Security Center (Sensitive Data Discovery)
+  component_type: dlp
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/data-security-center/
+  ai_context: |
+    Sensitive-data classification across OSS, RDS, MaxCompute. Critical
+    pre-flight for AI training data — flags PII before it reaches the
+    fine-tuning pipeline.
+
+# ────────────────────────── Monitoring & Observability ────────────────────
+- vendor: Alibaba
+  product: cloudmonitor
+  display_name: Alibaba CloudMonitor (CMS)
+  component_type: metrics_platform
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/cms/
+  ai_context: |
+    Metric store + alarms for AI compute and managed services. Tracks GPU
+    utilisation, token throughput, error rate.
+
+- vendor: Alibaba
+  product: log_service
+  display_name: Alibaba Log Service (SLS)
+  component_type: log_aggregator
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/sls/
+  ai_context: |
+    Log + telemetry + tracing platform with built-in SQL. Frequently holds
+    raw prompts / completions from Model Studio — must be scoped.
+
+- vendor: Alibaba
+  product: arms
+  display_name: Alibaba Application Real-Time Monitoring (ARMS)
+  component_type: tracing_platform
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/arms/
+  ai_context: |
+    APM + RUM + tracing. With OpenTelemetry SDK it captures end-to-end
+    traces of agent → tool → model call chains.
+
+- vendor: Alibaba
+  product: tracing_analysis
+  display_name: Alibaba Tracing Analysis
+  component_type: tracing_platform
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/tracing-analysis/
+  ai_context: |
+    Distributed tracing — OpenTelemetry-compatible. Used to debug agent
+    failure / runaway loops.
+
+# ────────────────────────── Messaging / Integration ───────────────────────
+- vendor: Alibaba
+  product: rocketmq
+  display_name: Alibaba Message Queue for Apache RocketMQ
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/rocketmq/
+  ai_context: |
+    Reliable queue between agent orchestrators and tool workers. Poison
+    messages can carry prompt-injection payloads downstream.
+
+- vendor: Alibaba
+  product: kafka
+  display_name: Alibaba Message Queue for Apache Kafka
+  component_type: stream_processor
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/alikafka/
+  ai_context: |
+    Managed Kafka. Feeds real-time RAG and streaming feature stores.
+
+- vendor: Alibaba
+  product: message_service
+  display_name: Alibaba Message Service (MNS)
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/mns/
+  ai_context: |
+    Simple queue / topic service. Lower-assurance than RocketMQ for AI
+    workflows.
+
+- vendor: Alibaba
+  product: eventbridge
+  display_name: Alibaba EventBridge
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/eventbridge/
+  ai_context: |
+    Event bus connecting SaaS / Alibaba services / custom apps. Fires AI
+    ingestion pipelines on OSS upload events.
+
+- vendor: Alibaba
+  product: api_gateway
+  display_name: Alibaba API Gateway
+  component_type: api_gateway
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/api-gateway/
+  ai_context: |
+    Public ingress for AI APIs. Plug-in based plugin model enforces rate
+    limits, JWT auth, IP allowlists in front of Model Studio.
+
+# ────────────────────────── Data / Analytics ──────────────────────────────
+- vendor: Alibaba
+  product: emr
+  display_name: Alibaba E-MapReduce (EMR)
+  component_type: ml_pipeline_orchestrator
+  service_category: data
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/emr/
+  ai_context: |
+    Managed Hadoop/Spark/Flink for large-scale corpora preprocessing prior
+    to PAI fine-tuning.
+
+- vendor: Alibaba
+  product: dataworks
+  display_name: Alibaba DataWorks
+  component_type: etl_orchestrator
+  service_category: data
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/dataworks/
+  ai_context: |
+    ETL + scheduling + data governance over MaxCompute / RDS. Workspace
+    permissions translate directly to AI training data reach.
+
+- vendor: Alibaba
+  product: dts
+  display_name: Alibaba Data Transmission Service (DTS)
+  component_type: stream_processor
+  service_category: data
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/dts/
+  ai_context: |
+    CDC + migration between RDS / PolarDB / etc. Replication into feature
+    stores serving real-time AI.
+
+- vendor: Alibaba
+  product: opensearch
+  display_name: Alibaba OpenSearch (Elasticsearch-compatible)
+  component_type: rag_vector_store
+  service_category: data
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/opensearch/
+  ai_context: |
+    Search + vector engine with LLM-powered query understanding. Common
+    RAG store for Qwen-grounded agents.
+
+# ────────────────────────── AI / ML ───────────────────────────────────────
+- vendor: Alibaba
+  product: pai
+  display_name: Alibaba Platform for AI (PAI)
+  component_type: ml_pipeline_orchestrator
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/pai/
+  ai_context: |
+    Umbrella platform: PAI-Designer (drag-and-drop ML), PAI-Studio
+    (notebooks), PAI-DLC (distributed training), PAI-EAS (model serving),
+    PAI-Lingjun (large-model HPC). Workspace permissions decide model-
+    training data reach.
+
+- vendor: Alibaba
+  product: pai_eas
+  display_name: Alibaba PAI Elastic Algorithm Service (PAI-EAS)
+  component_type: ml_inference_endpoint
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/pai/user-guide/eas-overview/
+  ai_context: |
+    Hosted inference endpoints for ML and LLM models, including private
+    Qwen deployments. Auth options: token, RAM, IDaaS — token-only is the
+    common over-exposure pattern.
+
+- vendor: Alibaba
+  product: pai_dlc
+  display_name: Alibaba PAI Deep Learning Containers (PAI-DLC)
+  component_type: training_pipeline
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/pai/user-guide/dlc-overview/
+  ai_context: |
+    Distributed training jobs on Alibaba GPU clusters. Job-level RAM role
+    is the data-access boundary.
+
+- vendor: Alibaba
+  product: model_studio
+  display_name: Alibaba Model Studio (DashScope)
+  component_type: llm_inference
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/model-studio/
+  ai_context: |
+    Managed inference + agent platform for the Qwen / Tongyi family
+    (Qwen3, Qwen-VL, Qwen-Coder, Qwen-Audio, Qwen-Omni, Wanx image, etc.).
+    Tenant-side abuse monitoring and content-safety filters built-in.
+
+- vendor: Alibaba
+  product: qwen_agent
+  display_name: Alibaba Model Studio Agent (Qwen Agent)
+  component_type: agent
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/model-studio/user-guide/agents
+  ai_context: |
+    Managed agent runtime with built-in tool calling, knowledge bases and
+    plugins. Plugin permissions become agent privileges — model the
+    plugin catalog like an IAM policy.
+
+- vendor: Alibaba
+  product: image_search
+  display_name: Alibaba Image Search
+  component_type: vision_pipeline
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/imagesearch/
+  ai_context: |
+    Similarity search over uploaded image embeddings. Vision-language
+    agent tool — adversarial images can trigger unwanted lookups.
+
+- vendor: Alibaba
+  product: intelligent_speech_interaction
+  display_name: Alibaba Intelligent Speech Interaction (ISI)
+  component_type: speech_pipeline
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/isi/
+  ai_context: |
+    STT / TTS / voice-clone / NLU. Voicebot front-end — audio inputs can
+    carry adversarial prompts.
+
+- vendor: Alibaba
+  product: machine_translation
+  display_name: Alibaba Machine Translation
+  component_type: ml_inference_endpoint
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/machine-translation/
+  ai_context: |
+    Translation API (200+ languages). Common pre/post-processor for
+    multilingual chat agents — translated text can carry obfuscated
+    injection.
+
+- vendor: Alibaba
+  product: nlp
+  display_name: Alibaba NLP (Natural Language Processing)
+  component_type: content_safety_classifier
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/nlp/
+  ai_context: |
+    Tokenisation, NER, sentiment, intent classification — used as a
+    guardrail pre-processor for LLM inputs.
+
+- vendor: Alibaba
+  product: ocr
+  display_name: Alibaba OCR Service
+  component_type: vision_pipeline
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/ocr/
+  ai_context: |
+    Document OCR — RAG ingestion step where malicious documents can inject
+    instructions via extracted text.
+
+- vendor: Alibaba
+  product: green_net
+  display_name: Alibaba Content Moderation (Green Net)
+  component_type: content_safety_classifier
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://www.alibabacloud.com/help/en/content-moderation/
+  ai_context: |
+    Text/image/video moderation. Required regulatory layer in front of
+    Chinese-language LLM apps; integrated with Model Studio.

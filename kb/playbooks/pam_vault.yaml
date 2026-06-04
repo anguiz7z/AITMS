@@ -1,0 +1,107 @@
+component_type: pam_vault
+description: |
+  Privileged Access Management vault — stores, brokers, and rotates
+  privileged credentials. Examples: CyberArk PAS / Conjur, BeyondTrust
+  Password Safe, Delinea (Thycotic) Secret Server, HashiCorp Vault
+  PAM workflows, AWS Systems Manager Parameter Store + SSM Session
+  Manager, Saviynt PAM. Holds every domain-admin / root / cloud-admin
+  secret — total-impact crown-jewel.
+threats:
+  - id: T_PAMV_001
+    title: PAM-admin account compromise grants access to every privileged credential
+    stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+    attack_enterprise: [T1078, T1556]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      A PAM admin can read or extract every credential in the vault.
+      An attacker who compromises that role (or the underlying
+      identity provider tied to it) walks out with every domain-
+      admin, every cloud-admin, every database-DBA password. There
+      is no recovery short of mass-rotation of every secret.
+    mitigations:
+      - "FIDO2 / passkey MFA on PAM admin login (phishing-resistant)"
+      - "Tier-0 isolation: PAM admin identities never used for any other system"
+      - "Multi-party approval (M-of-N quorum) on break-glass / vault-export"
+      - "Separation of duties: PAM admin distinct from PAM auditor"
+    refs: [T1078, AML.M0019]
+
+  - id: T_PAMV_002
+    title: Vault-stored secret exfiltration via API abuse
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1552.005, T1213]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Application or service identities have broad read on vault
+      paths. Compromise of one such app (SSRF, IMDS abuse) extracts
+      every secret it can see — often more than intended. The
+      blast-radius of one app token is the union of all vault paths
+      it can read.
+    mitigations:
+      - "Per-app least-privilege policy; one path per app where feasible"
+      - "Vault read-rate limits; anomaly alert on bulk reads"
+      - "Audit log forwarded to SIEM with UEBA for unusual access patterns"
+      - "Short-lived dynamic secrets (Vault dynamic credentials) over long-lived static"
+    refs: [T1552, AML.M0019]
+
+  - id: T_PAMV_003
+    title: Vault master key / HSM compromise
+    stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+    attack_enterprise: [T1552, T1098]
+    maestro: [M.L4.06]
+    likelihood: 1
+    impact: 5
+    description: |
+      Vault sealed by a master key (Vault Shamir / KMS-unseal / HSM).
+      Compromise of the unseal keys or HSM access decrypts the
+      entire vault offline. The 2023 CircleCI breach exposed
+      similar dynamics (workload-secret store fully compromised).
+    mitigations:
+      - "HSM-stored master key with hardware non-extractability"
+      - "Shamir secret-sharing for manual unseal; never store all shares with one person"
+      - "Auto-unseal via cloud KMS with strict IAM and key-policy"
+      - "Annual disaster-recovery test of unseal procedure"
+    refs: [T1552, AML.M0019]
+
+  - id: T_PAMV_004
+    title: Session-recording bypass or tamper conceals privileged misuse
+    stride_ai: [Repudiation, Defense_Evasion]
+    attack_enterprise: [T1562, T1070]
+    maestro: [M.L5.05]
+    likelihood: 3
+    impact: 4
+    description: |
+      CyberArk / Beyondtrust session-recording captures keystrokes
+      and screen for privileged sessions. Insider with proper rights
+      pauses recording (legitimate feature for compliance breaks),
+      runs malicious activity, resumes. Forensics has a gap.
+    mitigations:
+      - "Recording-pause alerts to SIEM in real time with reviewer"
+      - "Tamper-evident, immutable session-log storage (WORM bucket)"
+      - "Out-of-band recording (network-layer capture, screen-capture from PAM proxy)"
+      - "Quarterly recording-integrity audit on a sample"
+    refs: [T1562, AML.M0019]
+
+  - id: T_PAMV_005
+    title: Vault availability outage paralyses operations
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1499, T1485]
+    maestro: [M.L4.04]
+    likelihood: 2
+    impact: 4
+    description: |
+      Vault becomes the bottleneck for every privileged action;
+      outage (regional cloud failure, quorum loss, license expiry)
+      blocks every break-glass, every automated workflow, every
+      DB password retrieval. Recovery requires the recovery-mode
+      itself, which is rarely rehearsed.
+    mitigations:
+      - "Active-active HA across regions; quorum tested quarterly"
+      - "Break-glass paper credentials stored in a physical safe (off-PAM)"
+      - "DR-rehearsal annually with measured RTO"
+      - "Licence-expiry alerting 60d in advance"
+    refs: [T1485, AML.M0019]

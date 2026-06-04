@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ATMS architecture — interactive (v0.17.2)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  --bg: #0e1116; --panel: #161b22; --panel2: #1f2630; --border: #30363d;
+  --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+  --input: #3fb950; --workflow: #58a6ff; --engine: #d29922;
+  --kb: #bc8cff; --output: #ff7b72; --report: #f0883e;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  line-height: 1.4; min-height: 100vh;
+}
+header {
+  background: var(--panel); border-bottom: 1px solid var(--border);
+  padding: 14px 24px; display: flex; align-items: center; gap: 18px;
+  flex-wrap: wrap;
+}
+header h1 {
+  margin: 0; font-size: 18px; color: #f0f6fc; font-weight: 600;
+}
+header h1 small { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+header .nav-back {
+  display: none; /* shown via JS when served over http(s) */
+  color: var(--accent); text-decoration: none;
+  font-size: 12px; padding: 4px 10px;
+  border: 1px solid var(--border); border-radius: 6px;
+}
+header .nav-back:hover { background: var(--panel2); border-color: var(--accent); }
+.toolbar {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; align-items: center;
+}
+.toolbar button {
+  background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 11px; font-size: 12px; cursor: pointer;
+  font-family: inherit;
+}
+.toolbar button:hover { border-color: var(--accent); }
+.toolbar button.active { background: var(--accent); color: white; border-color: var(--accent); }
+.toolbar input {
+  background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 10px; font-size: 12px; width: 200px;
+  font-family: inherit;
+}
+.toolbar input:focus { outline: none; border-color: var(--accent); }
+
+main {
+  display: grid; grid-template-columns: 1fr 360px;
+  height: calc(100vh - 60px);
+}
+.canvas-wrap {
+  overflow: auto; padding: 20px; background:
+    radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0) 0 0 / 24px 24px,
+    var(--bg);
+}
+svg {
+  display: block;
+  background: transparent;
+}
+
+.node rect {
+  rx: 8; ry: 8;
+  stroke: var(--border); stroke-width: 1.5;
+  cursor: pointer;
+  transition: stroke 0.1s ease, filter 0.1s ease;
+}
+.node text {
+  fill: #f0f6fc; font-size: 12px; font-weight: 600;
+  pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+.node text.count {
+  font-size: 10px; fill: var(--muted); font-weight: 400;
+}
+.node:hover rect { stroke: var(--accent); stroke-width: 2; filter: brightness(1.15); }
+.node.selected rect { stroke: #f0f6fc; stroke-width: 2.5; }
+.node.dimmed { opacity: 0.25; }
+
+.node.type-input rect { fill: #103a23; stroke: var(--input); }
+.node.type-workflow rect { fill: #0c2a4a; stroke: var(--workflow); }
+.node.type-engine rect { fill: #3a2a09; stroke: var(--engine); }
+.node.type-kb rect { fill: #2a1e3e; stroke: var(--kb); }
+.node.type-output rect { fill: #3a1414; stroke: var(--output); }
+.node.type-report rect { fill: #3a2410; stroke: var(--report); }
+.node.type-model rect { fill: #1f2630; stroke: var(--text); }
+
+.edge {
+  stroke: var(--border); stroke-width: 1.5; fill: none;
+  marker-end: url(#arrow);
+  transition: stroke 0.1s ease;
+}
+.edge.highlighted { stroke: var(--accent); stroke-width: 2.5; }
+.edge.dimmed { opacity: 0.15; }
+
+.group-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  fill: var(--muted); font-weight: 600;
+}
+
+aside {
+  background: var(--panel); border-left: 1px solid var(--border);
+  overflow-y: auto; padding: 20px;
+}
+aside h2 {
+  margin: 0 0 4px 0; font-size: 18px; color: #f0f6fc;
+}
+aside .badge {
+  display: inline-block; padding: 2px 9px; font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.06em; border-radius: 12px;
+  font-weight: 600; margin-bottom: 16px;
+}
+aside .badge.input    { background: rgba(63,185,80,0.2); color: var(--input); }
+aside .badge.workflow { background: rgba(88,166,255,0.2); color: var(--workflow); }
+aside .badge.engine   { background: rgba(210,153,34,0.2); color: var(--engine); }
+aside .badge.kb       { background: rgba(188,140,255,0.2); color: var(--kb); }
+aside .badge.output   { background: rgba(255,123,114,0.2); color: var(--output); }
+aside .badge.report   { background: rgba(240,136,62,0.2); color: var(--report); }
+aside .badge.model    { background: var(--panel2); color: var(--text); }
+
+aside h3 {
+  margin: 18px 0 6px 0; font-size: 11px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+aside p { margin: 0 0 10px 0; font-size: 13px; color: var(--text); }
+aside .files { font-family: ui-monospace, monospace; font-size: 11px; }
+aside .files li {
+  background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 5px 9px; margin-bottom: 4px;
+  list-style: none; word-break: break-all;
+}
+aside ul { padding: 0; margin: 0; }
+aside .related {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+aside .related button {
+  background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 9px; font-size: 11px;
+  font-family: inherit; cursor: pointer; color: var(--text);
+}
+aside .related button:hover { border-color: var(--accent); color: var(--accent); }
+aside .empty {
+  color: var(--muted); font-size: 13px; padding: 30px 0; text-align: center;
+}
+aside code {
+  background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 3px; padding: 1px 5px; font-size: 11px;
+  font-family: ui-monospace, monospace;
+}
+
+.legend {
+  position: fixed; bottom: 14px; left: 14px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 14px; display: flex; gap: 14px; flex-wrap: wrap;
+  font-size: 11px; color: var(--muted);
+}
+.legend .swatch {
+  width: 12px; height: 12px; border-radius: 3px;
+  display: inline-block; vertical-align: middle; margin-right: 5px;
+  border: 1px solid var(--border);
+}
+.legend .swatch.input    { background: #103a23; border-color: var(--input); }
+.legend .swatch.workflow { background: #0c2a4a; border-color: var(--workflow); }
+.legend .swatch.engine   { background: #3a2a09; border-color: var(--engine); }
+.legend .swatch.kb       { background: #2a1e3e; border-color: var(--kb); }
+.legend .swatch.output   { background: #3a1414; border-color: var(--output); }
+.legend .swatch.report   { background: #3a2410; border-color: var(--report); }
+
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  aside { border-left: none; border-top: 1px solid var(--border); max-height: 50vh; }
+  .legend { position: static; margin: 14px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="nav-back" id="nav-back" href="/">← ATMS</a>
+  <h1>ATMS architecture <small>v0.17.2 · click any node to inspect</small></h1>
+  <div class="toolbar">
+    <input id="search" placeholder="Filter nodes… (type, engine, kb, output)" autocomplete="off">
+    <button data-filter="all" class="active">All</button>
+    <button data-filter="input">Inputs</button>
+    <button data-filter="engine">Engines</button>
+    <button data-filter="kb">KB</button>
+    <button data-filter="output">Outputs</button>
+  </div>
+</header>
+
+<main>
+  <div class="canvas-wrap">
+    <svg id="canvas" viewBox="0 0 1280 980" width="100%" preserveAspectRatio="xMinYMin meet">
+      <defs>
+        <marker id="arrow" viewBox="0 -5 10 10" refX="8" refY="0"
+                markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0,-5 L10,0 L0,5" fill="#8b949e"/>
+        </marker>
+      </defs>
+      <!-- Section labels (rendered first so they sit underneath) -->
+      <text class="group-label" x="20" y="34">Inputs</text>
+      <text class="group-label" x="320" y="34">Orchestrator + engines</text>
+      <text class="group-label" x="900" y="34">Knowledge base</text>
+      <text class="group-label" x="1110" y="34">Outputs</text>
+      <!-- Edges + nodes injected by JS -->
+      <g id="edges"></g>
+      <g id="nodes"></g>
+    </svg>
+  </div>
+
+  <aside id="detail">
+    <div class="empty">
+      Click any node on the left to see what it does, the source files
+      that implement it, and how it connects to the rest of the
+      pipeline.
+      <br><br>
+      <code>121</code> component types · <code>23</code> engines ·
+      <code>10</code> frameworks · <code>9</code> output formats ·
+      <code>28</code> declared pipeline stages
+    </div>
+  </aside>
+</main>
+
+<div class="legend">
+  <span><span class="swatch input"></span>Input</span>
+  <span><span class="swatch workflow"></span>Workflow</span>
+  <span><span class="swatch engine"></span>Engine</span>
+  <span><span class="swatch kb"></span>KB</span>
+  <span><span class="swatch report"></span>Reporting</span>
+  <span><span class="swatch output"></span>Output</span>
+</div>
+
+<script>
+// ────────────────────────────────────────────────────────────────────
+// Node definitions. Each node carries layout coords + metadata so the
+// click handler can populate the side panel.
+// ────────────────────────────────────────────────────────────────────
+const NODES = {
+  // ─── Inputs (left column) ───────────────────────────────────────
+  i_yaml: {
+    label: "System YAML", type: "input", x: 20, y: 60, w: 200, h: 48,
+    desc: "Hand-written or saved-from-editor description of the system. Validated against the System Pydantic model.",
+    files: ["samples/*.yaml", "src/atms/models.py:219 (System)"],
+    related: ["wf_validate", "wf_main"],
+  },
+  i_editor: {
+    label: "Web Editor", type: "input", x: 20, y: 120, w: 200, h: 48,
+    desc: "Drag-and-drop SVG canvas with a 121-component palette + live search. Produces System JSON sent to /editor/analyze or saved as YAML.",
+    files: ["src/atms/static/atms-editor.js", "src/atms/static/palette-data.json", "src/atms/templates/web/editor.html"],
+    related: ["i_yaml", "wf_main"],
+  },
+  i_vsdx: {
+    label: "Visio (.vsdx)", type: "input", x: 20, y: 180, w: 200, h: 48,
+    desc: "Microsoft Visio diagram ingest. Extracts shapes + connectors into a draft System YAML the user reviews and runs.",
+    files: ["src/atms/ingest/vsdx.py"],
+    related: ["wf_main"],
+  },
+  i_drawio: {
+    label: "draw.io / mxGraph", type: "input", x: 20, y: 540, w: 200, h: 48,
+    desc: "v0.17.4 Cycle L+M: draw.io / diagrams.net XML ingest with 3-layer auto-classification (style-prefix dict → label regex → fallback). 110+ stencil prefixes covering AWS/Azure/GCP. Also infers TrustBoundaries from VPC / subnet / DMZ container hierarchy; flags crosses_boundary on dataflows when source and target live in different zones.",
+    files: ["src/atms/ingest/drawio.py", "STYLE_PREFIX_MAP (110 prefixes)", "_BOUNDARY_LABEL_PATTERN"],
+    related: ["wf_main", "wf_boundaries"],
+  },
+  i_mermaid: {
+    label: "Mermaid flowchart", type: "input", x: 20, y: 600, w: 200, h: 48,
+    desc: "v0.18.1 Cycle P: Mermaid flowchart / graph parser. Pure regex over the common grammar (rect / cylinder / circle / hexagon / parallelogram shapes; -->, ==>, -.-> arrow forms; subgraphs as boundary candidates; ```mermaid fence extraction from .md). Shape semantics encoded: cylinder→database, circle→user, hexagon→agent, parallelogram→data_source. Strong-shape signal wins over label regex to avoid 'Customer DB' matching the user regex.",
+    files: ["src/atms/ingest/mermaid.py", "_SHAPE_HINTS", "_NODE_PATTERNS (9 shape variants)"],
+    related: ["wf_main", "wf_boundaries"],
+  },
+  i_cfn: {
+    label: "AWS CloudFormation", type: "input", x: 20, y: 660, w: 200, h: 48,
+    desc: "v0.18.4 Cycle T: CloudFormation YAML/JSON ingest. 75 AWS resource types mapped (compute, storage, DB, network, identity, observability, security, AI/ML). Refs / Fn::GetAtt / Fn::Sub / DependsOn become dataflows; VPC + Subnet refs become TrustBoundaries. Short-form intrinsic tags surface friendly 'convert to long-form' error.",
+    files: ["src/atms/ingest/cloudformation.py", "_RESOURCE_MAP (75 entries)"],
+    related: ["wf_main"],
+  },
+  i_k8s: {
+    label: "Kubernetes manifests", type: "input", x: 20, y: 720, w: 200, h: 48,
+    desc: "v0.18.7 Cycle W: Kubernetes manifests YAML ingest (multi-doc supported). 20+ kinds mapped: workloads (Deployment/StatefulSet/etc.) → container_runtime, Service → load_balancer, Ingress → api_gateway, Secret → secrets_vault, ConfigMap → data_source, PVC → block_storage. Dataflow inference: Service selector → workload labels match; Ingress → Service backend; workload → Secret/ConfigMap/PVC refs. Namespaces become tenancy trust boundaries.",
+    files: ["src/atms/ingest/kubernetes.py", "_KIND_MAP (20+ entries)"],
+    related: ["wf_main", "wf_boundaries"],
+  },
+  i_azure_arm: {
+    label: "Azure Bicep / ARM", type: "input", x: 20, y: 780, w: 200, h: 48,
+    desc: "v0.18.14 Cycle DD: Azure IaC ingest. Auto-detects Bicep DSL (.bicep) vs ARM JSON template ($schema=deploymentTemplate). ~60 Azure resource types mapped (compute / storage / SQL / Cosmos / KeyVault / App Service / AKS / ACI / Cognitive Services AOAI / AML / Log Analytics / App Insights / Front Door / API Management / etc.). Symbolic references and `dependsOn` become dataflows; Microsoft.Network/virtualNetworks become trust boundaries. Pure regex + stdlib JSON, no eval, no shell.",
+    files: ["src/atms/ingest/azure_arm.py", "_RESOURCE_MAP (~60 entries)"],
+    related: ["wf_main", "wf_boundaries"],
+  },
+  i_pulumi: {
+    label: "Pulumi YAML", type: "input", x: 20, y: 840, w: 200, h: 48,
+    desc: "v0.18.18 Cycle HH: Pulumi YAML ingest. Completes the IaC trifecta (CFN + Bicep + Pulumi). ~80 resource types mapped across AWS / Azure-native / GCP / Kubernetes. Pulumi template strings ${name.attr} become dataflows; VPCs / VNets / GCP Networks become trust boundaries. v0.18.34 Cycle XX added pulumi_state_to_system() for `pulumi stack export` JSON state files — covers TS/Python/Go stacks without code execution.",
+    files: ["src/atms/ingest/pulumi_yaml.py", "_RESOURCE_MAP (~80 entries)"],
+    related: ["wf_main", "wf_boundaries"],
+  },
+  i_tm7: {
+    label: "Microsoft Threat Modeling Tool", type: "input", x: 20, y: 900, w: 200, h: 48,
+    desc: "v0.18.41 Cycle EEE: Microsoft Threat Modeling Tool (.tm7) ingest. 12th input format. Clean-room XML parser (defusedxml) for the Microsoft DataContract serialization. StencilRectangle → user; StencilEllipse → process (WAF/API gateway/Lambda inferred from display-name keywords); StencilParallelLines → data store (DB/object storage/secrets vault inferred); BorderBoundary → TrustBoundary; Connector → Dataflow. Display-name keyword refinement: 'Lambda' → serverless_function, 'WAF' → waf, 'Secrets Manager' → secrets_vault, 'S3' → object_storage, etc.",
+    files: ["src/atms/ingest/tm7.py", "tests/fixtures/sample.tm7"],
+    related: ["wf_main", "wf_boundaries"],
+  },
+  i_terraform: {
+    label: "Terraform plan", type: "input", x: 20, y: 240, w: 200, h: 48,
+    desc: "Parses Terraform state or plan JSON into ATMS components (AWS/Azure/GCP resources mapped via the cloud catalog).",
+    files: ["src/atms/ingest/terraform.py", "kb/cloud_catalog/*.yaml"],
+    related: ["kb_cloud_catalog", "wf_main"],
+  },
+  i_compose: {
+    label: "Docker Compose", type: "input", x: 20, y: 300, w: 200, h: 48,
+    desc: "Reads docker-compose.yaml; treats each service as a component with type inferred from the image.",
+    files: ["src/atms/ingest/docker_compose.py"],
+    related: ["wf_main"],
+  },
+  i_otm: {
+    label: "OTM JSON", type: "input", x: 20, y: 360, w: 200, h: 48,
+    desc: "Open Threat Model JSON import. Round-trippable with the OTM export on the output side.",
+    files: ["src/atms/ingest/otm.py"],
+    related: ["wf_main", "o_otm"],
+  },
+  i_autocorrect: {
+    label: "YAML autocorrect", type: "input", x: 20, y: 420, w: 200, h: 48,
+    desc: "Forgiving pre-parser: coerces unrecognised type values, fills missing required fields, surfaces a friendly error otherwise. ~275 synonym aliases.",
+    files: ["src/atms/yaml_autocorrect.py"],
+    related: ["i_yaml", "wf_validate"],
+  },
+  i_prior_run: {
+    label: "Prior run JSON", type: "input", x: 20, y: 480, w: 200, h: 48,
+    desc: "v0.17.2 Cycle C: optional path to a previously-saved ThreatModel JSON. Dispositions (mitigated / false_positive / duplicate / accepted / etc.) carry forward to matching new threats by id. Closes the 'we already triaged these 30 things last Monday' pain point.",
+    files: ["src/atms/workflow.py:_carry_forward_dispositions", "src/atms/cli.py --prior-run"],
+    related: ["wf_carry_forward", "model_tm"],
+  },
+
+  // ─── Workflow (top-middle) ──────────────────────────────────────
+  wf_main: {
+    label: "analyze(system)", type: "workflow", x: 320, y: 60, w: 260, h: 56,
+    desc: "Pipeline orchestrator. Validates the System, applies the AI-scope gate, infers trust boundaries, then runs the 22 engines in order and assembles the ThreatModel result.",
+    files: ["src/atms/workflow.py"],
+    related: ["wf_validate", "wf_scope", "wf_boundaries", "eng_stride", "model_tm"],
+  },
+  wf_validate: {
+    label: "System validate", type: "workflow", x: 320, y: 130, w: 120, h: 40,
+    desc: "Pydantic validation. v0.16.9 added integrity checks: rejects duplicate Component.id and dangling dataflow refs.",
+    files: ["src/atms/models.py:219-285"],
+    related: ["wf_main"],
+  },
+  wf_scope: {
+    label: "AI-scope gate", type: "workflow", x: 450, y: 130, w: 130, h: 40,
+    desc: "Rejects systems with zero AI components. ATMS evaluates AI-induced risk only.",
+    files: ["src/atms/engines/ai_scope.py"],
+    related: ["wf_main"],
+  },
+  wf_boundaries: {
+    label: "Boundary infer", y: 130, type: "workflow", x: 320, y: 180, w: 260, h: 40,
+    desc: "Infers trust boundaries from component types when the user didn't model them explicitly. Marks cross-boundary dataflows.",
+    files: ["src/atms/engines/boundaries.py"],
+    related: ["wf_main"],
+  },
+  wf_pipeline: {
+    label: "Stage pipeline (28 stages)", type: "workflow", x: 320, y: 215, w: 260, h: 30,
+    desc: "v0.17.2 Cycle A: pipeline.py declares all 28 stages as a Stage dataclass with requires_before clauses. `enforce_stage_order(STAGE_ORDER)` runs at module import time, so reordering mistakes fail the next import — invariants encoded as DATA, not load-bearing comments. `validate_threats()` re-runs Pydantic on every threat at one checkpoint after the mutation block.",
+    files: ["src/atms/pipeline.py", "src/atms/workflow.py imports validate_threats"],
+    related: ["wf_main", "wf_validate"],
+  },
+  wf_carry_forward: {
+    label: "Disposition carry-forward", type: "workflow", x: 320, y: 240, w: 260, h: 30,
+    desc: "v0.17.2 Cycle C: when `prior_run` path is given, loads the previous ThreatModel JSON and copies disposition + lifecycle fields (mitigated_by_commit, deferred_until, compensating_control_id, transferred_to_vendor) onto matching threats by id. Failure-tolerant: missing/malformed path logs a warning and proceeds. Closed dispositions then drop from severity_breakdown + ALE rollups.",
+    files: ["src/atms/workflow.py:_carry_forward_dispositions"],
+    related: ["i_prior_run", "wf_main"],
+  },
+
+  // ─── Engines (middle, in two columns of ~11) ────────────────────
+  // Column A — content enumeration + enrichment
+  eng_stride: {
+    label: "stride_ai", type: "engine", x: 320, y: 250, w: 130, h: 36,
+    desc: "Walks each component's playbook from kb/playbooks/, instantiates threats. Also applies vendor-overlay opt-ins (e.g. aws_bedrock).",
+    files: ["src/atms/engines/stride_ai.py", "kb/playbooks/*.yaml (121)", "kb/vendor_threats/*.yaml (12)"],
+    related: ["kb_playbooks", "kb_vendor", "eng_applic", "eng_map"],
+  },
+  eng_applic: {
+    label: "applicability", type: "engine", x: 320, y: 296, w: 130, h: 36,
+    desc: "Filters threats by `requires:` / `not_applicable_to:` / `applicable_to_topology:` predicates. E.g. Cognito-specific threats only fire when metadata.idp_kind matches.",
+    files: ["src/atms/engines/applicability.py"],
+    related: ["eng_stride"],
+  },
+  eng_map: {
+    label: "mapping (ATLAS)", type: "engine", x: 320, y: 342, w: 130, h: 36,
+    desc: "v0.17.2 Cycle B: now a 5-line wrapper around engines/frameworks.py with ATLAS_SPEC. Behaviour byte-identical to pre-Cycle-B.",
+    files: ["src/atms/engines/mapping.py", "kb/atlas/", "→ delegates to eng_frameworks"],
+    related: ["kb_atlas", "eng_stride", "eng_frameworks"],
+  },
+  eng_cloud: {
+    label: "cloud", type: "engine", x: 320, y: 388, w: 130, h: 36,
+    desc: "MITRE ATT&CK Cloud + ATT&CK Enterprise enrichment for cloud-component threats.",
+    files: ["src/atms/engines/cloud.py"],
+    related: ["kb_attack"],
+  },
+  eng_maestro: {
+    label: "maestro", type: "engine", x: 320, y: 434, w: 130, h: 36,
+    desc: "CSA MAESTRO (7-layer agentic AI threat reference) enrichment. Adds layer + threat ID tags.",
+    files: ["src/atms/engines/maestro.py", "kb/maestro/"],
+    related: ["kb_frameworks"],
+  },
+  eng_linddun: {
+    label: "linddun", type: "engine", x: 320, y: 480, w: 130, h: 36,
+    desc: "LINDDUN privacy-threat category enrichment for PII-touching components. v0.17.2 Cycle B: 5-line wrapper around engines/frameworks.py with LINDDUN_SPEC (preserves the privacy-hint +1 bonus tokens).",
+    files: ["src/atms/engines/linddun.py", "kb/linddun/", "→ delegates to eng_frameworks"],
+    related: ["kb_frameworks", "eng_frameworks"],
+  },
+  eng_nist: {
+    label: "nist_ai_100_2", type: "engine", x: 320, y: 526, w: 130, h: 36,
+    desc: "NIST AI 100-2 (Adversarial ML taxonomy) enrichment. v0.17.2 Cycle B: wraps engines/frameworks.py with NIST_AI_100_2_SPEC (preserves Privacy×Info_Disclosure / Poisoning×Tampering / Evasion×Defense_Evasion family×stride bonuses).",
+    files: ["src/atms/engines/nist_ai_100_2.py", "→ delegates to eng_frameworks"],
+    related: ["kb_frameworks", "eng_frameworks"],
+  },
+  eng_owasp_ml: {
+    label: "owasp_ml", type: "engine", x: 320, y: 572, w: 130, h: 36,
+    desc: "OWASP ML Top 10 (2023) enrichment for training / fine-tuning / model-registry threats. v0.17.2 Cycle B: 5-line wrapper around engines/frameworks.py with OWASP_ML_SPEC.",
+    files: ["src/atms/engines/owasp_ml.py", "→ delegates to eng_frameworks"],
+    related: ["kb_frameworks", "eng_frameworks"],
+  },
+  eng_compliance: {
+    label: "compliance", type: "engine", x: 320, y: 618, w: 130, h: 36,
+    desc: "Tags threats with NIS2 / DORA / EU AI Act / NIST CSF compliance controls. EU AI Act gated by System.is_high_risk_under_eu_ai_act.",
+    files: ["src/atms/engines/compliance.py", "kb/compliance/"],
+    related: ["kb_compliance"],
+  },
+  eng_structural: {
+    label: "structural recs", type: "engine", x: 320, y: 664, w: 130, h: 36,
+    desc: "Proposes architecture-level edits (insert policy_engine, output_filter, content_safety_classifier, PAM vault) when threat clusters justify it.",
+    files: ["src/atms/engines/structural.py"],
+    related: ["eng_mitigations"],
+  },
+  eng_refpatterns: {
+    label: "reference_patterns", type: "engine", x: 320, y: 710, w: 130, h: 36,
+    desc: "Cross-walks mitigations to AWS SRA / AWS GenAI Lens / Azure LZA / Azure WAF AI patterns. Vendor-aware filtering.",
+    files: ["src/atms/engines/reference_patterns.py", "kb/reference_patterns/ (81 patterns)"],
+    related: ["eng_mitigations", "kb_refpatterns"],
+  },
+
+  eng_frameworks: {
+    label: "frameworks (unified)", type: "engine", x: 480, y: 710, w: 130, h: 36,
+    desc: "v0.17.2 Cycle B: single registry-driven engine that replaces 4 near-duplicate enrichers (atlas, linddun, nist_ai_100_2, owasp_ml). Each framework declares a FrameworkSpec(kb_attr, threat_field, threshold, tokenize_entry_fields, keyword_bonus_tokens, family_stride_bonus). Adding a new framework is now a 5-line FrameworkSpec entry, not a 60-line engine file.",
+    files: ["src/atms/engines/frameworks.py", "FRAMEWORK_REGISTRY tuple"],
+    related: ["eng_map", "eng_linddun", "eng_nist", "eng_owasp_ml"],
+  },
+
+  // Column B — quantification + paths + scoring
+  eng_mitigations: {
+    label: "mitigations", type: "engine", x: 480, y: 250, w: 130, h: 36,
+    desc: "Collects mitigations from playbooks + per-engine recommendations. Each mitigation links to addressed threats + cites framework refs.",
+    files: ["src/atms/engines/mitigations.py"],
+    related: ["eng_controls", "model_tm"],
+  },
+  eng_controls: {
+    label: "controls", type: "engine", x: 480, y: 296, w: 130, h: 36,
+    desc: "Compliance-control coverage rollup (how many NIS2 / DORA controls are addressed by the proposed mitigations).",
+    files: ["src/atms/engines/controls.py"],
+    related: ["eng_compliance", "eng_mitigations"],
+  },
+  eng_kill: {
+    label: "kill_chain", type: "engine", x: 480, y: 342, w: 130, h: 36,
+    desc: "Tags each threat with a Lockheed-Martin Cyber Kill Chain phase.",
+    files: ["src/atms/engines/kill_chain.py"],
+    related: [],
+  },
+  eng_risk: {
+    label: "risk (L×I + DREAD)", type: "engine", x: 480, y: 388, w: 130, h: 36,
+    desc: "Likelihood × Impact scoring with DREAD-derived weighting. v0.16.1 added computed confidence (metadata richness + framework coverage). Severity = lower(matrix bucket, score bucket).",
+    files: ["src/atms/engines/risk.py"],
+    related: ["eng_quant", "model_tm"],
+  },
+  eng_quant: {
+    label: "quantitative (FAIR)", type: "engine", x: 480, y: 434, w: 130, h: 36,
+    desc: "FAIR-lite ALE computation. Scale-aware priors by industry × revenue × stage (14 tiers). PII loss floor + POC freq cap.",
+    files: ["src/atms/engines/quantitative.py", "kb/priors/loss_priors.yaml"],
+    related: ["kb_priors", "eng_risk"],
+  },
+  eng_paths: {
+    label: "attack_paths", type: "engine", x: 480, y: 480, w: 130, h: 36,
+    desc: "Multi-step kill-chain reconstruction across components + dataflows. v0.16.4 added diversity selection so 10 paths aren't permutations of the same chain.",
+    files: ["src/atms/engines/attack_paths.py"],
+    related: ["model_tm"],
+  },
+  eng_evidence: {
+    label: "evidence", type: "engine", x: 480, y: 526, w: 130, h: 36,
+    desc: "Overlay layer for VAPT / SARIF / STIX / KEV / EPSS findings. Bumps severity based on real-world exploit data.",
+    files: ["src/atms/engines/evidence.py", "src/atms/evidence/*"],
+    related: [],
+  },
+  eng_d3fend: {
+    label: "d3fend", type: "engine", x: 480, y: 572, w: 130, h: 36,
+    desc: "Cross-walk to MITRE D3FEND (defensive countermeasure) IDs. Each mitigation can carry D3-XXX refs.",
+    files: ["src/atms/engines/d3fend.py"],
+    related: ["eng_mitigations"],
+  },
+  eng_methodology: {
+    label: "methodology prov.", type: "engine", x: 480, y: 618, w: 130, h: 36,
+    desc: "v0.17.0: maps every STRIDE-for-AI category to its published-framework anchor. Exposed via /methodology and the about page.",
+    files: ["kb/methodology_provenance.yaml", "src/atms/web.py:/methodology"],
+    related: ["kb_methodology"],
+  },
+  eng_arch_rules: {
+    label: "architectural_rules", type: "engine", x: 480, y: 664, w: 130, h: 36,
+    desc: "v0.18.5/V/Y/BB/RR: topology-level rule engine. 25 rules across 6 themes: (1) external exposure (unguarded_access_from_internet, missing_waf, unguarded_direct_datastore_access, unrestricted_external_egress); (2) auth/identity (missing_authentication, missing_identity_propagation, mfa_not_enforced); (3) secrets (missing_vault, orphan_secrets_vault, accidental_secret_leak, logs_capture_secrets); (4) supply-chain + runtime (container_platform_escape, missing_build_infrastructure, missing_network_segmentation, excessive_principal_blast_radius, unencrypted_communication); (5) operational controls (missing_centralized_logging→NIST AU-2, missing_backup_for_critical_data→NIST CP-9, missing_intrusion_detection→NIST SI-4, data_at_rest_unencrypted→NIST SC-28); (6) AI-specific v0.18.28 (missing_prompt_injection_guard→OWASP LLM01, missing_pii_redaction_at_llm_boundary→OWASP LLM06, missing_model_provenance→ATLAS AML.T0010, unbounded_agent_tool_access→OWASP LLM08, missing_human_oversight_high_risk→EU AI Act Art. 14). Clean-room re-implementation of Threagile-style topology rules. Threats use id prefix A_* to avoid collision with playbook T_* ids. EXCLUDED from find_attack_paths.",
+    files: ["src/atms/engines/architectural_rules.py", "ARCHITECTURAL_RULES (25 rules)"],
+    related: ["eng_stride", "model_tm"],
+  },
+
+  // ─── KB column ──────────────────────────────────────────────────
+  kb_playbooks: {
+    label: "playbooks/", type: "kb", x: 700, y: 60, w: 180, h: 44,
+    desc: "121 YAML playbooks — one per ComponentType. Each defines 3-13 threats with refs, STRIDE category, L/I, mitigations.",
+    files: ["kb/playbooks/*.yaml (121 files)"],
+    related: ["eng_stride"],
+  },
+  kb_vendor: {
+    label: "vendor_threats/", type: "kb", x: 700, y: 116, w: 180, h: 44,
+    desc: "12 vendor-overlay files (aws_iam, aws_bedrock, azure_appservice, gcp_vertex, anthropic_api, openai_api, etc.) — 75 threats opt-in by metadata.vendor + product.",
+    files: ["kb/vendor_threats/*.yaml (12 files)"],
+    related: ["eng_stride"],
+  },
+  kb_cloud_catalog: {
+    label: "cloud_catalog/", type: "kb", x: 700, y: 172, w: 180, h: 44,
+    desc: "507 cloud services across AWS / Azure / GCP / OCI / Alibaba. Lets users say `vendor: aws, product: dynamodb` and ATMS knows the canonical component type.",
+    files: ["kb/cloud_catalog/*.yaml (5 files)"],
+    related: ["i_terraform"],
+  },
+  kb_atlas: {
+    label: "atlas / attack", type: "kb", x: 700, y: 228, w: 180, h: 44,
+    desc: "MITRE ATLAS technique catalog + MITRE ATT&CK Enterprise / Cloud / ICS technique catalogs.",
+    files: ["kb/atlas/", "kb/attack_cloud/", "kb/attack_enterprise/"],
+    related: ["eng_map", "eng_cloud"],
+  },
+  kb_attack: {
+    label: "owasp / agentic / api", type: "kb", x: 700, y: 284, w: 180, h: 44,
+    desc: "OWASP LLM Top 10 (2025), OWASP Agentic AI ASI (17 threats), OWASP API Security Top 10 (2023).",
+    files: ["kb/owasp_llm/", "kb/owasp_agentic/", "kb/owasp_api/"],
+    related: ["eng_stride"],
+  },
+  kb_frameworks: {
+    label: "maestro / linddun / nist", type: "kb", x: 700, y: 340, w: 180, h: 44,
+    desc: "CSA MAESTRO 7 layers, LINDDUN privacy categories, NIST AI 100-2 (Adversarial ML), NIST AI RMF (AI 600-1).",
+    files: ["kb/maestro/", "kb/linddun/", "kb/nist_ai_100_2/", "kb/nist_ai_rmf/"],
+    related: ["eng_maestro", "eng_linddun", "eng_nist"],
+  },
+  kb_compliance: {
+    label: "compliance + csa", type: "kb", x: 700, y: 396, w: 180, h: 44,
+    desc: "Compliance controls (NIS2, DORA, EU AI Act, NIST CSF) + Singapore CSA Guidelines on Securing AI Systems.",
+    files: ["kb/compliance/", "kb/csa_singapore/"],
+    related: ["eng_compliance"],
+  },
+  kb_refpatterns: {
+    label: "reference_patterns/", type: "kb", x: 700, y: 452, w: 180, h: 44,
+    desc: "81 CSP reference patterns: AWS SRA (27), AWS GenAI Lens (18), Azure LZA (21), Azure WAF AI (15).",
+    files: ["kb/reference_patterns/*.yaml (4 files)"],
+    related: ["eng_refpatterns"],
+  },
+  kb_priors: {
+    label: "priors/loss_priors", type: "kb", x: 700, y: 508, w: 180, h: 44,
+    desc: "14 FAIR-lite loss-magnitude tiers keyed by (industry × revenue × stage). e.g. tier1_bank/poc capped at $5M loss_high with freq_high_cap=1.",
+    files: ["kb/priors/loss_priors.yaml"],
+    related: ["eng_quant"],
+  },
+  kb_methodology: {
+    label: "methodology_provenance", type: "kb", x: 700, y: 564, w: 180, h: 44,
+    desc: "v0.17.0: 9 STRIDE-for-AI categories mapped to published anchors. 6 standard (Microsoft STRIDE) + 3 ATMS extensions (Defense_Evasion → ATT&CK TA0005, Bias_Fairness → NIST AI RMF, Emergent_Behavior → ATLAS AML.T0048).",
+    files: ["kb/methodology_provenance.yaml"],
+    related: ["eng_methodology"],
+  },
+  kb_palette: {
+    label: "palette + meta", type: "kb", x: 700, y: 620, w: 180, h: 44,
+    desc: "Generated palette-data.json (121 component types in 13 groups) + palette_meta.yaml (emoji_overrides + group_order). Single source of truth = models.py.",
+    files: ["src/atms/static/palette-data.json", "kb/palette_meta.yaml", "scripts/gen_palette.py"],
+    related: ["i_editor"],
+  },
+
+  // ─── Threat model object ────────────────────────────────────────
+  model_tm: {
+    label: "ThreatModel", type: "model", x: 900, y: 720, w: 160, h: 48,
+    desc: "In-memory result object: threats[], attack_paths[], mitigations[], summary{}, structural_recommendations[]. Serializes to JSON for every output format.",
+    files: ["src/atms/models.py ThreatModel"],
+    related: ["wf_main", "o_md", "o_html", "o_json"],
+  },
+
+  // ─── Outputs / reporting ────────────────────────────────────────
+  o_html: {
+    label: "HTML report", type: "report", x: 1100, y: 60, w: 160, h: 48,
+    desc: "Full report with metrics, severity matrix, attack paths, threats grouped by component, mitigations table. v0.17.0 added click-to-filter on the L×I heatmap.",
+    files: ["src/atms/reporting/html.py", "src/atms/templates/report.html.j2"],
+    related: ["model_tm"],
+  },
+  o_md: {
+    label: "Markdown", type: "report", x: 1100, y: 120, w: 160, h: 48,
+    desc: "Plain-Markdown report mirroring the HTML one. Useful for GitHub / wiki ingestion.",
+    files: ["src/atms/reporting/markdown.py", "src/atms/templates/report.md.j2"],
+    related: ["model_tm"],
+  },
+  o_stix: {
+    label: "STIX 2.1 bundle", type: "output", x: 1100, y: 180, w: 160, h: 48,
+    desc: "STIX 2.1 JSON bundle: threats as `attack-pattern` objects, mitigations as `course-of-action`, components as `infrastructure`. Importable into TIPs.",
+    files: ["src/atms/reporting/stix.py"],
+    related: ["model_tm"],
+  },
+  o_nav: {
+    label: "ATT&CK Navigator", type: "output", x: 1100, y: 240, w: 160, h: 48,
+    desc: "ATT&CK Navigator layer JSON. Open via attack.mitre.org/navigator to see ATLAS + ATT&CK coverage as a heatmap.",
+    files: ["src/atms/reporting/navigator.py"],
+    related: ["model_tm"],
+  },
+  o_sarif: {
+    label: "SARIF", type: "output", x: 1100, y: 300, w: 160, h: 48,
+    desc: "SARIF 2.1.0 output for CI pipelines. Threats surface as scanner results; severity → SARIF severity.",
+    files: ["src/atms/reporting/sarif_export.py"],
+    related: ["model_tm"],
+  },
+  o_otm: {
+    label: "OTM JSON", type: "output", x: 1100, y: 360, w: 160, h: 48,
+    desc: "Open Threat Model JSON export. Round-trippable with the OTM ingest on the input side.",
+    files: ["src/atms/reporting/otm_export.py"],
+    related: ["model_tm", "i_otm"],
+  },
+  o_csv: {
+    label: "Risk register CSV", type: "output", x: 1100, y: 420, w: 160, h: 48,
+    desc: "Two CSVs: risk register (threats with severity, L, I, ALE) + mitigations register. Drop into Excel / GRC tooling.",
+    files: ["src/atms/reporting/csv_export.py"],
+    related: ["model_tm"],
+  },
+  o_mermaid: {
+    label: "Mermaid DFD", type: "output", x: 1100, y: 480, w: 160, h: 48,
+    desc: "Auto-generated Mermaid flowchart of the system with trust-zone subgraphs and cross-boundary edge thickening.",
+    files: ["src/atms/reporting/mermaid.py"],
+    related: ["model_tm", "o_html"],
+  },
+  o_json: {
+    label: "ThreatModel JSON", type: "output", x: 1100, y: 540, w: 160, h: 48,
+    desc: "Full ThreatModel as JSON. Consumed by `/methodology`, `atms diff`, and any external tooling. The canonical machine-readable output.",
+    files: ["ThreatModel.model_dump_json()"],
+    related: ["model_tm", "o_otm"],
+  },
+  o_web: {
+    label: "Web UI surface", type: "report", x: 1100, y: 600, w: 160, h: 48,
+    desc: "FastAPI app: /editor, /analyze, /report, /methodology, /diff (new v0.17.3), /architecture, /playbooks, /agentic, /maestro, /compliance, /evidence, /redteam, /samples, /kb, /iac, /devices, /about.",
+    files: ["src/atms/web.py", "src/atms/templates/web/*.html (17)"],
+    related: ["i_editor", "o_html", "eng_methodology", "o_diff"],
+  },
+  o_diff: {
+    label: "/diff page", type: "report", x: 1100, y: 660, w: 160, h: 48,
+    desc: "v0.17.3 Cycle G: web-facing diff between two saved ThreatModel JSONs. Mirrors `atms diff` CLI in HTML — shows added / removed / severity-changed / disposition-changed sections. Pass paths via ?a=... &b=... query params. Failure-tolerant: missing or malformed paths surface as friendly error banners, never a 500.",
+    files: ["src/atms/web.py:_compute_diff", "src/atms/templates/web/diff.html"],
+    related: ["o_json", "model_tm"],
+  },
+};
+
+// ────────────────────────────────────────────────────────────────────
+// Edges — explicit, direction = data flow.
+// ────────────────────────────────────────────────────────────────────
+const EDGES = [
+  // Inputs into workflow
+  ["i_yaml", "wf_validate"], ["i_editor", "wf_validate"],
+  ["i_vsdx", "wf_validate"], ["i_terraform", "wf_validate"],
+  ["i_compose", "wf_validate"], ["i_otm", "wf_validate"],
+  ["i_autocorrect", "wf_validate"],
+  // v0.17.2 Cycle C: prior-run JSON feeds the carry-forward stage.
+  ["i_prior_run", "wf_carry_forward"],
+
+  // Workflow internals
+  ["wf_validate", "wf_main"], ["wf_scope", "wf_main"], ["wf_boundaries", "wf_main"],
+  // v0.17.2 Cycle A: stage pipeline orders + validates the engine block.
+  ["wf_main", "wf_pipeline"], ["wf_main", "wf_carry_forward"],
+
+  // Workflow → engines (consolidated)
+  ["wf_main", "eng_stride"],
+  ["eng_stride", "eng_applic"], ["eng_stride", "eng_map"],
+
+  // Engines → ThreatModel
+  ["eng_paths", "model_tm"], ["eng_risk", "model_tm"],
+  ["eng_quant", "model_tm"], ["eng_mitigations", "model_tm"],
+  ["eng_structural", "model_tm"], ["eng_methodology", "model_tm"],
+
+  // v0.17.2 Cycle B: 4 wrappers delegate into the unified engine.
+  ["eng_map", "eng_frameworks"], ["eng_linddun", "eng_frameworks"],
+  ["eng_nist", "eng_frameworks"], ["eng_owasp_ml", "eng_frameworks"],
+
+  // KB → engines (selected)
+  ["kb_playbooks", "eng_stride"], ["kb_vendor", "eng_stride"],
+  ["kb_atlas", "eng_map"], ["kb_attack", "eng_cloud"],
+  ["kb_frameworks", "eng_maestro"], ["kb_compliance", "eng_compliance"],
+  ["kb_refpatterns", "eng_refpatterns"], ["kb_priors", "eng_quant"],
+  ["kb_methodology", "eng_methodology"], ["kb_palette", "i_editor"],
+  ["kb_cloud_catalog", "i_terraform"],
+
+  // ThreatModel → outputs
+  ["model_tm", "o_html"], ["model_tm", "o_md"], ["model_tm", "o_stix"],
+  ["model_tm", "o_nav"], ["model_tm", "o_sarif"], ["model_tm", "o_otm"],
+  ["model_tm", "o_csv"], ["model_tm", "o_mermaid"], ["model_tm", "o_json"],
+  ["o_html", "o_web"], ["o_json", "o_web"],
+  // v0.17.3 Cycle G: /diff page consumes two saved JSONs.
+  ["o_json", "o_diff"], ["o_diff", "o_web"],
+];
+
+// ────────────────────────────────────────────────────────────────────
+// Rendering
+// ────────────────────────────────────────────────────────────────────
+const SVG_NS = "http://www.w3.org/2000/svg";
+const nodesG = document.getElementById("nodes");
+const edgesG = document.getElementById("edges");
+const detail = document.getElementById("detail");
+
+function renderNodes() {
+  Object.entries(NODES).forEach(([id, n]) => {
+    const g = document.createElementNS(SVG_NS, "g");
+    g.classList.add("node", `type-${n.type}`);
+    g.dataset.id = id;
+    g.dataset.type = n.type;
+    g.dataset.label = n.label.toLowerCase();
+
+    const rect = document.createElementNS(SVG_NS, "rect");
+    rect.setAttribute("x", n.x);
+    rect.setAttribute("y", n.y);
+    rect.setAttribute("width", n.w);
+    rect.setAttribute("height", n.h);
+
+    const text = document.createElementNS(SVG_NS, "text");
+    text.setAttribute("x", n.x + n.w / 2);
+    text.setAttribute("y", n.y + n.h / 2 + 4);
+    text.setAttribute("text-anchor", "middle");
+    text.textContent = n.label;
+
+    g.appendChild(rect);
+    g.appendChild(text);
+    g.addEventListener("click", () => selectNode(id));
+    nodesG.appendChild(g);
+  });
+}
+
+function renderEdges() {
+  EDGES.forEach(([from, to]) => {
+    const a = NODES[from], b = NODES[to];
+    if (!a || !b) return;
+    // Compute right-edge-of-A to left-edge-of-B (with vertical offset for grid layout).
+    const x1 = a.x + a.w;
+    const y1 = a.y + a.h / 2;
+    const x2 = b.x;
+    const y2 = b.y + b.h / 2;
+    const midX = (x1 + x2) / 2;
+    const path = document.createElementNS(SVG_NS, "path");
+    path.classList.add("edge");
+    path.dataset.from = from;
+    path.dataset.to = to;
+    // S-curve for clean visuals.
+    path.setAttribute("d",
+      `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2 - 6} ${y2}`);
+    edgesG.appendChild(path);
+  });
+}
+
+function selectNode(id) {
+  const node = NODES[id];
+  if (!node) return;
+  document.querySelectorAll(".node").forEach(n => n.classList.remove("selected"));
+  document.querySelectorAll(".edge").forEach(e => {
+    e.classList.remove("highlighted");
+    e.classList.add("dimmed");
+  });
+  document.querySelectorAll(".node").forEach(n => n.classList.add("dimmed"));
+  const el = document.querySelector(`.node[data-id="${id}"]`);
+  if (el) {
+    el.classList.add("selected");
+    el.classList.remove("dimmed");
+  }
+  // Highlight connected edges + nodes (any direction).
+  const connected = new Set([id]);
+  document.querySelectorAll(".edge").forEach(e => {
+    if (e.dataset.from === id || e.dataset.to === id) {
+      e.classList.remove("dimmed");
+      e.classList.add("highlighted");
+      connected.add(e.dataset.from);
+      connected.add(e.dataset.to);
+    }
+  });
+  document.querySelectorAll(".node").forEach(n => {
+    if (connected.has(n.dataset.id)) n.classList.remove("dimmed");
+  });
+
+  // Build detail panel.
+  const related = (node.related || []).map(rid => {
+    const r = NODES[rid];
+    return r
+      ? `<button data-goto="${rid}">${r.label}</button>`
+      : "";
+  }).join("");
+  const fileList = (node.files || []).map(f =>
+    `<li>${f}</li>`
+  ).join("");
+
+  detail.innerHTML = `
+    <span class="badge ${node.type}">${node.type}</span>
+    <h2>${node.label}</h2>
+    <p>${node.desc}</p>
+    <h3>Source files</h3>
+    <ul class="files">${fileList || '<li class="empty">—</li>'}</ul>
+    ${related ? `<h3>Related nodes</h3><div class="related">${related}</div>` : ""}
+  `;
+  detail.querySelectorAll("[data-goto]").forEach(b => {
+    b.addEventListener("click", e => selectNode(e.target.dataset.goto));
+  });
+}
+
+function clearSelection() {
+  document.querySelectorAll(".node").forEach(n => {
+    n.classList.remove("selected"); n.classList.remove("dimmed");
+  });
+  document.querySelectorAll(".edge").forEach(e => {
+    e.classList.remove("highlighted"); e.classList.remove("dimmed");
+  });
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Toolbar — filter buttons + search
+// ────────────────────────────────────────────────────────────────────
+let activeFilter = "all";
+function applyFilter() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  document.querySelectorAll(".node").forEach(n => {
+    const typeOk = activeFilter === "all" || n.dataset.type === activeFilter;
+    const qOk = !q || n.dataset.label.includes(q) ||
+                n.dataset.id.includes(q) || n.dataset.type.includes(q);
+    n.style.display = (typeOk && qOk) ? "" : "none";
+  });
+  // Hide edges whose endpoints are filtered out.
+  document.querySelectorAll(".edge").forEach(e => {
+    const a = document.querySelector(`.node[data-id="${e.dataset.from}"]`);
+    const b = document.querySelector(`.node[data-id="${e.dataset.to}"]`);
+    e.style.display = (a?.style.display === "none" || b?.style.display === "none")
+      ? "none" : "";
+  });
+}
+
+document.querySelectorAll(".toolbar button[data-filter]").forEach(b => {
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".toolbar button").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    activeFilter = b.dataset.filter;
+    clearSelection();
+    applyFilter();
+  });
+});
+document.getElementById("search").addEventListener("input", () => {
+  clearSelection();
+  applyFilter();
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") {
+    document.getElementById("search").value = "";
+    clearSelection();
+    applyFilter();
+  }
+});
+
+// v0.17.3 Cycle F (review M1): show the back-to-ATMS link only when
+// served over http(s). When the user double-clicks the standalone
+// docs/architecture.html (file://), `/` won't resolve — so we hide
+// the link rather than break it.
+if (typeof window !== "undefined" && window.location &&
+    window.location.protocol !== "file:") {
+  const back = document.getElementById("nav-back");
+  if (back) back.style.display = "";
+}
+
+renderEdges();
+renderNodes();
+</script>
+</body>
+</html>

@@ -1,0 +1,93 @@
+name: Customer-Voice Fine-Tune Pipeline
+description: |
+  Internal fine-tune pipeline that takes anonymized customer-feedback transcripts
+  and produces a domain-tuned LLaMA derivative used in the support chatbot.
+business_context: |
+  PII-sensitive corpus (call transcripts). Pipeline runs weekly. The base model is
+  pulled from Hugging Face. The resulting model is shipped to the model registry
+  consumed by the customer-support RAG bot.
+
+components:
+  - id: feedback_dump
+    name: Anonymized feedback dump (S3)
+    type: data_source
+    trust_zone: corp_internal
+    description: Nightly export from Salesforce, redacted via Presidio.
+
+  - id: dataset_builder
+    name: Dataset builder
+    type: training_pipeline
+    trust_zone: training_vpc
+    description: Cleans, dedupes, tokenizes; emits HF dataset shards.
+
+  - id: base_model
+    name: Base LLaMA-3 8B (HF)
+    type: model_registry
+    trust_zone: external_provider
+    description: Public Hugging Face model used as starting point.
+
+  - id: ft_pipeline
+    name: LoRA fine-tune pipeline
+    type: fine_tuning_pipeline
+    trust_zone: training_vpc
+    description: PyTorch + PEFT job on a GPU cluster.
+
+  - id: eval_harness
+    name: Eval harness
+    type: training_pipeline
+    trust_zone: training_vpc
+    description: Holdout evals + canary backdoor probes; gates promotion.
+
+  - id: registry
+    name: Internal model registry (MLflow)
+    type: model_registry
+    trust_zone: corp_internal
+    description: Stores signed model artifacts; gated by code-review.
+
+  - id: serving
+    name: Production serving (vLLM)
+    type: llm_inference
+    trust_zone: corp_dmz
+    description: vLLM consumer of the latest registry version.
+
+dataflows:
+  - source: feedback_dump
+    target: dataset_builder
+    label: raw transcripts
+    data_classification: confidential
+  - source: dataset_builder
+    target: ft_pipeline
+    label: tokenized dataset
+    data_classification: confidential
+  - source: base_model
+    target: ft_pipeline
+    label: weights
+    crosses_boundary: true
+    data_classification: public
+  - source: ft_pipeline
+    target: eval_harness
+    label: candidate model
+  - source: eval_harness
+    target: registry
+    label: signed artifact
+  - source: registry
+    target: serving
+    label: model
+    data_classification: confidential
+
+trust_boundaries:
+  - id: tb_external
+    type: network
+    components_inside: [base_model]
+    components_outside: [feedback_dump, dataset_builder, ft_pipeline, eval_harness, registry, serving]
+    description: Egress to public model hub.
+  - id: tb_training
+    type: deployment_zone
+    components_inside: [dataset_builder, ft_pipeline, eval_harness]
+    components_outside: [feedback_dump, registry, serving, base_model]
+    description: Training VPC isolated from prod.
+  - id: tb_pii
+    type: data_classification
+    components_inside: [feedback_dump, dataset_builder, ft_pipeline, registry, serving]
+    components_outside: [base_model, eval_harness]
+    description: PII data classification — encryption at rest, least privilege.

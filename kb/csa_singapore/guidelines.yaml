@@ -1,0 +1,142 @@
+# Singapore Cyber Security Agency (CSA) — Guidelines on Securing AI Systems (October 2024).
+#
+# Source: https://www.csa.gov.sg/our-programmes/cybersecurity-certification/secure-ai-systems
+# Companion document: "Companion Guide on Securing AI Systems" (CSA Singapore, Oct 2024)
+#
+# This is a curated subset — the principles ATMS engines reference for cross-walking
+# threats and mitigations. Each entry tracks the upstream document so a reviewer can
+# audit the citation. The full text of each principle is in the CSA PDF; we keep only
+# the heading and an actionable summary here so KB diffs stay readable.
+#
+# CSA-AI principles align with NIST AI RMF and OWASP LLM Top 10. Where a CSA principle
+# maps cleanly onto an existing OWASP LLM or MAESTRO ID, that mapping is recorded under
+# `also_see`.
+
+- id: CSA_AI.PLAN.01
+  category: Plan
+  title: Raise awareness of AI security risks
+  summary: |
+    Organisations should equip leadership and project teams with awareness of
+    AI-specific risks (prompt injection, data poisoning, model theft, agentic
+    misuse) before development begins.
+  applies_to: [governance]
+  also_see: [NIST_AI_RMF.GOVERN, OWASP_LLM06]
+
+- id: CSA_AI.PLAN.02
+  category: Plan
+  title: Conduct AI-system risk assessment before development
+  summary: |
+    Threat modelling specific to AI components should happen early, not bolted
+    on at deployment. Identify the AI primaries, the data flows in/out, the
+    trust boundaries, and the human-in-the-loop gates.
+  applies_to: [governance, all_components]
+  also_see: [NIST_AI_RMF.MAP]
+
+- id: CSA_AI.DEVELOP.01
+  category: Develop
+  title: Secure the supply chain
+  summary: |
+    Verify the integrity and provenance of foundation models, training data,
+    fine-tuning datasets, and third-party model libraries. Sign and verify
+    weights; pin model versions; check the model card for training-data
+    provenance.
+  applies_to: [llm_inference, training_pipeline, fine_tuning_pipeline, model_registry]
+  also_see: [OWASP_LLM03, AML.T0010, AML.T0020]
+
+- id: CSA_AI.DEVELOP.02
+  category: Develop
+  title: Identify, track, and protect AI-related assets
+  summary: |
+    Maintain an inventory of model artefacts, embeddings, fine-tuning data,
+    prompt templates, and tool definitions. Apply data classification and
+    least-privilege access to each.
+  applies_to: [model_registry, prompt_template_store, rag_vector_store, embedding_service]
+  also_see: [OWASP_LLM10]
+
+- id: CSA_AI.DEVELOP.03
+  category: Develop
+  title: Secure the AI development environment
+  summary: |
+    Treat training pipelines and notebook environments as production-grade.
+    No secrets in notebooks; no credentialled bastion access for ad-hoc
+    fine-tuning runs; logged + audited tooling for model training.
+  applies_to: [training_pipeline, fine_tuning_pipeline, container_runtime, secrets_vault]
+  also_see: [OWASP_LLM03]
+
+- id: CSA_AI.DEPLOY.01
+  category: Deploy
+  title: Secure the deployment environment
+  summary: |
+    Network-isolate inference endpoints; egress-control any tool the agent can
+    invoke; rate-limit per tenant; log every prompt and tool call.
+  applies_to: [llm_inference, agent, mcp_server, api_gateway, network_segment, firewall]
+  also_see: [OWASP_LLM02, OWASP_LLM06, AGT09]
+
+- id: CSA_AI.DEPLOY.02
+  category: Deploy
+  title: Establish input validation and content filtering
+  summary: |
+    Apply guardrails on every input that reaches the model — including
+    retrieved RAG chunks (indirect prompt injection), tool outputs, and
+    user prompts. Reject or sanitise before token generation.
+  applies_to: [guardrails, llm_inference, agent]
+  also_see: [OWASP_LLM01, AML.T0051, NIST_GAI_PROMPT_INJECTION_DIRECT]
+
+- id: CSA_AI.DEPLOY.03
+  category: Deploy
+  title: Apply incident response procedures specific to AI
+  summary: |
+    Define playbooks for jailbreak floods, model-theft attempts, hallucination
+    cascades, and agent runaway. Include a kill-switch that disconnects tool
+    access without taking down the user-facing surface.
+  applies_to: [agent, llm_inference, observability_stack]
+  also_see: [OWASP_LLM05, AGT04]
+
+- id: CSA_AI.OPERATE.01
+  category: Operate and Maintain
+  title: Monitor AI system inputs and outputs continuously
+  summary: |
+    Log every prompt + response (with PII redaction); monitor for drift,
+    abuse patterns, repeated injection attempts. Alert on anomalous tool
+    invocations.
+  applies_to: [observability_stack, agent, llm_inference]
+  also_see: [OWASP_LLM05, NIST_AI_RMF.MEASURE]
+
+- id: CSA_AI.OPERATE.02
+  category: Operate and Maintain
+  title: Establish a vulnerability disclosure programme
+  summary: |
+    AI systems should accept jailbreak / prompt-injection / data-extraction
+    findings via a published disclosure path. Include the AI surface in
+    bug-bounty scope where applicable.
+  applies_to: [governance]
+  also_see: [NIST_AI_RMF.GOVERN]
+
+- id: CSA_AI.OPERATE.03
+  category: Operate and Maintain
+  title: Plan for end of life — model decommissioning
+  summary: |
+    When a model is retired, decommission its weights + KMS keys + indexed
+    embeddings + cached prompts. Document the data-retention obligation and
+    purge accordingly.
+  applies_to: [model_registry, kms_key, rag_vector_store]
+  also_see: [LINDDUN.RETENTION]
+
+- id: CSA_AI.HUMAN.01
+  category: Cross-cutting
+  title: Maintain human oversight on consequential AI decisions
+  summary: |
+    Any agent action that mutates state, moves money, or affects a person's
+    rights must have a human-in-the-loop gate. The default for autonomous
+    actions should be "ask first" not "act now".
+  applies_to: [agent, tool, mcp_server]
+  also_see: [AGT15, EU_AI_ACT.14, NIST_AI_RMF.MANAGE]
+
+- id: CSA_AI.HUMAN.02
+  category: Cross-cutting
+  title: Ensure transparency to end users
+  summary: |
+    End users should be informed when interacting with an AI system, when
+    AI is generating content shown to them, and what data is being collected.
+  applies_to: [agent, llm_inference, user]
+  also_see: [EU_AI_ACT.13, NIST_AI_RMF.GOVERN]

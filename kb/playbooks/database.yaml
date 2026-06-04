@@ -1,0 +1,86 @@
+component_type: database
+description: |
+  Relational or document database (RDBMS or NoSQL) — SQL Server, Oracle,
+  PostgreSQL, MySQL, MongoDB, Cassandra. Stores transactional / analytical
+  data the AI system depends on or that must remain confidential.
+threats:
+  - id: T_DB_001
+    title: SQL injection / NoSQL injection via dynamically built queries
+    stride_ai: [Tampering, Information_Disclosure, Elevation_of_Privilege]
+    owasp_api: [API3:2023, API8:2023]
+    attack_enterprise: [T1190]
+    maestro: [M.L2.04]
+    likelihood: 4
+    impact: 5
+    description: |
+      Application concatenates user input into SQL / Mongo queries instead
+      of using parameterised statements. Attacker injects clauses that read
+      / modify / delete data outside the intended scope. Especially severe
+      when the LLM generates SQL from natural-language user input.
+    mitigations:
+      - "Parameterised queries / prepared statements; never string-concat user input"
+      - "ORM with strict allowlist of operations"
+      - "WAF with SQL-injection rule group on the API tier"
+      - "Database principals with least-privilege per role"
+    refs: [T1190, API3:2023, API8:2023]
+
+  - id: T_DB_002
+    title: Privileged-account compromise (DBA / sa / root)
+    stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+    owasp_api: [API2:2023]
+    attack_enterprise: [T1078, T1098]
+    attack_cloud: [T1078.004]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Shared `sa` / root account with stale or weak credentials, or a DBA
+      account leaked via phishing. Attacker reads or rewrites the entire
+      schema; can install backdoor triggers / stored procedures.
+    mitigations:
+      - "Never log in as root for routine work; use named accounts"
+      - "MFA on every privileged account; rotate credentials on staff turnover"
+      - "Password vault for service accounts; rotate at every key change"
+      - "Database-audit with alerts on `GRANT`, `CREATE USER`, `xp_cmdshell`"
+    refs: [T1078, T1098, T1078.004]
+
+  - id: T_DB_003
+    title: Backup tampering / exposure
+    stride_ai: [Tampering, Information_Disclosure]
+    owasp_api: [API8:2023]
+    attack_enterprise: [T1530, T1485]
+    attack_cloud: [T1530, T1485]
+    linddun: [I_001, DD_002, NC_002]
+    maestro: [M.L2.02, M.X.04]
+    likelihood: 3
+    impact: 4
+    description: |
+      Database backups stored on shares / object storage with overly broad
+      access. Attacker reads (full data dump) or replaces (next restore
+      installs their data). Unencrypted backups are a complete copy of the DB.
+    mitigations:
+      - "Encrypt backups at rest with workload-specific KMS key"
+      - "Backups in a separate account / subscription; least-privilege read"
+      - "Periodic restore drills + checksum verification"
+      - "Immutable storage (Object Lock / WORM) for backup retention"
+    refs: [T1530, T1485]
+
+  - id: T_DB_004
+    title: Data exfil via legitimate query interface
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API4:2023, API6:2023]
+    attack_enterprise: [T1213, T1567]
+    linddun: [I_001, DD_003, L_001]
+    maestro: [M.X.04]
+    likelihood: 3
+    impact: 4
+    description: |
+      An over-permissive read role pulls bulk data through normal query paths
+      (no SQL injection needed). Hard to detect because the queries themselves
+      are syntactically legitimate.
+    mitigations:
+      - "Row-level security / column masking for sensitive fields"
+      - "Query rate / row-count limits per principal"
+      - "DAM (Database Activity Monitoring) anomaly detection"
+      - "Per-tenant logical-DB isolation where feasible"
+    refs: [T1213, T1567, API4:2023]

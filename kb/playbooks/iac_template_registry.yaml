@@ -1,0 +1,112 @@
+component_type: iac_template_registry
+description: |
+  Infrastructure-as-Code template / module registry — central store
+  for reusable IaC modules consumed by many pipelines / accounts.
+  Examples: Terraform Cloud / Enterprise private module registry,
+  AWS CloudFormation StackSets / Service Catalog, Azure Bicep
+  template specs, Pulumi private registry, Spacelift / Env0 module
+  registries. One bad module gets deployed to dozens of cloud
+  accounts on next apply.
+threats:
+  - id: T_IACREG_001
+    title: Malicious / backdoored module published to registry
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1195.002, T1078.004]
+    attack_cloud: [T1525, T1078.004]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Attacker (insider, compromised publisher account) pushes a
+      module that creates an attacker-controlled IAM role, opens
+      a security group, or adds a backdoored Lambda. Every team
+      that pins to "latest" gets the malicious version on next
+      apply. tj-actions / ctx-pypi / xz-utils precedent extended
+      to IaC.
+    mitigations:
+      - "Pin module versions to immutable references (semver + SHA)"
+      - "Module-signing + verification in pipeline before apply"
+      - "Two-person approval to publish new module versions"
+      - "Continuous monitoring of consumed modules vs published baseline"
+    refs: [AML.M0007, T1195]
+
+  - id: T_IACREG_002
+    title: Publisher-account takeover floods consumers with attacker module
+    stride_ai: [Spoofing, Tampering]
+    attack_enterprise: [T1078.004, T1098]
+    attack_cloud: [T1078.004]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      Compromise of a Terraform Cloud / Pulumi org-admin who can
+      publish modules. Attacker uploads new module version under
+      a trusted name; consumers ingest with no further checks. The
+      2022 PyPI / npm 2FA-bypass class problem ported to IaC.
+    mitigations:
+      - "FIDO2 / passkey MFA on every publisher account"
+      - "Org-wide protected-publishing — quorum required for new version"
+      - "Audit log of every publish event forwarded to SIEM"
+      - "Publisher-account anomaly alerts (geo, time, frequency)"
+    refs: [T1078, AML.M0019]
+
+  - id: T_IACREG_003
+    title: Sensitive IaC module exposed (secrets / proprietary architecture)
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1213, T1552]
+    attack_cloud: [T1530]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 3
+    description: |
+      Modules occasionally embed creds / API keys / S3 bucket names
+      / private VPC CIDRs that map the network. Public registry
+      misconfig or over-permissive read on private registry leaks
+      this to anyone who can fetch the module list.
+    mitigations:
+      - "Pre-publish secret-scan (gitleaks, trufflehog) in CI"
+      - "Modules in private registry only; explicit allowlist of consumers"
+      - "Periodic audit of module content for embedded sensitive data"
+      - "Per-team / per-account read-scope on private registry"
+    refs: [T1552, AML.M0019]
+
+  - id: T_IACREG_004
+    title: Template-injection / parameter-poisoning at apply time
+    stride_ai: [Tampering]
+    attack_enterprise: [T1059, T1078]
+    maestro: [M.L1.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Module accepts parameters that flow into shell commands,
+      provisioner scripts, or template expressions. A consumer
+      that passes attacker-influenced strings (from a ticket field,
+      external API) triggers command-injection at apply time —
+      running with the pipeline's elevated cloud role.
+    mitigations:
+      - "Strict input validation in modules (regex, enum constraints)"
+      - "Parameter-input allow-list documented per module"
+      - "Provisioner scripts use parameterised commands only"
+      - "Pre-apply policy check (OPA / Sentinel / Checkov) rejects suspect parameters"
+    refs: [T1059, AML.M0015]
+
+  - id: T_IACREG_005
+    title: Drift between registry version and deployed infrastructure
+    stride_ai: [Repudiation, Tampering]
+    attack_enterprise: [T1565, T1027]
+    maestro: [M.L5.05]
+    likelihood: 4
+    impact: 3
+    description: |
+      Console-edit drift means deployed infrastructure no longer
+      matches the registry module. Auditors can't tell whether a
+      deployed bucket-policy was set by an attacker or a legitimate
+      manual fix. Defenders can't auto-remediate without risking
+      production change.
+    mitigations:
+      - "Drift detection (Terraform Cloud drift, CloudFormation drift, AWS Config)"
+      - "Auto-revert drift on critical resources; alert on others"
+      - "Console-write IAM-deny in production accounts"
+      - "Pull-request-driven changes only, with mandatory plan-attached"
+    refs: [T1565, AML.M0019]

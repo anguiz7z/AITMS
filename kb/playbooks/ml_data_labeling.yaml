@@ -1,0 +1,94 @@
+component_type: ml_data_labeling
+description: |
+  Managed data labelling service — AWS SageMaker Ground Truth (+ Plus),
+  GCP Vertex AI Data Labelling, Azure ML Labelling, Scale AI, Labelbox,
+  Snorkel Flow. Coordinates a workforce (in-house, marketplace,
+  contractor) annotating data for supervised training and RLHF. The
+  most "people-in-the-loop" component of an AI system — and therefore
+  the one with the most insider-threat and supply-chain surface.
+threats:
+  - id: T_MLLABEL_001
+    title: Labeller collusion / malicious-annotator backdoor injection
+    stride_ai: [Tampering]
+    owasp_llm: [LLM04:2025]
+    owasp_api: []
+    atlas: [AML.T0018, AML.T0020, AML.T0019]
+    attack_enterprise: []
+    nist_ai_100_2: [NIST_PAI_POISONING_LABEL_FLIP, NIST_PAI_POISONING_BACKDOOR]
+    owasp_ml: [ML02:2023, ML06:2023]
+    maestro: [M.L2.01]
+    csa_singapore: [CSA_AI.DEVELOP.01, CSA_AI.HUMAN.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      A small ring of labellers (3-5 marketplace workers, or a
+      contractor team) collude to inject a backdoor: every image
+      containing a specific pixel pattern gets relabeled "approved",
+      every prompt containing a specific phrase gets RLHF-scored
+      "safe". Once enough data is so-labeled, the model learns the
+      backdoor. Mitre AML.T0018 is exactly this attack class. SageMaker
+      Ground Truth's marketplace lacks deep workforce vetting; even
+      private workforces are vulnerable when a single contractor's
+      account is compromised.
+    mitigations:
+      - "Per-label golden-set audit: 5% of items have a known-correct label; labellers below 90% accuracy auto-removed"
+      - "Multi-annotator agreement gate: require N=3 independent labellers per item, disagree → expert review"
+      - "Backdoor-detection retraining canary: held-out trigger-pattern eval set the labellers can't see, fails build if model trips it"
+      - "Workforce identity hygiene: MFA on labelling portal, IP-allowlist for premium workforces, alert on coordinated session patterns"
+    refs: [AML.M0007, AML.M0008]
+
+  - id: T_MLLABEL_002
+    title: PII / sensitive data exposed to marketplace labellers
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM10:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    attack_cloud: [T1530, T1213]
+    linddun: [DD_003, I_001]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02, CSA_AI.HUMAN.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      Labelling tasks routinely include raw text, medical images, chat
+      transcripts, customer support emails. Marketplace labellers
+      (Mechanical Turk via Ground Truth public workforce, or
+      Scale AI's global workforce) see this data in cleartext, often
+      from unmanaged personal devices. The 2023 Scale AI / OpenAI
+      labeller controversies, plus repeat HIPAA findings against
+      health-tech labelling workflows, document this systemically.
+    mitigations:
+      - "Pre-labelling DLP scrubbing: PII auto-redacted (Presidio, AWS Comprehend, Azure AI Language) before labellers see it"
+      - "Use only private workforces (vetted contractor) for sensitive data; never marketplace"
+      - "Labelling portal denies copy-paste, screenshot, and download; watermarks user identity into the rendering"
+      - "DPIA / privacy impact assessment per labelling project; categorise by data sensitivity"
+    refs: [AML.M0012, AML.M0019]
+
+  - id: T_MLLABEL_003
+    title: Active-learning loop amplifies single labeller's bias / error
+    stride_ai: [Tampering]
+    owasp_llm: [LLM04:2025, LLM09:2025]
+    owasp_api: []
+    atlas: [AML.T0018, AML.T0020]
+    nist_ai_100_2: [NIST_PAI_POISONING_LABEL_FLIP]
+    owasp_ml: [ML02:2023, ML08:2023]
+    maestro: [M.L2.01, M.L7.01]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Active-learning pipelines select the most-uncertain samples for
+      labelling — by design, the samples that most influence the next
+      training round. A single labeller's systematic bias (cultural,
+      linguistic, political) gets amplified because the model's
+      future predictions concentrate on the area where that labeller
+      drives the boundary. RLHF for LLMs has the same dynamic with
+      preference labels. Not adversarial per se — but a covert insider
+      can engineer this to skew model behaviour on specific topics.
+    mitigations:
+      - "Annotator-rotation policy: no single labeller sees > N% of total active-learning batches"
+      - "Demographic / geographic diversity tracking on labelling workforce; alert on concentration"
+      - "Disagreement-driven sampling: prioritise items where multiple labellers disagree, not just where the model is uncertain"
+      - "Per-labeller bias monitoring on golden-set sub-categories; remove labellers with category-skewed accuracy"
+    refs: [AML.M0008]

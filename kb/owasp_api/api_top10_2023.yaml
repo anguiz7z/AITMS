@@ -1,0 +1,221 @@
+# OWASP API Security Top 10 — 2023 edition
+# Source: https://owasp.org/API-Security/editions/2023/en/0x11-t10/
+#
+# Most AI systems are exposed via REST/gRPC APIs (inference endpoints,
+# tool gateways, agent orchestrators). This catalogue lets ATMS map
+# API-layer threats alongside the AI-specific ones.
+
+- id: API1:2023
+  title: Broken Object Level Authorization
+  short: bola
+  description: |
+    APIs tend to expose endpoints that handle object identifiers, creating a wide
+    attack surface of Object Level Access Control issues. Object-level authorization
+    checks should be considered in every function that accesses a data source using
+    an ID from the user. Affects nearly every API at some point.
+  patterns:
+    - "Tenant A retrieves tenant B's data by changing an `id` in the URL"
+    - "Inference endpoint returns another user's chat history"
+    - "RAG retrieval API leaks documents from another tenant's index"
+  example: |
+    A multi-tenant Bedrock agent fetches conversation history by
+    `GET /chats/{chat_id}` without verifying that `chat_id` belongs to the
+    caller. An attacker iterates IDs and harvests other tenants' chats.
+  applies_to: [api_gateway, llm_inference, agent, rag_vector_store, tool, mcp_server]
+  mitigations:
+    - "Authorize on every object access — never trust the ID from the request"
+    - "Use random / unguessable IDs (UUIDv4, not auto-incremented)"
+    - "Per-tenant partition filters at the data layer (vector store, DB, S3 prefix)"
+    - "Automated tests for cross-tenant access attempts in CI"
+
+- id: API2:2023
+  title: Broken Authentication
+  short: broken_auth
+  description: |
+    Authentication mechanisms are often implemented incorrectly, allowing attackers
+    to compromise authentication tokens or exploit flaws to assume other users'
+    identities. Compromising authentication compromises the API entirely.
+  patterns:
+    - "Missing rate-limiting on token / login endpoints"
+    - "JWT signature not verified or `alg: none` accepted"
+    - "Weak password policy on user accounts that own AI workloads"
+    - "Refresh tokens that never expire"
+  example: |
+    The API accepts JWTs but doesn't verify the signature, only checks claims.
+    Attacker forges a token with `role: admin` and accesses a control-plane
+    endpoint that triggers fine-tune jobs.
+  applies_to: [api_gateway, llm_inference, agent, mcp_server, iam_principal]
+  mitigations:
+    - "Use a vetted authentication library (passport, Auth0, Cognito, Entra ID)"
+    - "Verify JWT signature and audience on every request; reject `alg: none`"
+    - "Rate-limit token / login / refresh endpoints"
+    - "Short-lived access tokens; rotate refresh tokens; bind to client fingerprint"
+
+- id: API3:2023
+  title: Broken Object Property Level Authorization
+  short: bopla
+  description: |
+    Excessive Data Exposure + Mass Assignment (combined in 2023). API returns more
+    fields than the user should see, or accepts more fields than the user should
+    set, leading to privilege escalation or information disclosure.
+  patterns:
+    - "PUT /user/{id} accepts `is_admin: true` and the API trusts it"
+    - "GET /chats/{id} returns the system prompt (LLM07 territory) along with the chat"
+    - "Inference endpoint returns full token-usage telemetry including other users' counters"
+  example: |
+    A self-service "update profile" API for the AI assistant accepts the body verbatim;
+    an attacker adds `quota_per_day: 1000000` and gets unlimited inference.
+  applies_to: [api_gateway, llm_inference, agent, prompt_template_store]
+  mitigations:
+    - "Allowlist returned fields per role; never `return user.dict()`"
+    - "Allowlist accepted body fields; reject unknown keys"
+    - "Test for property-level access — both read AND write directions"
+
+- id: API4:2023
+  title: Unrestricted Resource Consumption
+  short: resource_consumption
+  description: |
+    APIs that don't enforce rate / size / cost limits let attackers exhaust the
+    backend. For AI APIs this includes token-budget DoS, prompt-flooding, and
+    Denial-of-Wallet (the API costs the operator real money per call).
+  patterns:
+    - "No max-tokens cap → 100K-token prompts billed at $200/call"
+    - "No request rate limit → adversary loops the inference endpoint"
+    - "Vector-store query has no result-size cap → 100K hits returned"
+  example: |
+    Anonymous API endpoint exposes a Claude Opus inference; attacker scripts
+    1000 requests/minute with 100K-token prompts. Operator's monthly bill
+    swings by $50K before the issue is noticed.
+  applies_to: [api_gateway, llm_inference, agent, embedding_service, serverless_function]
+  mitigations:
+    - "Per-identity rate limits + cost budgets at the API gateway"
+    - "Max request size + max response size enforced at the gateway"
+    - "Token quotas and circuit breakers at the LLM / agent layer"
+    - "Cost-monitoring dashboards with per-tenant alerts"
+
+- id: API5:2023
+  title: Broken Function Level Authorization
+  short: bfla
+  description: |
+    Authorization checks at the function (endpoint) level are often missing or
+    flawed. Result: a regular user accessing admin-only endpoints by guessing the
+    URL.
+  patterns:
+    - "Admin endpoint /api/v1/admin/users discoverable; auth check forgotten"
+    - "Verb-level confusion — GET allowed for anyone, but POST also allowed"
+    - "Tenant-admin endpoints accessible by regular tenant users"
+  example: |
+    `POST /api/v1/admin/finetune` accessible to any authenticated user; submitter
+    triggers fine-tune jobs that the operator pays for.
+  applies_to: [api_gateway, llm_inference, agent, mcp_server, serverless_function]
+  mitigations:
+    - "Default-deny per endpoint; explicit role grants"
+    - "Centralised authorization middleware (don't sprinkle checks)"
+    - "Endpoint-level access tests in CI"
+
+- id: API6:2023
+  title: Unrestricted Access to Sensitive Business Flows
+  short: sensitive_flows
+  description: |
+    APIs that expose business flows (refund, account-creation, batch inference,
+    bulk export) without considering automation abuse. An attacker scripts the
+    flow at scale and harms the business — without breaking authentication.
+  patterns:
+    - "Free-trial signup flow → bot army → cost amplification"
+    - "Batch-inference API with no per-tenant cap → crypto-mining via LLM"
+    - "Bulk-export of chat history → competitive intelligence harvesting"
+  example: |
+    A "Try it free" inference endpoint creates an unlimited free tier per
+    new account; attacker registers 10K accounts via captcha-solver, runs
+    inference jobs in parallel. Operator pays the model bill.
+  applies_to: [api_gateway, llm_inference, agent, iam_principal]
+  mitigations:
+    - "Identify business flows that are abusable at scale; cap each one"
+    - "CAPTCHA / device fingerprinting for high-cost flows"
+    - "Anomaly detection on per-account / per-IP request volume"
+
+- id: API7:2023
+  title: Server Side Request Forgery
+  short: ssrf
+  description: |
+    API fetches a URL provided by the user (or by an LLM tool output) without
+    validating the destination. Attacker points the URL at internal services
+    (cloud metadata endpoint, internal admin API) and exfiltrates secrets.
+  patterns:
+    - "RAG ingestion takes a URL and crawls it — pointed at 169.254.169.254"
+    - "Agent's `fetch_url` tool reaches private VPC endpoints"
+    - "Webhook subscription accepts arbitrary HTTP destinations"
+  example: |
+    A document-ingestion endpoint accepts a URL; attacker submits
+    `http://169.254.169.254/latest/meta-data/iam/security-credentials/`
+    and the response is added to the RAG index — IAM session credentials leaked.
+  applies_to: [api_gateway, agent, tool, mcp_server, serverless_function, rag_vector_store]
+  mitigations:
+    - "Allowlist destination hosts and schemes (https only, no localhost / RFC 1918 / link-local)"
+    - "DNS resolve and re-validate after each redirect"
+    - "Disable IMDSv1 in cloud; require IMDSv2 for credential lookups"
+    - "Run the fetcher in a network-isolated egress proxy"
+
+- id: API8:2023
+  title: Security Misconfiguration
+  short: misconfig
+  description: |
+    Default configs left in production, unnecessary services enabled, missing
+    security headers, verbose error messages, outdated TLS, permissive CORS, etc.
+  patterns:
+    - "CORS `*` on inference endpoint enabling token-theft via XSS on third-party site"
+    - "Stack traces returned in 500 responses leak internal paths"
+    - "TLS 1.0 still accepted on the API gateway"
+    - "S3 bucket hosting model artifacts world-readable"
+  example: |
+    Bedrock agent endpoint behind API Gateway has `Access-Control-Allow-Origin: *`;
+    a malicious page on attacker.com calls the endpoint with the victim's stored
+    cookie and exfiltrates conversation history.
+  applies_to: [api_gateway, llm_inference, object_storage, network_segment]
+  mitigations:
+    - "Per-environment hardened config; default-deny CORS"
+    - "Strip stack traces from production responses"
+    - "TLS 1.2+ enforced; HSTS; proper security headers"
+    - "Infrastructure-as-Code with security scanning (Checkov, tfsec)"
+
+- id: API9:2023
+  title: Improper Inventory Management
+  short: inventory
+  description: |
+    Old API versions still online, undocumented endpoints, stale staging APIs in
+    production. Each is an attack surface the security team doesn't know about.
+  patterns:
+    - "v1 of the inference API deprecated 18 months ago — still serving traffic"
+    - "Staging endpoint exposed publicly with debug-mode telemetry on"
+    - "Legacy embedding API without authentication still live"
+  example: |
+    `api.example.com/v1/inference` was replaced by v2 a year ago; v1 has no
+    rate limit and accepts large prompts. Attacker discovers v1 via subdomain
+    enumeration and runs a free LLM service through it.
+  applies_to: [api_gateway, llm_inference, agent]
+  mitigations:
+    - "Maintain an authoritative API inventory (SwaggerHub, internal catalogue)"
+    - "Sunset old versions on a schedule; reject traffic to deprecated paths"
+    - "External attack-surface monitoring to catch shadow APIs"
+
+- id: API10:2023
+  title: Unsafe Consumption of APIs
+  short: unsafe_consumption
+  description: |
+    Trusting upstream third-party APIs blindly. The other API can be compromised
+    or return malicious data; if the consuming code doesn't validate the response,
+    that data flows downstream and exploits the consumer.
+  patterns:
+    - "RAG agent fetches public documentation from a 3rd-party API; the API was
+       compromised and returns prompt-injection text"
+    - "LLM consumer follows redirects from a tool-use response"
+    - "MCP server trusts the cardinality / shape of upstream responses"
+  example: |
+    A model-registry pull from a public Hugging Face mirror is hijacked via
+    DNS poisoning; the returned model weights contain a backdoor.
+  applies_to: [api_gateway, agent, tool, mcp_server, model_registry, external_api]
+  mitigations:
+    - "Pin upstream service identities (TLS pinning, signed responses)"
+    - "Validate response shape and content before using it"
+    - "Run the consumer with least-privilege so a hostile response can't escalate"
+    - "Vendor risk assessment for every external API the AI system depends on"

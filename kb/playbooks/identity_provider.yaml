@@ -1,0 +1,70 @@
+component_type: identity_provider
+description: |
+  Managed identity provider — Cognito, Entra External ID, Auth0, Okta, B2C,
+  Identity Platform. Authenticates end users to AI apps; issues tokens that
+  agent backends use for per-user authorisation. Distinct from on-prem
+  Active Directory (`directory_service`); the threat surface is different —
+  there's no Kerberos, no DC, no GPO.
+threats:
+  - id: T_IDP_001
+    title: Misconfigured client allowed grants → token theft
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    owasp_llm: [LLM02:2025]
+    owasp_agentic: [AGT09]
+    owasp_api: [API2:2023, API5:2023]
+    attack_cloud: [T1078.004]
+    attack_enterprise: [T1550.001]
+    maestro: [M.L7.03]
+    likelihood: 3
+    impact: 5
+    description: |
+      OAuth client registered with implicit-grant flow / public-client / wildcard
+      redirect URI, or ID token signed with weak algorithm (HS256 with shared
+      secret). Attacker phishes / replays / forges a token and accesses the AI
+      app with the victim's identity.
+    mitigations:
+      - "Authorization Code + PKCE only; ban implicit grant"
+      - "Exact-match redirect URIs (no wildcard)"
+      - "RS256 / ES256 token signing; rotate signing keys quarterly"
+      - "Token introspection / verification by the AI backend (not just signature check)"
+    refs: [AML.M0019]
+
+  - id: T_IDP_002
+    title: User-pool / directory hosting AI workload identities allows self-signup
+    stride_ai: [Spoofing]
+    owasp_llm: [LLM06:2025]
+    owasp_api: [API2:2023]
+    attack_cloud: [T1078]
+    maestro: [M.L7.03]
+    likelihood: 3
+    impact: 4
+    description: |
+      User pool / directory configured with `selfSignUpEnabled` while also being
+      the identity store for production AI workload service accounts (e.g.
+      machine-to-machine clients). Attacker self-registers and gets a token
+      consumable by the AI backend.
+    mitigations:
+      - "Separate user pool for end-users vs. workload identities"
+      - "Disable self-signup on the workload-identity pool"
+      - "Email-domain allow-list + admin-approval on the end-user pool"
+      - "JWT claim required (e.g. `is_workload: true`) for tool-calling endpoints"
+    refs: [AML.M0019]
+
+  - id: T_IDP_003
+    title: MFA bypass via SMS / voice fallback
+    stride_ai: [Spoofing, Defense_Evasion]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API2:2023]
+    attack_cloud: [T1078, T1556]
+    maestro: [M.L7.03]
+    likelihood: 4
+    impact: 4
+    description: |
+      MFA enforced but SIM-swap / voice-call / push-fatigue bypasses succeed.
+      Attacker obtains a valid token with full MFA assertion and reaches the
+      AI app as the legitimate user.
+    mitigations:
+      - "Phishing-resistant MFA only (WebAuthn / FIDO2 / Passkeys); disable SMS"
+      - "Number-matching MFA (Microsoft / Okta Verify) — defeats push-bombing"
+      - "Velocity / impossible-travel detection at the IdP fires on suspicious sign-in"
+    refs: [AML.M0019]

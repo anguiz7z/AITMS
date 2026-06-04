@@ -1,0 +1,115 @@
+component_type: container_registry
+description: |
+  Managed container image registry — AWS Elastic Container Registry (ECR),
+  Azure Container Registry (ACR), Google Artifact Registry (GAR / GCR).
+  Hosts the immutable images that AI training jobs, inference endpoints,
+  agent services, and RAG ingestion workers deploy from. Compromise of the
+  registry compromises every AI workload pulling from it.
+threats:
+  - id: T_CONTREG_001
+    title: Image tag overwrite poisoning AI inference container
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM03:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0010, AML.T0011, AML.T0019]
+    attack_cloud: [T1525, T1554]
+    attack_enterprise: [T1195.002]
+    nist_ai_100_2: [NIST_PAI_POISONING_BACKDOOR]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01, CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      ECR / ACR / GAR repositories by default permit mutable tags. An
+      attacker with `ecr:PutImage` (or the ACR `AcrPush` role / GAR
+      `artifactregistry.writer`) re-pushes `:latest` (or any deployed
+      tag) with a backdoored variant. Next inference-endpoint scale-out
+      or training-job restart pulls the poisoned image — the registry
+      becomes the single point of supply-chain compromise. CVE-2023-32731
+      (gRPC) and the SolarWinds-style trojanized-image pattern apply.
+      Especially severe for AI containers that ship with bundled model
+      weights or vector-DB snapshots in image layers.
+    mitigations:
+      - "Enable tag-immutability on the repository (ECR `IMMUTABLE`, ACR `--repository-tag-policy immutable`, GAR `immutableTags`)"
+      - "Deploy by sha256 digest, never by tag, in K8s / SageMaker / Vertex manifests"
+      - "Image signing with Cosign / Notary v2; admission controller (Kyverno, Gatekeeper) rejects unsigned images"
+      - "Repository policy: only the CI OIDC role can push; humans get pull-only"
+    refs: [AML.M0007, AML.M0023]
+
+  - id: T_CONTREG_002
+    title: Cross-account / cross-tenant image pull exposing proprietary model
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM10:2025]
+    owasp_api: [API1:2023, API5:2023]
+    atlas: [AML.T0024, AML.T0044]
+    attack_cloud: [T1530, T1213]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L1.03]
+    csa_singapore: [CSA_AI.DEVELOP.02, CSA_AI.DEPLOY.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      Repository policy grants `*` principal (or any account in the org)
+      read access to an image that bundles proprietary fine-tuned model
+      weights, RAG corpus snapshots, or embedded API credentials baked
+      into image layers. ECR Public repositories and ACR `--public-network-access enabled`
+      compound this — the image is on the open internet. Attackers can
+      `docker save` the image, extract layers, and reverse-engineer the
+      bundled model or extract secrets with `dive` / `trivy fs`.
+    mitigations:
+      - "Repository policy whitelists only specific account IDs / OIDC subjects"
+      - "Block ECR Public / ACR public-network-access at the org-policy / Azure Policy layer"
+      - "Pre-push image scanning rejects images containing model weights > N MB or matching weight-file extensions (.pt, .safetensors)"
+      - "Build models outside the container; mount via init-container from a separately-scoped object store"
+    refs: [AML.M0019]
+
+  - id: T_CONTREG_003
+    title: Malicious base image dependency with embedded backdoor
+    stride_ai: [Tampering]
+    owasp_llm: [LLM03:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0010.002, AML.T0011]
+    attack_cloud: [T1195.001, T1195.002]
+    attack_enterprise: [T1195.002]
+    nist_ai_100_2: [NIST_PAI_POISONING_BACKDOOR]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      AI inference Dockerfiles routinely `FROM nvidia/cuda:12.1-runtime`
+      or `FROM huggingface/transformers-pytorch-gpu` — public base images
+      that the registry transparently pulls through. Attacker typosquats
+      a popular HF / NVIDIA image namespace (the 2022 `pytorch-cuda112`
+      typo, the 2024 ultralytics-pypi compromise) and the AI build pulls
+      the trojanized base. The malicious layer ships an extra
+      `__init__.py` hook that exfiltrates training data on first import.
+    mitigations:
+      - "Mandatory pull-through cache (ECR `pull-through cache rule`, ACR cache, GAR remote repos) — direct internet pulls denied at the workload identity"
+      - "Vetted internal base-image catalogue; CI rejects Dockerfiles with `FROM` outside the catalogue"
+      - "Trivy / Snyk / Wiz scan on every push; severity gating in CI (no critical CVE merges)"
+      - "SLSA build provenance attestation required on all internal images; verify on pull"
+    refs: [AML.M0007, AML.M0023]
+
+  - id: T_CONTREG_004
+    title: Registry credentials in CI logs / pipeline artifacts
+    stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+    owasp_api: [API2:2023, API8:2023]
+    attack_cloud: [T1552.004, T1078.004]
+    attack_enterprise: [T1552.001]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.03]
+    likelihood: 3
+    impact: 4
+    description: |
+      `docker login` against ECR / ACR / GAR with long-lived access keys
+      bakes credentials into CI runner state, build cache layers, and
+      log output. A poisoned PR run (typosquat dependency, malicious
+      action) exfiltrates `~/.docker/config.json` and gains the same
+      push rights the CI role has — closing the loop on T_CONTREG_001.
+    mitigations:
+      - "OIDC federation from CI (GitHub Actions `aws-actions/configure-aws-credentials`, Azure Workload Identity) — no long-lived keys"
+      - "Short-lived registry tokens (ECR `get-login-password` cached < 12h; ACR token < 1h)"
+      - "Secret-scanning in build logs (GitGuardian, Gitleaks, AWS Macie)"
+      - "Restrict CI runner outbound to registry endpoint only"
+    refs: [AML.M0019]

@@ -1,0 +1,291 @@
+component_type: llm_inference
+description: |
+  An LLM inference endpoint that receives prompts and returns generated text. Includes hosted
+  APIs (OpenAI, Anthropic, Google), self-hosted (vLLM, Ollama), and embedded models.
+threats:
+  - id: T_LLMINF_001
+    title: Direct prompt injection / jailbreak
+    stride_ai: [Spoofing, Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM01:2025]
+    owasp_agentic: [AGT06]
+    atlas: [AML.T0051, AML.T0051.000, AML.T0054]
+    maestro: [M.L1.01, M.L7.05]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_DIRECT, NIST_GAI_ADVERSARIAL_MISUSE]
+    owasp_ml: [ML01:2023]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 5
+    impact: 4
+    description: |
+      User submits crafted prompts to override system instructions, bypass content filters, or
+      assume an unauthorized persona. High likelihood — this is the most common LLM attack.
+    mitigations:
+      - "Layered prompts with strict role boundaries; hash and verify system prompt"
+      - "Deploy a prompt-injection classifier on inputs (e.g., Lakera, Llama Guard)"
+      - "Constitutional AI / RLHF alignment + adversarial fine-tuning"
+      - "Egress filters on outputs to catch jailbroken content"
+      - "Red-team prompt corpus in CI to catch regressions"
+    refs: [AML.M0015, AML.M0022, AML.M0021]
+
+  - id: T_LLMINF_002
+    title: Sensitive information disclosure via output
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    atlas: [AML.T0057, AML.T0024.000]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_INVERSION, NIST_PAI_PRIVACY_MEMBERSHIP]
+    owasp_ml: [ML03:2023, ML04:2023]
+    linddun: [I_001, L_001, DD_003]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 4
+    impact: 5
+    description: |
+      Model outputs leak training data PII, system prompt contents, or context from prior users
+      due to memorization, prompt injection, or membership inference attacks.
+    mitigations:
+      - "PII detection and redaction on model outputs"
+      - "Differential privacy during training/fine-tuning where feasible"
+      - "Per-request context isolation; clear conversation context between users"
+      - "Output secret-scanning (gitleaks-style regex on responses)"
+    refs: [AML.M0002, AML.M0012, AML.M0019]
+
+  - id: T_LLMINF_003
+    title: System prompt extraction
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM07:2025]
+    atlas: [AML.T0056]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 4
+    impact: 3
+    description: |
+      Adversary uses crafted prompts to extract the model's system instructions. Risk depends
+      on what is embedded in the system prompt (credentials, business logic, internal policies).
+    mitigations:
+      - "Treat system prompts as public; do not embed secrets"
+      - "Move secrets to vault; pass per-request scoped tokens"
+      - "Detect and block prompt-extraction patterns"
+    refs: [AML.M0015, AML.M0019]
+
+  - id: T_LLMINF_004
+    title: Model extraction / stealing via inference API
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM10:2025]
+    atlas: [AML.T0024, AML.T0024.002]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_MEMBERSHIP, NIST_PAI_PRIVACY_INVERSION]
+    owasp_ml: [ML05:2023, ML04:2023]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 2
+    impact: 4
+    description: |
+      Adversary makes large numbers of queries to extract a functional copy of the model
+      (distillation), reconstruct training data (inversion), or determine training-set membership.
+    mitigations:
+      - "Rate limits per identity, anomaly detection on query volume/patterns"
+      - "Output watermarking / fingerprinting"
+      - "Add output noise to make distillation harder (precision reduction)"
+      - "Authenticate every API call; ban abusive accounts"
+    refs: [AML.M0004, AML.M0002, AML.M0019]
+
+  - id: T_LLMINF_005
+    title: Denial of service / denial of wallet (token flooding)
+    stride_ai: [Denial_of_Service]
+    owasp_llm: [LLM10:2025]
+    owasp_agentic: [AGT04]
+    atlas: [AML.T0029, AML.T0034]
+    maestro: [M.L1.07, M.L4.04]
+    nist_ai_100_2: [NIST_GAI_DENIAL_OF_SERVICE]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 4
+    impact: 3
+    description: |
+      Adversary submits very large prompts, requests very long completions, or sends high request
+      volume to exhaust tokens, GPU capacity, and inflate operator cost.
+    mitigations:
+      - "Per-user token quotas (input + output); circuit breakers"
+      - "Max-tokens enforcement on every request; queue limits"
+      - "Per-tenant cost monitoring with anomaly alerts"
+      - "Caching for repeated queries"
+    refs: [AML.M0004, AML.M0019, AML.M0023]
+
+  - id: T_LLMINF_006
+    title: Misinformation / hallucinated outputs
+    stride_ai: [Repudiation]
+    owasp_llm: [LLM09:2025]
+    atlas: [AML.T0048, AML.T0058]
+    nist_ai_100_2: [NIST_GAI_CONFABULATION, NIST_GAI_DANGEROUS_CONTENT]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 4
+    impact: 3
+    description: |
+      Model produces confident but wrong answers, fabricates citations, or recommends
+      hallucinated package names that an attacker can register (slop squatting).
+    mitigations:
+      - "Ground outputs with retrieval and source citations"
+      - "Confidence thresholds and abstention signals"
+      - "Human review for high-stakes domains"
+      - "Allowlist known packages in code-suggestion outputs"
+    refs: [AML.M0020, AML.M0021]
+
+  - id: T_LLMINF_007
+    title: Improper output handling (XSS/SSRF/SQLi via model output)
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM05:2025]
+    atlas: [AML.T0049, AML.T0050]
+    nist_ai_100_2: [NIST_GAI_ADVERSARIAL_MISUSE]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      Downstream system renders or executes LLM output without validation, allowing the model
+      to inject XSS, SQLi, or fetch attacker-controlled URLs (SSRF).
+    mitigations:
+      - "Treat LLM output as untrusted; markdown-only rendering, no inline HTML/JS"
+      - "Parameterized queries; never concatenate output into SQL/shell"
+      - "Egress allowlist for any tool that fetches URLs"
+      - "Sanitize with DOMPurify / bleach before rendering"
+    refs: [AML.M0015]
+
+  - id: T_LLMINF_008
+    title: Multimodal hidden-payload injection (steganographic / image-text / audio)
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM01:2025, LLM02:2025]
+    owasp_agentic: [AGT01]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0051.001, AML.T0051.000]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    maestro: [M.L1.01, M.L3.03]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      Vision / audio / multimodal model receives a document that contains a
+      hidden payload in the image (white-on-white text, alpha-channel
+      embedding, micro-watermark) or audio (ultrasonic tone, accent-shift
+      adversarial signal). The text-only guardrails don't inspect the
+      modalities they don't understand; the model dutifully extracts the
+      hidden instructions and executes them.
+    mitigations:
+      - "Modality-specific content-safety scanning BEFORE the prompt enters the model"
+      - "Strip alpha channel, normalise contrast, run OCR pre-pass on inbound images"
+      - "Audio waveform pre-filter (low-pass) before transcription"
+      - "Out-of-band human review for any document containing adversarial-indicator features (anomalous metadata, hidden-text detector)"
+    refs: [AML.M0015, AML.M0022]
+
+  - id: T_LLMINF_009
+    title: Discriminatory output / disparate impact across protected classes
+    stride_ai: [Bias_Fairness]
+    owasp_llm: [LLM05:2025, LLM09:2025]
+    atlas: [AML.T0034]
+    maestro: [M.L1.05, M.X.05]
+    csa_singapore: [CSA_AI.HUMAN.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      Model produces materially different outcomes for users in protected
+      classes (race / gender / age / disability / nationality) even when
+      inputs are otherwise equivalent. Sources: training-data skew,
+      prompt-engineering shortcuts encoding proxies, shortcut learning
+      during fine-tuning.
+    mitigations:
+      - "Pre-deployment fairness eval: compare outputs across protected-class proxies on a held-out test set"
+      - "Disparity-of-outcomes telemetry in production with weekly review"
+      - "Counterfactual prompt augmentation in fine-tuning"
+      - "Explicit refusal: model declines protected-class-correlated decisions"
+    refs: [AML.M0015]
+
+  - id: T_LLMINF_010
+    title: Emergent capability beyond training-time spec
+    stride_ai: [Emergent_Behavior, Elevation_of_Privilege]
+    owasp_llm: [LLM06:2025]
+    owasp_agentic: [AGT05, AGT12]
+    atlas: [AML.T0048, AML.T0050]
+    maestro: [M.L1.07, M.L7.04]
+    csa_singapore: [CSA_AI.HUMAN.01, CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Large model develops capabilities not present in training — e.g.
+      learned to invoke an MCP tool by inferring its existence from
+      session context, learned to chain tool calls in ways the developer
+      didn't anticipate, learned to bypass guardrails via novel encoding.
+      Risk is the unknown-unknown.
+    mitigations:
+      - "Out-of-band capability probing: red-team the deployed model monthly to discover capabilities not on the spec"
+      - "Hard tool-call allow-list + per-tool intent classifier"
+      - "Anomaly detection on tool-call patterns vs historical baseline"
+      - "HITL gate for any tool call whose target is not on the explicit allow-list"
+    refs: [AML.M0015, AML.M0020]
+
+  - id: T_LLMINF_011
+    title: Context-window stuffing / hijacking
+    stride_ai: [Tampering, Denial_of_Service]
+    owasp_llm: [LLM01:2025, LLM10:2025]
+    owasp_agentic: [AGT01]
+    atlas: [AML.T0051]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_DIRECT]
+    maestro: [M.L1.06, M.L3.05]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 4
+    impact: 3
+    description: |
+      Attacker fills the context window with adversarial content
+      (recursive instructions, long base64 blobs, dummy text) to
+      displace the system prompt or guardrails out of the model's
+      attention budget. On long-context models (200K+ tokens) the
+      attack scales: a small system prompt is easy to drown out with
+      enough adversarial chaff. Especially effective against models
+      with naive system-prompt-at-start positioning.
+    mitigations:
+      - "Hard max user-input token cap well below model context window (e.g. 16K user / 200K total)"
+      - "Re-inject system prompt + safety guardrails at multiple positions in the context"
+      - "Per-request token-cost cap with abort on overrun"
+      - "Anomaly detection on user-prompt size distribution; alert on 95th-percentile outliers"
+    refs: [AML.M0004, AML.M0015]
+
+  - id: T_LLMINF_012
+    title: Provisioned-throughput exhaustion (per-tenant DoS in shared inference)
+    stride_ai: [Denial_of_Service]
+    owasp_llm: [LLM10:2025]
+    owasp_api: [API4:2023]
+    atlas: [AML.T0029, AML.T0034]
+    maestro: [M.L4.04]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Multi-tenant Bedrock / Azure OpenAI / vLLM deployment shares a
+      provisioned-throughput pool across tenants. One abusive tenant
+      saturates the pool — their requests aren't denied (within their
+      own quota) but other tenants' requests are throttled or queued
+      because the shared TPM/RPM is exhausted. Customer-impacting
+      noisy-neighbour failure mode.
+    mitigations:
+      - "Per-tenant TPM/RPM quotas enforced at the gateway, not just at the model"
+      - "Separate provisioned-throughput pools per tier (gold / silver / bronze)"
+      - "Burst credits with hard ceiling — tenants can't borrow from the shared pool indefinitely"
+      - "Alert when any single tenant consumes > 50% of pool capacity in a 5-min window"
+    refs: [AML.M0004]
+
+  - id: T_LLMINF_013
+    title: Guardrail bypass via adversarial encoding
+    stride_ai: [Defense_Evasion, Tampering]
+    owasp_llm: [LLM01:2025, LLM02:2025]
+    owasp_agentic: [AGT01, AGT06]
+    atlas: [AML.T0051, AML.T0054]
+    nist_ai_100_2: [NIST_GAI_ADVERSARIAL_MISUSE]
+    maestro: [M.L7.02]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      Attacker encodes the malicious prompt to bypass the safety
+      classifier: base64, hex, unicode confusables, leet-speak, prompt
+      in a foreign language, prompt split across multiple turns,
+      polyglot inputs that decode differently in the safety filter
+      vs the main model. The text-only classifier sees innocuous
+      content; the main model decodes and obeys.
+    mitigations:
+      - "Multi-decoder safety scan: run the safety classifier on the decoded form for each known encoding"
+      - "Cross-language safety classifier (covers at least the top-20 languages by population)"
+      - "Multi-turn replay buffer: re-evaluate safety on the joined conversation, not just the latest turn"
+      - "Polyglot input rejection: reject prompts that decode to materially different content under different parsers"
+    refs: [AML.M0015, AML.M0022]

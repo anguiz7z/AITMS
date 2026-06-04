@@ -1,0 +1,144 @@
+{% extends "web/base.html" %}
+{% block title %}Attack paths — {{ system.name }}{% endblock %}
+{% block content %}
+<style>
+  .ap-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; margin: 14px 0; }
+  .ap-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .ap-id { font-family: ui-monospace, monospace; color: var(--muted); font-size: 12px; }
+  .ap-title { font-weight: 700; font-size: 16px; color: #f0f6fc; margin: 4px 0; }
+  .ap-meta { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .ap-meta .chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 999px; background: var(--panel2); border: 1px solid var(--border); font-size: 11px; color: var(--muted); }
+  .ap-meta .chip strong { color: var(--text); font-weight: 700; }
+  .ap-flow { font-family: ui-monospace, monospace; font-size: 13px; color: var(--accent); margin: 12px 0; padding: 10px 12px; background: var(--panel2); border-radius: 6px; overflow-x: auto; white-space: nowrap; }
+  .ap-flow .step { display: inline-block; padding: 2px 8px; border-radius: 4px; margin: 0 4px; background: rgba(46,160,67,0.12); color: #56d364; font-weight: 600; }
+  .ap-flow .arrow { color: var(--muted); margin: 0 2px; }
+  .ap-comp { font-family: ui-monospace, monospace; font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .ap-narrative { background: var(--panel2); border-radius: 6px; padding: 10px 14px; margin: 12px 0 6px 0; white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 12.5px; line-height: 1.55; color: var(--text); border: 1px solid var(--border); }
+  .ap-threats { margin-top: 10px; display: flex; gap: 4px; flex-wrap: wrap; }
+  .ap-threats .threat-pill { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 7px; font-size: 11px; font-family: ui-monospace, monospace; color: var(--muted); }
+  .ap-threats .threat-pill.sev-critical { border-color: var(--critical); color: #ffa198; }
+  .ap-threats .threat-pill.sev-high { border-color: var(--high); color: #ffa657; }
+  .difficulty-bar { display: inline-flex; gap: 2px; }
+  .difficulty-bar .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); }
+  .difficulty-bar .dot.active { background: var(--accent); }
+  .impact-bar .dot.active { background: var(--high); }
+  .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0 16px 0; flex-wrap: wrap; }
+</style>
+
+<h1>Attack paths <small style="color: var(--muted); font-weight: 400; font-size: 14px;">— {{ system.name }}</small></h1>
+<p class="muted">{{ attack_paths|length }} multi-step kill-chain(s) discovered. Sorted by business impact (high first), then by difficulty (easiest first within each impact tier).</p>
+
+<div class="toolbar">
+  <a class="btn btn-secondary" href="/download/{{ run_id }}/md">← Back to report</a>
+</div>
+
+{% if not attack_paths %}
+<div class="empty">No multi-step attack paths discovered in this system. Threats may still exist individually — see the <a href="/download/{{ run_id }}/html">report</a> for the per-component view.</div>
+{% endif %}
+
+{% for p in attack_paths %}
+<div class="ap-card">
+  <div class="ap-head">
+    <div>
+      <div class="ap-id">{{ p.id }}</div>
+      <div class="ap-title">{{ p.title }}</div>
+    </div>
+    <div class="ap-meta">
+      <span class="chip" title="Business impact (5 = highest)">
+        Impact
+        <span class="impact-bar difficulty-bar">
+          {% for i in range(1, 6) %}<span class="dot {% if i <= p.business_impact %}active{% endif %}"></span>{% endfor %}
+        </span>
+        <strong>{{ p.business_impact }}/5</strong>
+      </span>
+      <span class="chip" title="Estimated difficulty (5 = hardest)">
+        Difficulty
+        <span class="difficulty-bar">
+          {% for i in range(1, 6) %}<span class="dot {% if i <= p.estimated_difficulty %}active{% endif %}"></span>{% endfor %}
+        </span>
+        <strong>{{ p.estimated_difficulty }}/5</strong>
+      </span>
+    </div>
+  </div>
+
+  {% if p.tactics_traversed %}
+  <div class="ap-flow">
+    {% for tactic in p.tactics_traversed -%}
+      <span class="step">{{ tactic }}</span>{% if not loop.last %}<span class="arrow">→</span>{% endif %}
+    {%- endfor %}
+  </div>
+  {% endif %}
+
+  {# v0.18.39 Cycle CCC — threat-tree SVG.
+     A horizontal kill-chain visualisation: tactics on the X axis,
+     components stacked under each step, threat IDs hanging off each
+     component. Pure inline SVG, no JS dep, scales with content. #}
+  {% if p.tactics_traversed and p.components %}
+  {%- set step_w = 160 -%}
+  {%- set step_h = 60 -%}
+  {%- set width = (p.tactics_traversed|length) * step_w + 40 -%}
+  {%- set height = 180 -%}
+  <details class="ap-svg-wrap" style="margin: 10px 0;">
+    <summary class="muted" style="font-size: 12px; cursor: pointer;">▸ Kill-chain visualisation (SVG)</summary>
+    <svg viewBox="0 0 {{ width }} {{ height }}" width="100%" preserveAspectRatio="xMinYMin meet"
+         role="img" aria-label="Attack path kill chain"
+         style="background: var(--panel2); border: 1px solid var(--border); border-radius: 6px; margin-top: 8px; max-height: 240px;">
+      <!-- horizontal flow line -->
+      <line x1="20" y1="40" x2="{{ width - 20 }}" y2="40" stroke="#30363d" stroke-width="1" stroke-dasharray="3,3"/>
+      {%- for tactic in p.tactics_traversed -%}
+      {%- set x = 20 + loop.index0 * step_w + step_w / 2 -%}
+      <!-- step node -->
+      <circle cx="{{ x }}" cy="40" r="9" fill="#56d364" stroke="#2da44e" stroke-width="2"/>
+      <text x="{{ x }}" y="44" text-anchor="middle" fill="#0e1116" font-size="9" font-weight="700">{{ loop.index }}</text>
+      <!-- tactic label -->
+      <text x="{{ x }}" y="22" text-anchor="middle" fill="#56d364" font-size="11" font-weight="600">{{ tactic[:18] }}</text>
+      <!-- vertical drop to component -->
+      <line x1="{{ x }}" y1="49" x2="{{ x }}" y2="80" stroke="#30363d" stroke-width="1"/>
+      <!-- component rect -->
+      {%- if loop.index0 < p.components|length -%}
+        {%- set comp = p.components[loop.index0] -%}
+      <rect x="{{ x - step_w/2 + 12 }}" y="80" width="{{ step_w - 24 }}" height="32"
+            rx="4" fill="var(--panel)" stroke="#58a6ff" stroke-width="1"/>
+      <text x="{{ x }}" y="98" text-anchor="middle" fill="#58a6ff" font-size="11" font-family="ui-monospace, monospace">{{ comp[:16] }}</text>
+      <text x="{{ x }}" y="110" text-anchor="middle" fill="var(--muted)" font-size="9">component</text>
+      {%- endif -%}
+      <!-- arrow to next step -->
+      {%- if not loop.last -%}
+      <polygon points="{{ x + step_w - 12 }},37 {{ x + step_w - 6 }},40 {{ x + step_w - 12 }},43"
+               fill="#30363d"/>
+      {%- endif -%}
+      {%- endfor -%}
+      <!-- footer summary -->
+      <text x="20" y="{{ height - 20 }}" fill="var(--muted)" font-size="10">
+        {{ p.tactics_traversed|length }} steps · {{ p.threat_ids|length }} threats · difficulty {{ p.estimated_difficulty }}/5 · impact {{ p.business_impact }}/5
+      </text>
+    </svg>
+  </details>
+  {% endif %}
+
+  {% if p.components %}
+  <div class="ap-comp">
+    <strong>Components traversed:</strong>
+    {% for c in p.components -%}
+      <code>{{ c }}</code>{% if not loop.last %} → {% endif %}
+    {%- endfor %}
+  </div>
+  {% endif %}
+
+  {% if p.narrative %}
+  <div class="ap-narrative">{{ p.narrative }}</div>
+  {% endif %}
+
+  {% if p.threat_ids %}
+  <div class="ap-threats">
+    <span class="muted" style="font-size: 11px; margin-right: 4px;">Step threats:</span>
+    {% for tid in p.threat_ids %}
+      {% set t = threats.get(tid) %}
+      <span class="threat-pill sev-{{ t.severity if t else 'info' }}" title="{{ t.title if t else tid }}">{{ tid }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% endblock %}

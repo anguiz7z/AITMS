@@ -1,0 +1,68 @@
+component_type: ids_ips
+description: |
+  Intrusion Detection / Prevention System (Snort, Suricata, Cisco Firepower,
+  Defender for Cloud, Cloud Armor). Inspects network traffic for known-bad
+  signatures or anomaly patterns. AI-specific risk: detects exfiltration via
+  unusual outbound patterns from inference workloads.
+threats:
+  - id: T_IDS_001
+    title: IDS rules out of date — recent CVE signatures missing
+    stride_ai: [Defense_Evasion]
+    owasp_api: [API8:2023]
+    attack_enterprise: [T1190]
+    maestro: [M.L4.07]
+    likelihood: 4
+    impact: 3
+    description: |
+      Rule subscription expired or admin paused signature updates. A recent CVE
+      attacker uses (e.g. a Bedrock-adjacent prompt-injection-as-RCE chain via
+      a tool-server CVE) is not in the signature set.
+    mitigations:
+      - "Subscription auto-renewal + automated rule push (Snort Talos, Suricata ET, Cisco Talos)"
+      - "Drift alert if rule set is more than 14 days old"
+      - "Weekly delta review by SOC + add custom rules for AI-specific abuse"
+    refs: [AML.M0019]
+
+  - id: T_IDS_002
+    title: IDS lacks visibility into encrypted inference traffic (TLS-decryption gap)
+    stride_ai: [Information_Disclosure, Defense_Evasion]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    attack_cloud: [T1071.001]
+    attack_enterprise: [T1573.002]
+    maestro: [M.L4.07]
+    likelihood: 4
+    impact: 3
+    description: |
+      All inference / Bedrock / OpenAI traffic is TLS-encrypted; IDS doesn't
+      have the TLS-decryption certificate, so it can't inspect prompts or
+      responses for PII exfil, model-extraction patterns, or system-prompt
+      leakage. Effective blindness on the AI surface.
+    mitigations:
+      - "TLS-decryption proxy in front of the IDS for east-west traffic to AI endpoints"
+      - "Endpoint agent (EDR) supplements IDS with on-host prompt logging"
+      - "Egress allow-list to specific Bedrock / OpenAI endpoints only"
+    refs: [AML.M0019]
+
+  - id: T_IDS_003
+    title: IDS bypass via evasion / fragmentation / protocol-tunneling
+    stride_ai: [Defense_Evasion]
+    owasp_api: [API8:2023]
+    attack_enterprise: [T1027, T1071.001, T1572]
+    attack_cloud: [T1071.001]
+    maestro: [M.L4.07]
+    likelihood: 3
+    impact: 4
+    description: |
+      Attacker fragments payloads, uses TTL games, alternates packet
+      sizes, or tunnels C2 over HTTPS / DNS to evade signature matching.
+      The same patterns exfiltrate model weights or prompt corpora out
+      of the training subnet. Snort / Suricata in default config misses
+      slow-and-low patterns, DNS-tunnel exfil, and uncommon-port C2.
+    mitigations:
+      - "Stream-reassembly + normalisation pre-processors enabled on every IDS instance"
+      - "DNS-tunnel detection rules (entropy + query-length + frequency)"
+      - "Egress allow-list restricting outbound destinations from training subnet"
+      - "Flow-correlation: short-lived high-frequency low-volume connections flagged as beaconing"
+    refs: [T1027, T1071.001, T1572]

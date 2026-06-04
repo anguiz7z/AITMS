@@ -1,0 +1,71 @@
+component_type: stream_processor
+description: |
+  Streaming data pipeline — Kinesis (Data Streams / Firehose / Analytics),
+  Azure Event Hubs, GCP Pub/Sub, Apache Kafka, Apache Flink, Spark Streaming.
+  Carries real-time events into AI workloads (transaction events for
+  fraud-LLM scoring, sensor data for predictive maintenance, click-stream
+  for personalisation).
+threats:
+  - id: T_STREAM_001
+    title: Stream message tampering → adversarial input to AI consumer
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM01:2025, LLM03:2025]
+    owasp_agentic: [AGT01]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0051.001]
+    maestro: [M.L3.03]
+    likelihood: 3
+    impact: 4
+    description: |
+      Attacker with PutRecord on the input stream (over-permissive role, SSRF
+      from an upstream producer) injects malicious records that the AI consumer
+      treats as legitimate event data. Indirect prompt injection at scale —
+      every record processed by the LLM is attacker-controlled.
+    mitigations:
+      - "Per-producer IAM: each producer principal restricted to its own partition / shard / topic"
+      - "Message signing (HMAC or signed envelope) + verification at the AI consumer"
+      - "Schema enforcement (Schema Registry, Avro, JSON Schema) rejects malformed records"
+      - "Consumer-side anomaly detection: alert on records outside historical distribution"
+    refs: [AML.M0015]
+
+  - id: T_STREAM_002
+    title: Stream replay attack → past attacker-influenced events re-applied
+    stride_ai: [Spoofing, Repudiation]
+    owasp_api: [API8:2023]
+    maestro: [M.L3.05]
+    likelihood: 2
+    impact: 3
+    description: |
+      Attacker captures legitimate-looking past records, replays them after
+      a compromise of their own credentials has been revoked. AI consumer
+      re-scores transactions / re-trains on stale poisoned data.
+    mitigations:
+      - "Message sequence number + replay window check at the consumer"
+      - "Timestamp signed in the producer envelope; reject records older than N seconds"
+      - "Append-only audit log of consumed sequence numbers"
+    refs: [AML.M0019]
+
+  - id: T_STREAM_003
+    title: Consumer-group / topic ACL gap → cross-tenant message leakage
+    stride_ai: [Information_Disclosure, Spoofing]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API1:2023, API5:2023]
+    atlas: [AML.T0057]
+    attack_cloud: [T1078.004, T1213]
+    attack_enterprise: [T1213]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Kafka / Kinesis / Pub-Sub deployment shares a topic across tenants
+      using shared consumer-group IAM policies. Topic-level ACLs are
+      missing or wildcard. One tenant's AI workload subscribes and
+      receives the firehose: every other tenant's events flow through
+      its event handler. Cross-tenant data exposure goes unnoticed
+      because consumers are passive readers.
+    mitigations:
+      - "Per-tenant topic / stream namespace; never share a single topic across tenants"
+      - "Topic-level ACL: only the owning tenant's principal can subscribe"
+      - "Schema-registry enforcement: tenant_id field signed by producer; consumer rejects mismatched"
+      - "Consumer-group audit + anomaly detection on subscription pattern drift"
+    refs: [T1213, T1078.004, API1:2023]

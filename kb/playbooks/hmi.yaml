@@ -1,0 +1,108 @@
+component_type: hmi
+description: |
+  Human-Machine Interface — operator-facing graphical workstation that
+  visualizes plant state and dispatches operator commands to the
+  underlying controllers (PLC / DCS / RTU). Common vendors: Rockwell
+  FactoryTalk View, Siemens WinCC, GE iFix, Wonderware (AVEVA)
+  InTouch, Ignition. Sits at Purdue Level 2; compromise gives the
+  attacker the operator's eyes and hands.
+threats:
+  - id: T_HMI_001
+    title: HMI display tampering hides unsafe condition from operator
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1565.001]
+    maestro: [M.L5.05]
+    likelihood: 3
+    impact: 5
+    description: |
+      Attacker modifies the HMI graphic project (or live tag-binding)
+      so an alarm or unsafe reading is suppressed on the operator
+      screen while the controller is actually in alarm. The Ukrainian
+      2015 grid attack and Triton both used HMI manipulation to delay
+      operator response. Highly impactful because the response loop
+      is operator-driven.
+    mitigations:
+      - "HMI project files signed; runtime verifies signature before load"
+      - "Alarm summary cross-checked from the controller-side independent of HMI graphics"
+      - "Read-only HMI replicas for monitoring; only kiosked HMIs allow commands"
+      - "Visual change auditing: diff current HMI screens vs baseline weekly"
+    refs: [T0832, T0856, AML.M0007]
+
+  - id: T_HMI_002
+    title: Malicious operator command via session hijacking
+    stride_ai: [Spoofing, Tampering]
+    attack_enterprise: [T1078, T1185]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      HMI runs in a logged-on operator session on a Windows workstation
+      that an attacker has reached over the network (RDP, SMB lateral
+      movement). Attacker sends commands as the operator: open valve,
+      shed load, change set-point. The controller sees a perfectly
+      authentic operator request.
+    mitigations:
+      - "Lock screen / smart-card removal on idle; auto-logout"
+      - "HMI command auditing with two-factor confirmation on high-impact ops"
+      - "Network segmentation prevents reaching HMI from outside Level 2"
+      - "Operator-action telemetry to SIEM with anomaly baselines"
+    refs: [T0822, T0855, AML.M0019]
+
+  - id: T_HMI_003
+    title: HMI workstation used as pivot to controller network
+    stride_ai: [Elevation_of_Privilege]
+    attack_enterprise: [T1021, T1570]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      HMI workstation has dual network homing: corporate (Level 3) for
+      patches / monitoring and control network (Level 1/2) for tag
+      reads. Attacker who reaches the HMI from the IT side uses it
+      as a bridge to reach controllers directly — bypassing the
+      Purdue boundary.
+    mitigations:
+      - "Single-homed HMI workstations; updates via approved jumphost only"
+      - "Data-diode for tag flow from controller to HMI replica when bidirectional bridging not justified"
+      - "Host-based firewall locked down to controller IPs only"
+      - "Annual Purdue-boundary architecture review"
+    refs: [T0859, T0883, AML.M0019]
+
+  - id: T_HMI_004
+    title: Removable-media / USB malware introduction
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1091, T1200]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Field engineer transfers project updates, logs, or patches to
+      the HMI workstation via USB. The USB carries malware (Stuxnet,
+      USBKill, infected vendor utility). Most OT sites still rely on
+      sneakernet for vendor patches and historian exports.
+    mitigations:
+      - "Sanctioned USB-scan kiosk at every OT-zone entrance; only signed media accepted"
+      - "USB port disable on HMIs by default; supervisor-approved temporary enable"
+      - "Application allowlist (AppLocker / WDAC) on HMI workstations"
+      - "EDR coverage where vendor-supported; offline AV scan as a fallback"
+    refs: [T0847, T0863, AML.M0009]
+
+  - id: T_HMI_005
+    title: HMI vendor-default credentials and insecure remote-access exposure
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    attack_enterprise: [T1078.001, T1133]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 3
+    description: |
+      Vendor ships HMI with a documented default service account and
+      a remote-support agent (vendor's VNC / TeamViewer / proprietary
+      remote dial-in). The default credentials never get rotated; the
+      remote-support agent exposes the HMI to the internet so the
+      vendor can debug. Shodan finds these regularly.
+    mitigations:
+      - "Default-credential audit at every commissioning; mandatory rotation"
+      - "Vendor remote-access via jumphost with session recording, never direct"
+      - "External attack-surface scanning quarterly for exposed HMI services"
+      - "Multi-factor authentication on remote-support entry point"
+    refs: [T0822, T0883, AML.M0019]

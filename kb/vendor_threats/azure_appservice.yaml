@@ -1,0 +1,247 @@
+# Azure App Service vendor-threat overlay (v0.16.0)
+# Covers Easy Auth, managed identities, Kudu/SCM, deployment slots,
+# and the app-service control plane. Relevant for AI workloads that
+# wrap Azure OpenAI / Foundry behind a customer-owned web tier.
+# Public references:
+#   - https://www.varonis.com/blog/azure-app-service-vulnerability
+#   - https://blog.lightspin.io/azure-app-service-vulnerabilities
+#   - https://github.com/Azure/AppService-EasyAuth/issues — header injection issues
+#   - https://orca.security/resources/blog/azure-app-service-source-code-leak/
+#   - https://msrc.microsoft.com/blog/2022/09/  (NotLegit / NotKudu disclosures)
+
+- id: T_AZ_APPSVC_001
+  title: Easy Auth bypass via X-MS-CLIENT-PRINCIPAL header spoofing
+  description: |
+    App Service's built-in authentication ("Easy Auth") populates the
+    `X-MS-CLIENT-PRINCIPAL`, `X-MS-CLIENT-PRINCIPAL-ID`,
+    `X-MS-CLIENT-PRINCIPAL-IDP`, and `X-MS-CLIENT-PRINCIPAL-NAME`
+    headers on requests after authentication. App code is expected to
+    read these headers as authoritative identity. The platform STRIPS
+    inbound copies of these headers from the public ingress — but if
+    the App Service is fronted by a custom reverse proxy, Front Door,
+    or an Azure Function with a custom HTTP trigger that forwards
+    headers verbatim, an external caller can supply these headers and
+    impersonate ANY user. Particularly nasty when the app code trusts
+    `X-MS-CLIENT-PRINCIPAL-ID` for tenant routing or admin elevation.
+    Mapped to OWASP API1 (BOLA) / API2 (Broken Authentication) and
+    ATT&CK T1556.006 (Modify Authentication Process: Multi-Factor
+    Authentication).
+  stride_ai: [Spoofing, Elevation_of_Privilege]
+  owasp_llm: []
+  owasp_agentic: [AGT09]
+  owasp_api: [API1:2023, API2:2023, API5:2023]
+  attack_cloud: [T1078.004, T1550]
+  attack_enterprise: [T1556, T1556.006]
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.L7.03]
+  likelihood: 4
+  impact: 5
+  mitigations:
+    - "Validate Easy Auth headers by verifying the JWT in `X-MS-CLIENT-PRINCIPAL` decodes and the signature matches the AAD JWKS — never trust the headers alone"
+    - "Configure App Service ingress restrictions so only the front-door / APIM Service Endpoint IPs can reach the site; reject direct internet ingress"
+    - "Front Door / APIM: explicit `Remove-Header` rule for `X-MS-CLIENT-PRINCIPAL*` on inbound traffic before re-authenticating"
+    - "Use `requireAuthentication=true` and `unauthenticatedClientAction=RedirectToLoginPage` (or `Return401`); never `AllowAnonymous`"
+    - "Detective: Azure Monitor query on AppServiceHTTPLogs where caller IP outside expected front-door ranges AND auth header present"
+  refs: [AML.M0019]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [app_service, appservice, azure_app_service, azure_appservice, web_app, webapp]
+    component_type: [web_application, api_gateway]
+  applies_to_ai_workflows: false
+
+- id: T_AZ_APPSVC_002
+  title: Managed Identity token exfil via SSRF to 169.254.169.254 IMDS-like endpoint
+  description: |
+    App Service exposes a managed-identity token endpoint at
+    `http://169.254.169.254/metadata/identity/oauth2/token` (in some
+    SKUs) and `http://localhost:42356/MSI/token` (App Service-specific,
+    requires the `X-IDENTITY-HEADER` value injected as env var
+    `IDENTITY_HEADER`). Unlike AWS IMDSv2, neither endpoint has a
+    token-challenge mechanism — possession of the per-instance secret
+    in `IDENTITY_HEADER` is enough. An SSRF in the app (e.g. an LLM
+    tool that fetches user-supplied URLs, a server-side image
+    processor, an XML external-entity parser) can extract both the
+    `IDENTITY_HEADER` value (via env-var dump or process-memory read)
+    AND request the token. Token grants the Managed Identity's full
+    role-assignments — typically `Reader` or `Storage Blob Data
+    Contributor` on the entire resource group.
+  stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+  owasp_llm: [LLM06:2025]
+  owasp_agentic: [AGT01, AGT09]
+  owasp_api: [API7:2023]
+  attack_cloud: [T1552.005, T1078.004, T1528]
+  attack_enterprise: []
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.L4.06]
+  likelihood: 4
+  impact: 5
+  mitigations:
+    - "Egress allowlist on App Service: block link-local (169.254.0.0/16), localhost-bind ports beyond app, and metadata.azure.com from any outbound URL-fetching tool"
+    - "Network Security Group / Service Endpoint policy on the App Service Plan; deploy into ASE v3 with controlled egress"
+    - "Scope managed identity to a single least-privilege RBAC role (e.g. `Storage Blob Data Reader` on one container, not subscription-level Reader)"
+    - "Sanitize / SSRF-protect every user-controlled URL parameter; deny redirects to private/link-local addresses"
+    - "Detective: Azure Sentinel query on outbound HTTP requests to 169.254.* originating from App Service plan IPs"
+  refs: [AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [app_service, appservice, azure_app_service, azure_appservice, web_app, webapp, function_app, azure_functions]
+    component_type: [web_application, serverless_function, agent, tool, llm_inference, container_runtime]
+  applies_to_ai_workflows: true
+
+- id: T_AZ_APPSVC_003
+  title: Kudu / SCM-site abuse with reused workload identity
+  description: |
+    Every App Service has a sidecar Kudu site at
+    `https://<app>.scm.azurewebsites.net` providing deployment,
+    diagnostic, file-browser, and command-shell access. By default the
+    SCM site uses the same authentication backend as the main app — if
+    Easy Auth is configured, the same AAD users can sign in to Kudu.
+    Kudu has a built-in `cmd.exe` / Bash console, full filesystem
+    read/write, and crucially exposes `/api/vfs/site/wwwroot/` for
+    arbitrary file upload. A compromised developer Entra account often
+    has Kudu access account-wide; one phish becomes RCE in every App
+    Service in the subscription.
+    Disclosed publicly by Orca Security ("Source code leak via Kudu")
+    and Wiz; remains a top finding in Azure tenant audits.
+  stride_ai: [Elevation_of_Privilege, Tampering]
+  owasp_llm: []
+  owasp_agentic: []
+  owasp_api: [API5:2023, API8:2023]
+  attack_cloud: [T1078.004, T1190, T1525]
+  attack_enterprise: [T1078, T1190]
+  atlas: []
+  nist: []
+  maestro: [M.X.02, M.X.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Disable basic auth on SCM: `az resource update --resource-type Microsoft.Web/sites/basicPublishingCredentialsPolicies/scm --set properties.allow=false`"
+    - "Enforce private endpoints for the SCM site (`scmIpSecurityRestrictionsUseMain=false` + dedicated IP allowlist)"
+    - "Restrict SCM access via App Service Access Restrictions to corporate VPN / Entra Conditional Access compliant device"
+    - "Just-in-time elevation for the `Website Contributor` role via Entra PIM; default-deny for developers"
+    - "Detective: log Kudu commandapi.json and DeployStatus calls into Sentinel; alert on shell-invocation events"
+  refs: [AML.M0019]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [app_service, appservice, azure_app_service, azure_appservice, web_app, webapp]
+    component_type: [web_application, api_gateway]
+  applies_to_ai_workflows: false
+
+- id: T_AZ_APPSVC_004
+  title: Deployment slot credential leak via misconfigured slot-swap settings
+  description: |
+    App Service deployment slots share the App Service Plan and (by
+    default) inherit App Settings unless explicitly marked
+    "slot-setting". When a developer slots in a `staging` site that
+    deliberately uses test credentials, then performs a slot swap, the
+    `slotConfigNames` metadata controls which settings remain
+    slot-sticky vs swap. A common misconfiguration: production-only
+    settings (KeyVault references, real client secrets) are not marked
+    slot-sticky, so a swap promotes them into `staging` — which often
+    has lower access controls, public preview URLs, and may even be
+    indexed by search engines via `staging.azurewebsites.net`.
+    Connection strings in App Settings are also exposed in the Kudu
+    `Environment` page to any user with Kudu access.
+  stride_ai: [Information_Disclosure, Spoofing]
+  owasp_llm: []
+  owasp_agentic: []
+  owasp_api: [API2:2023, API8:2023]
+  attack_cloud: [T1552, T1552.001]
+  attack_enterprise: [T1552, T1078]
+  atlas: []
+  nist: []
+  maestro: [M.L4.06, M.L7.03]
+  likelihood: 3
+  impact: 4
+  mitigations:
+    - "Mark every production secret slot-sticky (`slotSetting=true`) so swaps never propagate it; verify via `az webapp config appsettings list`"
+    - "Use Key Vault references for secrets, not literal App Settings; the reference itself is non-sensitive"
+    - "Restrict slot URLs: deny anonymous on `*.staging.azurewebsites.net`; enforce IP restrictions on non-prod slots"
+    - "Pre-swap CI gate: diff slot settings between source and target; block swaps that leak settings across boundary"
+    - "Detective: Azure Policy `audit-app-service-slot-without-https-only` and Defender for App Service findings"
+  refs: [AML.M0012, AML.M0019]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [app_service, appservice, azure_app_service, azure_appservice, web_app, webapp]
+    component_type: [web_application, secrets_vault]
+  applies_to_ai_workflows: false
+
+- id: T_AZ_APPSVC_005
+  title: App Service Authentication misconfigured for multi-tenant Entra accepting external tenant tokens
+  description: |
+    Easy Auth's Entra (Azure AD) integration can be configured against
+    the multi-tenant `common` endpoint
+    (`https://login.microsoftonline.com/common/v2.0`). When the app
+    code subsequently does not validate the `tid` (tenant ID) claim
+    inside the resulting token, ANY user from ANY Entra tenant in the
+    world can sign in and be treated as authenticated. The
+    notLegit/wormable-token class of disclosures hinges on this — a
+    single-tenant SaaS misdeploys with the multi-tenant template and
+    silently accepts every Microsoft user on the internet. Especially
+    relevant for AI workloads where the App Service fronts an internal
+    Foundry / Azure OpenAI deployment and any authenticated caller is
+    granted prompt access (and through it, token-cost-DoS).
+  stride_ai: [Spoofing, Elevation_of_Privilege]
+  owasp_llm: [LLM10:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API2:2023, API5:2023]
+  attack_cloud: [T1199, T1078.004]
+  attack_enterprise: [T1556, T1078]
+  atlas: []
+  nist: []
+  maestro: [M.L7.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Configure Easy Auth against the single-tenant endpoint (`/<tenantId>/v2.0`) unless multi-tenant is an explicit product requirement"
+    - "Validate the `tid` claim against an allowlist of approved tenants inside the application; reject anything else"
+    - "Restrict `allowedAudiences` to the app's own client ID, not `https://login.microsoftonline.com`"
+    - "Conditional Access: require approved client app + compliant device for the App Service's enterprise application"
+    - "Detective: Sign-in logs query on App Service enterprise app where `tenantId != home-tenant`; correlate with token issuance"
+  refs: [AML.M0019]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [app_service, appservice, azure_app_service, azure_appservice, web_app, webapp, function_app, azure_functions]
+    component_type: [web_application, api_gateway, directory_service]
+  applies_to_ai_workflows: false
+
+- id: T_AZ_APPSVC_006
+  title: App Service outbound SSRF pivot to Azure Resource Manager APIs
+  description: |
+    The App Service worker has unrestricted outbound HTTPS by default
+    — it can reach `management.azure.com`, every regional ARM endpoint,
+    and every customer's resource group accessible by its managed
+    identity. An SSRF in the app (LLM URL-fetcher, image-fetcher,
+    webhook receiver) plus a managed identity with `Contributor` at
+    resource-group scope = the attacker can call ARM directly: list
+    Key Vaults, write IAM role-assignments, deploy malicious ARM
+    templates, or pivot to other resources entirely. The IMDS token
+    obtained via T_AZ_APPSVC_002 is the vehicle; ARM is the
+    destination. Particularly severe because ARM operations don't
+    require any additional approval flow — a single `PUT` to
+    `roleAssignments` grants admin to attacker's principal.
+  stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+  owasp_llm: [LLM06:2025]
+  owasp_agentic: [AGT01, AGT03]
+  owasp_api: [API7:2023, API5:2023]
+  attack_cloud: [T1078.004, T1098, T1098.003, T1525]
+  attack_enterprise: []
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.L4.06, M.X.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "App Service outbound rules: deny `management.azure.com` and all `*.azure.com` egress except via private endpoint"
+    - "Deploy into App Service Environment v3 with explicit NSG outbound rules; default-deny + allowlist destinations"
+    - "Scope managed identity RBAC to least privilege at narrowest scope (resource, not resource-group/subscription)"
+    - "Defender for Cloud Apps: detect anomalous ARM activity from a single client principal (e.g. burst of role-assignment writes)"
+    - "Azure Policy: `[Preview] Audit App Service Environments without VNet integration`"
+  refs: [AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [app_service, appservice, azure_app_service, azure_appservice, web_app, webapp, function_app, azure_functions]
+    component_type: [web_application, serverless_function, agent, tool, llm_inference, container_runtime]
+  applies_to_ai_workflows: true

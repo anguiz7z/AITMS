@@ -1,0 +1,129 @@
+# Methodology provenance map — published anchors for each STRIDE-for-AI
+# category ATMS uses.
+#
+# Why this file exists: ATMS tags every threat with a `stride_ai` category
+# (one of the values in `models.py StrideAI Literal`). 6 of the 9
+# categories are classic Microsoft STRIDE (1999, well-published). The
+# other 3 (Defense_Evasion, Bias_Fairness, Emergent_Behavior) describe
+# real AI threat vectors recognised by published frameworks (MITRE
+# ATT&CK / NIST AI RMF / MITRE ATLAS) — but ATMS is the one shoehorning
+# them into the STRIDE column. This file documents that lineage so the
+# methodology page can answer the audit question "where does this
+# category come from?"
+#
+# Schema:
+#   <category>:
+#     anchor: <published-framework name>
+#     url: <link>
+#     standing: standard | atms_extension
+#     summary: <one-sentence rationale>
+
+categories:
+
+  # ─── Classic Microsoft STRIDE (1999) ────────────────────────────────
+  Spoofing:
+    anchor: Microsoft STRIDE (1999) · STRIDE for AI/ML (2022)
+    url: https://learn.microsoft.com/en-us/security/engineering/threat-modeling-aiml
+    standing: standard
+    summary: |
+      Identity falsification. Classic STRIDE category authored by Loren
+      Kohnfelder + Praerit Garg at Microsoft. Microsoft Learn's
+      AI/ML threat-modelling page applies it directly to AI surfaces
+      (impersonating a model owner, spoofing data-provider identity).
+
+  Tampering:
+    anchor: Microsoft STRIDE (1999) · STRIDE for AI/ML (2022)
+    url: https://learn.microsoft.com/en-us/security/engineering/threat-modeling-aiml
+    standing: standard
+    summary: |
+      Unauthorised modification of data or process integrity. Classic
+      STRIDE; in AI/ML applies to training-data poisoning, model
+      weight tampering, prompt injection (chosen as Tampering because
+      the malicious input rewrites the prompt-as-data).
+
+  Repudiation:
+    anchor: Microsoft STRIDE (1999)
+    url: https://learn.microsoft.com/en-us/security/engineering/threat-modeling-aiml
+    standing: standard
+    summary: |
+      An actor performs an action and later credibly denies it.
+      Classic STRIDE; in AI applies to agentic systems lacking audit
+      trails of tool invocations, model-generated decisions without
+      provenance, training-data origin disputes.
+
+  Information_Disclosure:
+    anchor: Microsoft STRIDE (1999) · STRIDE for AI/ML (2022)
+    url: https://learn.microsoft.com/en-us/security/engineering/threat-modeling-aiml
+    standing: standard
+    summary: |
+      Confidentiality violation. Classic STRIDE; in AI covers training-
+      data membership inference, model-extraction attacks, prompt-
+      injection-driven secrets exfiltration, RAG-store ACL bypass.
+
+  Denial_of_Service:
+    anchor: Microsoft STRIDE (1999) · STRIDE for AI/ML (2022)
+    url: https://learn.microsoft.com/en-us/security/engineering/threat-modeling-aiml
+    standing: standard
+    summary: |
+      Availability or capacity attack. Classic STRIDE; in AI covers
+      context-window stuffing, provisioned-throughput exhaustion,
+      cost-runaway / denial-of-wallet on metered inference.
+
+  Elevation_of_Privilege:
+    anchor: Microsoft STRIDE (1999) · STRIDE for AI/ML (2022)
+    url: https://learn.microsoft.com/en-us/security/engineering/threat-modeling-aiml
+    standing: standard
+    summary: |
+      Unauthorised privilege gain. Classic STRIDE; in AI covers
+      excessive-agency abuse, agent tool-scope escalation, confused-
+      deputy in RAG / Bedrock-KB chains.
+
+  # ─── ATMS extensions, anchored to published frameworks ──────────────
+  Lateral_Movement:
+    anchor: STRIDE-LM (Muckin & Fitch 2019) · CSA Singapore Guide to Cyber Threat Modelling (2021) · MITRE ATT&CK TA0008
+    url: https://attack.mitre.org/tactics/TA0008/
+    standing: atms_extension
+    summary: |
+      An attacker who has a foothold pivots through intermediate
+      components (stepping stones) to reach a higher-value target (crown
+      jewel). ATMS uses this as a STRIDE row because the CSA Singapore
+      "Guide to Cyber Threat Modelling" (Feb 2021) prescribes STRIDE-LM
+      — classic STRIDE plus Lateral Movement (Muckin & Fitch, "A Threat-
+      Driven Approach to Cyber Security", 2019). The category is anchored
+      in MITRE ATT&CK Enterprise (TA0008) and ATLAS (AML.TA0015). It maps
+      directly onto the multi-hop attack paths + CSA Table-of-Attack
+      stepping-stones ATMS already discovers.
+
+  Defense_Evasion:
+    anchor: MITRE ATT&CK · Tactic TA0005
+    url: https://attack.mitre.org/tactics/TA0005/
+    standing: atms_extension
+    summary: |
+      Adversary actions taken to avoid detection. ATMS uses this as a
+      STRIDE row because the classic 6 don't cover detection-evasion
+      separately (it's spread across Tampering + Info-Disclosure). The
+      category itself is well-published in MITRE ATT&CK Enterprise
+      (TA0005) and ATLAS adopts the same name (AML.TA0007).
+
+  Bias_Fairness:
+    anchor: NIST AI RMF 1.0 · MANAGE 4.1 · ISO/IEC 24027:2021
+    url: https://www.nist.gov/itl/ai-risk-management-framework
+    standing: atms_extension
+    summary: |
+      Discriminatory output, decision parity violation, disparate
+      impact. ATMS uses this as a STRIDE row because classic STRIDE
+      has no concept of fairness as a security property. The category
+      is anchored in NIST AI RMF (MANAGE 4.1 "Bias and discrimination
+      are managed") and ISO/IEC 24027:2021 (Bias in AI systems).
+
+  Emergent_Behavior:
+    anchor: MITRE ATLAS · AML.T0048 · OWASP LLM09:2025
+    url: https://atlas.mitre.org/techniques/AML.T0048
+    standing: atms_extension
+    summary: |
+      Capabilities or actions not present at training time, including
+      out-of-spec actions, jailbroken behaviours, model misuse. ATMS
+      uses this as a STRIDE row because emergent capability is an AI-
+      specific failure mode without a classic STRIDE home. Anchored in
+      MITRE ATLAS AML.T0048 (Erode Integrity of ML model) + OWASP LLM
+      Top 10 2025 LLM09 ("Misinformation / Overreliance").

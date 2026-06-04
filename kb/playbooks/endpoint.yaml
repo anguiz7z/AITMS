@@ -1,0 +1,76 @@
+component_type: endpoint
+description: |
+  Workstation, laptop, or server endpoint — Windows / macOS / Linux.
+  Often the AI workload's first target (developer's laptop has the
+  cloud credentials, the model weights, the prompt repo).
+threats:
+  - id: T_EP_001
+    title: Credential / token theft from developer endpoint
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API2:2023]
+    attack_enterprise: [T1552, T1555, T1555.003]
+    attack_cloud: [T1552, T1078.004]
+    maestro: [M.L7.03]
+    likelihood: 4
+    impact: 5
+    description: |
+      `~/.aws/credentials`, `~/.kube/config`, browser-saved cookies, IDE
+      session tokens, AWS SSO cache — all readable by malware running as
+      the user. One compromised laptop = full cloud-account takeover.
+    mitigations:
+      - "Hardware-backed credentials (YubiKey, Touch ID, Secure Enclave)"
+      - "Short-lived credentials only — no static keys cached locally"
+      - "EDR with credential-theft detection (LSASS read, browser cookie access)"
+      - "Lock screen + full-disk encryption mandatory"
+    refs: [T1552, T1555, T1555.003]
+
+  - id: T_EP_002
+    title: Phishing → endpoint compromise
+    stride_ai: [Spoofing, Tampering]
+    attack_enterprise: [T1566, T1566.001, T1059.007]
+    maestro: [M.L7.01]
+    likelihood: 5
+    impact: 4
+    description: |
+      Targeted email with malicious attachment / link. User clicks; macro
+      runs / browser exploit fires. Attacker has user-level access; pivots.
+    mitigations:
+      - "Attachment sandboxing (Microsoft Defender Safe Attachments / equivalent)"
+      - "URL rewriting + safe-browse on every link in email"
+      - "Macro-blocking on Office documents from external sources"
+      - "User training + phishing simulations"
+    refs: [T1566, T1566.001, T1059.007]
+
+  - id: T_EP_003
+    title: Outdated OS / browser / app — CVE exploit
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190, T1203]
+    maestro: [M.X.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      Patch cadence too slow; an n-day exploit fires before the patch lands.
+      Browsers and Office are the most common path.
+    mitigations:
+      - "Auto-update enabled across OS / browser / Office"
+      - "Patch SLA: critical < 14 days, high < 30 days"
+      - "Vulnerability scanning of endpoint fleet"
+    refs: [T1190, T1203]
+
+  - id: T_EP_004
+    title: Lost / stolen device with cached secrets
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1052, T1213]
+    maestro: [M.X.04]
+    likelihood: 3
+    impact: 4
+    description: |
+      Laptop left in cab, lost at airport, stolen from hotel. Without disk
+      encryption + screen lock, the thief has time to extract credentials,
+      browser cookies, source code, model weights.
+    mitigations:
+      - "BitLocker / FileVault / dm-crypt mandatory + enforced"
+      - "Auto-screen-lock < 5 min idle"
+      - "Remote wipe (Intune / Jamf / etc.) for managed devices"
+      - "Loss-reporting workflow with rapid credential rotation"
+    refs: [T1052, T1213]

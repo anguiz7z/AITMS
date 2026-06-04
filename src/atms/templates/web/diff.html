@@ -1,0 +1,164 @@
+{% extends "web/base.html" %}
+{% block title %}Diff{% endblock %}
+{% block content %}
+<style>
+  .diff-form {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 14px 16px; margin-bottom: 16px;
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: end;
+  }
+  .diff-form .field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 220px; }
+  .diff-form label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+  .diff-form input { width: 100%; }
+  .diff-error {
+    background: rgba(248,81,73,0.1); border: 1px solid var(--critical);
+    border-radius: 6px; padding: 10px 14px; margin-bottom: 12px;
+    color: #ff7b72;
+  }
+  .diff-summary {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px; margin-bottom: 16px;
+  }
+  .diff-summary .m {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+  }
+  .diff-summary .m .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .diff-summary .m .v { font-size: 22px; font-weight: 700; }
+  .diff-summary .m.added .v   { color: #3fb950; }
+  .diff-summary .m.removed .v { color: #ff7b72; }
+  .diff-summary .m.changed .v { color: #d29922; }
+  .diff-section h3 { margin-top: 20px; }
+  .severity { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: white; }
+  .sev-critical { background: var(--critical); }
+  .sev-high { background: #db6d28; }
+  .sev-medium { background: #d29922; }
+  .sev-low { background: var(--low); }
+  .sev-info { background: #6e7681; }
+  .arrow { color: var(--muted); margin: 0 6px; }
+  .empty { color: var(--muted); padding: 30px; text-align: center; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; }
+</style>
+
+<h1>Diff between two runs</h1>
+<p class="muted" style="max-width:780px;">
+Compare two saved <code>ThreatModel</code> JSON files. Pass paths via the
+form below or directly in the URL: <code>?a=output/before.json&amp;b=output/after.json</code>.
+Mirrors the CLI <code>atms diff a.json b.json</code> in HTML. Paths can
+be absolute, or relative to the current working directory / <code>output/</code>.
+</p>
+
+<form class="diff-form" method="get" action="/diff">
+  <div class="field">
+    <label for="a">Old (path A)</label>
+    <input id="a" name="a" type="text" value="{{ a_path or '' }}" placeholder="output/before.json">
+  </div>
+  <div class="field">
+    <label for="b">New (path B)</label>
+    <input id="b" name="b" type="text" value="{{ b_path or '' }}" placeholder="output/after.json">
+  </div>
+  <button type="submit">Compare</button>
+</form>
+
+{% if error %}
+<div class="diff-error">{{ error }}</div>
+{% endif %}
+
+{% if diff %}
+<div class="diff-summary">
+  <div class="m added"><div class="k">Added</div><div class="v">{{ diff.added|length }}</div></div>
+  <div class="m removed"><div class="k">Removed</div><div class="v">{{ diff.removed|length }}</div></div>
+  <div class="m changed"><div class="k">Severity changed</div><div class="v">{{ diff.severity_changed|length }}</div></div>
+  <div class="m changed"><div class="k">Disposition changed</div><div class="v">{{ diff.disposition_changed|length }}</div></div>
+  <div class="m"><div class="k">Threats A → B</div><div class="v">{{ diff.summary_old.get('threats', '?') }} → {{ diff.summary_new.get('threats', '?') }}</div></div>
+</div>
+
+{% if diff.added %}
+<div class="diff-section">
+  <h3 style="color:#3fb950;">Added ({{ diff.added|length }})</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Severity</th><th>Title</th></tr></thead>
+    <tbody>
+      {% for t in diff.added %}
+      <tr>
+        <td><code>{{ t.id }}</code></td>
+        <td><span class="severity sev-{{ t.severity }}">{{ t.severity }}</span></td>
+        <td>{{ t.title }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if diff.removed %}
+<div class="diff-section">
+  <h3 style="color:#ff7b72;">Removed ({{ diff.removed|length }})</h3>
+  <table>
+    <thead><tr><th>ID</th><th>Severity</th><th>Title</th></tr></thead>
+    <tbody>
+      {% for t in diff.removed %}
+      <tr>
+        <td><code>{{ t.id }}</code></td>
+        <td><span class="severity sev-{{ t.severity }}">{{ t.severity }}</span></td>
+        <td>{{ t.title }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if diff.severity_changed %}
+<div class="diff-section">
+  <h3 style="color:#d29922;">Severity changed ({{ diff.severity_changed|length }})</h3>
+  <table>
+    <thead><tr><th>ID</th><th>From</th><th></th><th>To</th><th>Title</th></tr></thead>
+    <tbody>
+      {% for row in diff.severity_changed %}
+      <tr>
+        <td><code>{{ row.id }}</code></td>
+        <td><span class="severity sev-{{ row.old }}">{{ row.old }}</span></td>
+        <td class="arrow">→</td>
+        <td><span class="severity sev-{{ row.new }}">{{ row.new }}</span></td>
+        <td>{{ row.title }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if diff.disposition_changed %}
+<div class="diff-section">
+  <h3 style="color:#d29922;">Disposition changed ({{ diff.disposition_changed|length }})</h3>
+  <table>
+    <thead><tr><th>ID</th><th>From</th><th></th><th>To</th><th>Title</th></tr></thead>
+    <tbody>
+      {% for row in diff.disposition_changed %}
+      <tr>
+        <td><code>{{ row.id }}</code></td>
+        <td><code>{{ row.old }}</code></td>
+        <td class="arrow">→</td>
+        <td><code>{{ row.new }}</code></td>
+        <td>{{ row.title }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if not diff.added and not diff.removed and not diff.severity_changed and not diff.disposition_changed %}
+<div class="empty">
+  No differences detected between the two runs.
+</div>
+{% endif %}
+
+{% elif not error %}
+<div class="empty">
+  Enter two paths above and click <strong>Compare</strong>, or load the page
+  with <code>?a=…&amp;b=…</code> query params.
+</div>
+{% endif %}
+
+{% endblock %}

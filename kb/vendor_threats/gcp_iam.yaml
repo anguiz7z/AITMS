@@ -1,0 +1,245 @@
+# GCP IAM vendor-threat overlay (v0.16.0)
+# Covers Service Account chains, impersonation, IAP, Workload Identity
+# Federation, GCE metadata, and Cloud Function defaults.
+# Public references:
+#   - https://rhinosecuritylabs.com/gcp/privilege-escalation-google-cloud-platform-part-1/
+#   - https://rhinosecuritylabs.com/gcp/privilege-escalation-google-cloud-platform-part-2/
+#   - https://github.com/dxa4481/gcp_firebase_hack
+#   - https://blog.gitguardian.com/google-cloud-iam-privilege-escalation/
+#   - https://cloud.google.com/iap/docs/concepts-overview (IAP bypass research)
+
+- id: T_GCP_IAM_001
+  title: Service Account impersonation via iam.serviceAccountUser chain
+  description: |
+    GCP's `roles/iam.serviceAccountUser` permits a principal to "act as"
+    a service account when attaching it to a resource (Cloud Function,
+    GCE instance, Cloud Run revision). The attached resource then runs
+    with the SA's permissions — a privilege escalation primitive
+    identical in shape to AWS `iam:PassRole`. Common chain: developer
+    has `serviceAccountUser` on a service account with `roles/owner`
+    on the project. They deploy a Cloud Function attached to that SA,
+    invoke the function (which they may have permission to do), and
+    inside the function call `gcloud projects add-iam-policy-binding`
+    — they are now owner. GCP's policy-binding model does not warn on
+    this chain.
+    See Rhino "Privilege Escalation in Google Cloud — Part 1" methods
+    1 (DeploymentManager), 4 (CloudBuild), 12 (ActAs on highly
+    privileged SA).
+  stride_ai: [Elevation_of_Privilege]
+  owasp_llm: []
+  owasp_agentic: [AGT03, AGT09]
+  owasp_api: [API5:2023]
+  attack_cloud: [T1078.004, T1098, T1098.003, T1548]
+  attack_enterprise: []
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.X.03, M.L4.06]
+  likelihood: 4
+  impact: 5
+  mitigations:
+    - "Audit every `iam.serviceAccountUser` grant; treat it as equivalent to granting all the SA's roles"
+    - "Use Resource Tags + IAM Conditions to constrain which SAs a user can `actAs` (`resource.name.endsWith()`)"
+    - "VPC Service Controls perimeter around IAM API to prevent cross-project SA usage"
+    - "Disable the default Compute Engine / App Engine service accounts; require explicit per-workload SA"
+    - "Detective: Cloud Audit Logs `protoPayload.methodName=iam.serviceAccounts.actAs`; alert on usage outside CI"
+  refs: [AML.M0019, AML.M0023]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    component_type: [iam_principal, serverless_function, container_runtime, agent]
+  applies_to_ai_workflows: false
+
+- id: T_GCP_IAM_002
+  title: serviceAccountTokenCreator for cross-project access via short-lived tokens
+  description: |
+    `roles/iam.serviceAccountTokenCreator` permits a principal to mint
+    OAuth 2.0 access tokens, OpenID Connect ID tokens, and signed JWTs
+    on behalf of a service account via `generateAccessToken`. Unlike
+    `serviceAccountUser` (which requires resource creation), this is a
+    direct token-issuance primitive — one API call gets a 1-hour token
+    for ANY SA the caller has `tokenCreator` on. Combined with
+    cross-project SA grants (a common pattern for "production SA used
+    from staging build pipeline"), an attacker who compromises any
+    staging principal can mint production tokens. Tokens are bearer
+    credentials — replayable from any IP, no MFA, no fine-grained
+    revocation.
+  stride_ai: [Spoofing, Elevation_of_Privilege]
+  owasp_llm: []
+  owasp_agentic: []
+  owasp_api: [API2:2023, API5:2023]
+  attack_cloud: [T1528, T1550, T1098.001, T1078.004]
+  attack_enterprise: [T1078, T1550]
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.L7.03, M.X.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Default-deny on `iam.serviceAccountTokenCreator`; grant only to CI/CD service identities with IAM Conditions"
+    - "IAM Conditions restricting `tokenCreator` to specific SA name patterns or resource tags"
+    - "Organization Policy `iam.disableServiceAccountKeyUpload` and `iam.disableServiceAccountKeyCreation`"
+    - "Use Workload Identity Federation instead of cross-project SA tokens where possible"
+    - "Detective: Cloud Audit Logs on `GenerateAccessToken` API calls; alert on cross-project mint events"
+  refs: [AML.M0019, AML.M0012]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    component_type: [iam_principal]
+  applies_to_ai_workflows: false
+
+- id: T_GCP_IAM_003
+  title: Identity-Aware Proxy bypass via header injection from misconfigured load balancer
+  description: |
+    Identity-Aware Proxy (IAP) places a Google-signed JWT in the
+    `X-Goog-IAP-JWT-Assertion` header and the verified user identity
+    in `X-Goog-Authenticated-User-Email`/`-Id`. Backends are expected
+    to verify the JWT signature against Google's public keys before
+    trusting the email/id headers. IAP also strips inbound copies of
+    these headers — but only on the IAP-managed path. Common
+    misconfiguration: a backend service is reachable via TWO load
+    balancers (one IAP-protected, one a "back-door" internal LB that
+    skips IAP for VPC traffic). An attacker who reaches the internal
+    LB injects the email header, never has to satisfy any JWT, and is
+    treated as the impersonated user by the backend.
+    Compounded by tutorial code that reads the email header without
+    JWT verification — a published-by-Google sample pattern that many
+    customer apps copy verbatim.
+  stride_ai: [Spoofing, Elevation_of_Privilege]
+  owasp_llm: []
+  owasp_agentic: []
+  owasp_api: [API2:2023, API5:2023, API8:2023]
+  attack_cloud: [T1078.004, T1199, T1550]
+  attack_enterprise: [T1190, T1556]
+  atlas: []
+  nist: []
+  maestro: [M.L7.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Always verify `X-Goog-IAP-JWT-Assertion` JWT signature server-side; reject requests missing the JWT"
+    - "Network policy: backend service accepts traffic only from IAP-protected LB IP range (35.191.0.0/16, 130.211.0.0/22)"
+    - "VPC Service Controls perimeter blocking internal-LB bypass paths"
+    - "Defence in depth: require additional service-to-service auth (mTLS, signed requests) inside the perimeter"
+    - "Detective: Cloud Audit Logs / VPC Flow Logs query for backend reached without IAP front-end record"
+  refs: [AML.M0019]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    metadata.product: [iap, identity_aware_proxy, load_balancer, cloud_load_balancing]
+    component_type: [api_gateway, load_balancer, web_application]
+  applies_to_ai_workflows: false
+
+- id: T_GCP_IAM_004
+  title: Workload Identity Federation misuse — external IdP token exchanged for SA token
+  description: |
+    Workload Identity Federation lets an external IdP (GitHub Actions,
+    AWS, Azure, any OIDC) exchange a token for a GCP service-account
+    impersonation token via `sts.googleapis.com/v1/token`. The
+    `workloadIdentityPools` + `providers` resources hold the attribute
+    mapping (e.g. `attribute.repository = assertion.repository`) and
+    the `principalSet://` binding decides which external identities
+    can impersonate which SA. Misconfigurations seen in the wild:
+    (a) overly broad `principalSet://iam.googleapis.com/projects/.../locations/.../workloadIdentityPools/.../*`
+    accepting any external identity from a public IdP including
+    attacker-controlled GitHub orgs; (b) attribute mapping that
+    doesn't pin to `assertion.repository_owner` so a public fork of
+    your repo can mint tokens. The Unit42 / Palo Alto write-up
+    documented this as a real exploited path in 2023.
+    Maps to ATT&CK T1199 (Trusted Relationship) and T1528 (Steal
+    Application Access Token).
+  stride_ai: [Spoofing, Elevation_of_Privilege]
+  owasp_llm: []
+  owasp_agentic: []
+  owasp_api: [API2:2023, API5:2023]
+  attack_cloud: [T1199, T1528, T1078.004, T1550]
+  attack_enterprise: []
+  atlas: []
+  nist: []
+  maestro: [M.L7.03, M.X.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Pin attribute conditions: `attribute.repository_owner == 'my-org'` AND `attribute.repository == 'my-org/my-repo'`"
+    - "Reject `principalSet://` bindings; require fully-qualified `principal://` with exact attribute values"
+    - "Use `assertion.aud == 'sts.googleapis.com/...'` in attribute condition"
+    - "Audit workload identity pools quarterly; deny pool creation in non-platform projects via Org Policy"
+    - "Detective: Cloud Audit Logs on `ExchangeToken` calls; alert on tokens minted for SAs unused for >30 days"
+  refs: [AML.M0019, AML.M0012]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    component_type: [iam_principal, directory_service]
+  applies_to_ai_workflows: false
+
+- id: T_GCP_IAM_005
+  title: Compute Engine metadata server abuse — no IMDSv2-equivalent token challenge
+  description: |
+    GCE / Cloud Run / GKE workloads obtain access tokens for the
+    attached SA from the metadata server at
+    `http://metadata.google.internal/computeMetadata/v1/`. The
+    metadata server requires the `Metadata-Flavor: Google` header on
+    every request — but unlike AWS IMDSv2 it has NO token-challenge
+    mechanism (no PUT-then-GET token flow). Any SSRF that can set a
+    custom header (most can, via `urllib`/`requests` defaults or via
+    HTTP/2 stream manipulation) recovers the token. The exfilled token
+    grants the SA's full role set, replayable from any source IP.
+    Particularly under-discussed because most GCP docs claim
+    "metadata-flavor header prevents naive SSRF" — true for the most
+    naive cases but trivially bypassable.
+  stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+  owasp_llm: [LLM06:2025]
+  owasp_agentic: [AGT01]
+  owasp_api: [API7:2023]
+  attack_cloud: [T1552.005, T1078.004, T1528]
+  attack_enterprise: []
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.L4.06]
+  likelihood: 4
+  impact: 5
+  mitigations:
+    - "Egress allowlist on workload: block 169.254.169.254 and metadata.google.internal from any URL-fetching tool"
+    - "Use shielded VMs + VPC Service Controls perimeter to constrain SA-token usage outside the perimeter"
+    - "Short-lived tokens via Workload Identity (GKE); rotate every 5 minutes"
+    - "Run SSRF-prone services behind a hardened HTTP client library that strips arbitrary headers"
+    - "Detective: VPC Flow Logs / Packet Mirroring on metadata.google.internal traffic; correlate with SA token usage from non-VM IPs"
+  refs: [AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    component_type: [iam_principal, container_runtime, serverless_function, agent, tool, llm_inference]
+  applies_to_ai_workflows: true
+
+- id: T_GCP_IAM_006
+  title: Cloud Function default service-account over-privilege (App Engine SA / Compute SA)
+  description: |
+    Cloud Functions (1st gen), App Engine, and Cloud Run default to
+    using the App Engine default service account
+    (`<project>@appspot.gserviceaccount.com`) and/or the Compute Engine
+    default SA (`<project-number>-compute@developer.gserviceaccount.com`)
+    when no explicit identity is set. Both default SAs receive
+    `roles/editor` at project scope on project creation — equivalent
+    to write-on-everything-except-IAM-roles. A compromised function
+    therefore has read/write on every Cloud Storage bucket, BigQuery
+    dataset, Pub/Sub topic, and Cloud SQL instance in the project.
+    Even after the principle-of-least-privilege guidance shifted in
+    2024, the historical default remains attached to many production
+    workloads — and disabling it after the fact breaks dependent
+    services that captured the default SA at deploy time.
+  stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+  owasp_llm: []
+  owasp_agentic: [AGT03, AGT09]
+  owasp_api: [API5:2023]
+  attack_cloud: [T1078.004, T1530, T1098]
+  attack_enterprise: [T1078]
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.L4.06, M.X.03]
+  likelihood: 4
+  impact: 4
+  mitigations:
+    - "Org Policy `iam.automaticIamGrantsForDefaultServiceAccounts=false` to suppress automatic `roles/editor` grants on new projects"
+    - "Replace default SA references with dedicated per-function SAs scoped to least privilege"
+    - "Recommender: enable `google.iam.policy.Recommender` and act on `IAM_RECOMMENDER` findings"
+    - "Org Policy `iam.disableServiceAccountKeyCreation` to prevent long-lived keys on the default SA"
+    - "Detective: monthly audit of default-SA usage via Asset Inventory; track who deploys with the default identity"
+  refs: [AML.M0019]
+  requires:
+    metadata.vendor: [gcp, google, google_cloud]
+    component_type: [iam_principal, serverless_function, container_runtime]
+  applies_to_ai_workflows: false

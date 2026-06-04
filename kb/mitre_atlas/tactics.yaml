@@ -1,0 +1,73 @@
+# MITRE ATLAS Tactics
+# Source: https://atlas.mitre.org/tactics/  (verified against the authoritative
+# mitre-atlas/atlas-data ATLAS.yaml on 2026-05-30; IDs + names are canonical,
+# order follows the published ATLAS matrix). Used for attack-path tactic ordering.
+
+- id: AML.TA0002
+  name: Reconnaissance
+  short: reconnaissance
+  description: The adversary is trying to gather information about the AI system they can use to plan
+    future operations.
+- id: AML.TA0003
+  name: Resource Development
+  short: resource_development
+  description: The adversary is trying to establish resources they can use to support operations.
+- id: AML.TA0004
+  name: Initial Access
+  short: initial_access
+  description: The adversary is trying to gain access to the AI system.
+- id: AML.TA0000
+  name: AI Model Access
+  short: ai_model_access
+  description: The adversary is attempting to gain some level of access to an AI model.
+- id: AML.TA0005
+  name: Execution
+  short: execution
+  description: The adversary is trying to run malicious code embedded in AI artifacts or software.
+- id: AML.TA0006
+  name: Persistence
+  short: persistence
+  description: The adversary is trying to maintain their foothold via AI artifacts or software.
+- id: AML.TA0012
+  name: Privilege Escalation
+  short: privilege_escalation
+  description: The adversary is trying to gain higher-level permissions.
+- id: AML.TA0007
+  name: Defense Evasion
+  short: defense_evasion
+  description: The adversary is trying to avoid being detected by AI-enabled security software.
+- id: AML.TA0013
+  name: Credential Access
+  short: credential_access
+  description: The adversary is trying to steal account names and passwords.
+- id: AML.TA0008
+  name: Discovery
+  short: discovery
+  description: The adversary is trying to figure out your AI environment.
+- id: AML.TA0015
+  name: Lateral Movement
+  short: lateral_movement
+  description: The adversary is trying to move through your AI environment.
+- id: AML.TA0009
+  name: Collection
+  short: collection
+  description: The adversary is trying to gather AI artifacts and other related information relevant to
+    their goal.
+- id: AML.TA0001
+  name: AI Attack Staging
+  short: ai_attack_staging
+  description: The adversary is leveraging their knowledge of and access to the target system to tailor
+    the attack.
+- id: AML.TA0014
+  name: Command and Control
+  short: command_and_control
+  description: The adversary is trying to communicate with compromised AI systems to control them.
+- id: AML.TA0010
+  name: Exfiltration
+  short: exfiltration
+  description: The adversary is trying to steal AI artifacts or other information about the AI system.
+- id: AML.TA0011
+  name: Impact
+  short: impact
+  description: The adversary is trying to manipulate, interrupt, erode confidence in, or destroy your
+    AI systems and data.

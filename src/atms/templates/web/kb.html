@@ -1,0 +1,73 @@
+{% extends "web/base.html" %}
+{% block title %}Knowledge base{% endblock %}
+{% block content %}
+<h1>Knowledge base</h1>
+<form method="get" action="/kb">
+  <div class="row" style="display: flex; gap: 8px; align-items: end;">
+    <div style="flex: 1;">
+      <label>Search</label>
+      <input type="text" name="q" value="{{ q or '' }}" placeholder="prompt injection, training data, agent abuse, …" autofocus>
+    </div>
+    <div style="width: 200px;">
+      <label>Framework</label>
+      <select name="framework">
+        <option value="all" {% if framework=='all' %}selected{% endif %}>All</option>
+        <option value="atlas" {% if framework=='atlas' %}selected{% endif %}>MITRE ATLAS</option>
+        <option value="attack_cloud" {% if framework=='attack_cloud' %}selected{% endif %}>MITRE ATT&amp;CK Cloud</option>
+        <option value="attack_enterprise" {% if framework=='attack_enterprise' %}selected{% endif %}>MITRE ATT&amp;CK Enterprise + ICS</option>
+        <option value="owasp_llm" {% if framework=='owasp_llm' %}selected{% endif %}>OWASP LLM Top 10</option>
+        <option value="owasp_agentic" {% if framework=='owasp_agentic' %}selected{% endif %}>OWASP Agentic AI</option>
+        <option value="owasp_api" {% if framework=='owasp_api' %}selected{% endif %}>OWASP API Security Top 10</option>
+        <option value="linddun" {% if framework=='linddun' %}selected{% endif %}>LINDDUN privacy</option>
+        <option value="nist_ai_100_2" {% if framework=='nist_ai_100_2' %}selected{% endif %}>NIST AI 100-2 (adversarial ML)</option>
+        <option value="owasp_ml" {% if framework=='owasp_ml' %}selected{% endif %}>OWASP ML Top 10 (2023)</option>
+        <option value="compliance" {% if framework=='compliance' %}selected{% endif %}>Compliance (NIS2 / DORA / EU AI Act / GDPR / PCI / HIPAA / NIST / ISO / SEC)</option>
+        <option value="maestro" {% if framework=='maestro' %}selected{% endif %}>MAESTRO</option>
+        <option value="nist" {% if framework=='nist' %}selected{% endif %}>NIST AI RMF</option>
+      </select>
+    </div>
+    <button type="submit">Search</button>
+  </div>
+</form>
+
+{% if results %}
+<h2>Results ({{ results|length }})</h2>
+<table>
+  <thead><tr><th>Framework</th><th>ID</th><th>Title</th><th>Score</th><th>Snippet</th></tr></thead>
+  <tbody>
+    {% for r in results %}
+    <tr>
+      <td><span class="pill">{{ r.framework }}</span></td>
+      <td><code>{{ r.id }}</code></td>
+      <td><strong>{{ r.title }}</strong></td>
+      <td>{{ r.score }}</td>
+      <td>{{ r.snippet }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% elif q %}
+<div class="empty">No results for <em>{{ q }}</em>.</div>
+{% else %}
+<div class="empty">Try queries like <em>prompt injection</em>, <em>model extraction</em>, <em>RAG poisoning</em>, <em>excessive agency</em>.</div>
+{% endif %}
+
+<h2>Bundled frameworks</h2>
+<ul>
+  <li><strong>OWASP LLM Top 10 (2025)</strong>: {{ counts.owasp }} entries — LLM01 prompt injection through LLM10 unbounded consumption.</li>
+  <li><strong>OWASP Agentic AI Threats and Mitigations (OWASP ASI, 2025)</strong>: {{ counts.owasp_agentic }} entries — the canonical T1–T15 (memory poisoning … human manipulation) plus 2 ATMS extensions (inter-agent protocol abuse, agentic supply chain).</li>
+  <li><strong>OWASP API Security Top 10 (2023)</strong>: {{ counts.owasp_api }} entries — API1 BOLA through API10 unsafe consumption of APIs. Most AI workloads are exposed via APIs.</li>
+  <li><strong>MITRE ATLAS</strong>: {{ counts.atlas_tactics }} tactics, {{ counts.atlas_techniques }} techniques, {{ counts.atlas_mitigations }} mitigations (curated subset).</li>
+  <li><strong>MITRE ATT&amp;CK Cloud</strong>: {{ counts.attack_cloud }} techniques (curated subset for AI hosted on AWS / Azure / GCP).</li>
+  <li><strong>MITRE ATT&amp;CK Enterprise + ICS</strong>: {{ counts.attack_enterprise }} techniques (curated subset for IT, network, identity and OT components).</li>
+  <li><strong>LINDDUN privacy</strong>: {{ counts.linddun }} privacy threats across the seven LINDDUN categories — Linking, Identifying, Non-repudiation, Detecting, Data disclosure, Unawareness, Non-compliance.</li>
+  <li><strong>NIST AI 100-2 (Adversarial ML Taxonomy)</strong>: {{ counts.nist_ai_100_2 }} canonical attacks across Predictive AI (evasion, poisoning, privacy) and Generative AI (prompt injection direct/indirect, data extraction, misuse, backdoor, availability).</li>
+  <li><strong>OWASP ML Top 10 (2023)</strong>: {{ counts.owasp_ml }} entries — non-LLM ML attacks: input manipulation, data poisoning, model inversion, membership inference, model theft, supply chain, transfer learning, skewing, output integrity, model poisoning.</li>
+  <li><strong>Compliance controls</strong>: {{ counts.compliance_controls }} controls across 10 frameworks — NIS2, DORA, EU AI Act, GDPR, PCI DSS v4, HIPAA, NIST 800-53 r5, NIST CSF 2.0, ISO 27001, SEC cyber. See <a href="/compliance">Compliance browser</a>.</li>
+  <li><strong>CISA KEV</strong>: {{ counts.kev }} known-exploited CVEs{% if counts.kev_meta and counts.kev_meta.refreshed %} · snapshot dated {{ counts.kev_meta.refreshed }}{% endif %} · refresh with <code>atms refresh-feeds</code>.</li>
+  <li><strong>EPSS</strong>: {{ counts.epss }} CVE exploit-prediction scores{% if counts.epss_meta and counts.epss_meta.refreshed %} · snapshot dated {{ counts.epss_meta.refreshed }}{% endif %}.</li>
+  <li><strong>MAESTRO (CSA, 2025)</strong>: {{ counts.maestro_layers }} layers, {{ counts.maestro_threats }} layer + cross-layer threats — agentic-system reference architecture.</li>
+  <li><strong>NIST AI RMF / AI 600-1 GenAI Profile</strong>: {{ counts.nist }} entries (selected).</li>
+  <li><strong>Component playbooks</strong>: {{ counts.playbooks }} component types — see <a href="/playbooks">Playbooks</a>.</li>
+</ul>
+{% endblock %}

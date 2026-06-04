@@ -1,0 +1,406 @@
+# LINDDUN — privacy threat framework  (https://linddun.org/)
+# Curated v0.10 set covering the seven LINDDUN categories applied to
+# AI / ML / agentic / cloud systems where most privacy risk lives in
+# training data, embeddings, prompts, logs, and identity propagation.
+#
+# Categories:
+#   L  Linking            data items can be related to identify groups or individuals
+#   I  Identifying        a previously anonymous data subject becomes identifiable
+#   N  Non-repudiation    the subject cannot plausibly deny a claim or action
+#   D  Detecting          existence of a data item / hypothesis is observable
+#   D2 Data disclosure    excessive collection, use or sharing of personal data
+#   U  Unawareness        the subject is unaware of processing or unable to act
+#   N2 Non-compliance     processing violates legal, regulatory or policy obligations
+#
+# IDs follow the LINDDUN-GO catalogue style (`L_*`, `I_*`, `N_*`, `D_*`,
+# `DD_*`, `U_*`, `NC_*`) so they remain readable in reports.
+
+- id: L_001
+  category: Linking
+  short: training_set_linking
+  title: Linking — training-set sample tied back to subject
+  description: |
+    Records used to train or fine-tune a model can be re-identified
+    through model outputs, exact-match memorisation, or membership
+    inference, allowing an attacker to link an output back to a
+    specific real person.
+  applies_to:
+    - training_pipeline
+    - fine_tuning_pipeline
+    - llm_inference
+    - embedding_service
+    - rag_vector_store
+    - data_source
+  keywords:
+    - link
+    - linking
+    - membership
+    - inference
+    - training
+    - reidentify
+    - record
+    - sample
+  mitigations:
+    - Differential privacy budget on training (DP-SGD, ε small enough to be defensible)
+    - De-duplicate training set; drop verbatim PII before tokenisation
+    - Membership-inference red-team evaluation gate before release
+
+- id: L_002
+  category: Linking
+  short: cross_session_user_linking
+  title: Linking — cross-session linking of supposedly anonymous users
+  description: |
+    Persistent identifiers in logs, prompts, embeddings, or session
+    metadata allow distinct sessions of a "guest" user to be linked
+    into a single profile.
+  applies_to:
+    - llm_inference
+    - api_gateway
+    - observability_stack
+    - web_application
+    - user
+  keywords:
+    - session
+    - link
+    - cookie
+    - fingerprint
+    - tracking
+    - guest
+    - profile
+    - correlate
+  mitigations:
+    - Strip request-id / IP hash from long-term log retention
+    - Rotate guest session IDs aggressively
+    - Salted-hash any persistent user identifier with per-purpose salts
+
+- id: I_001
+  category: Identifying
+  short: prompt_pii_leak
+  title: Identifying — PII surfaced through model output / RAG retrieval
+  description: |
+    The model regurgitates or RAG retrieves a previously anonymous data
+    subject's personal data (name, email, medical condition) in a way
+    that allows them to be uniquely identified.
+  applies_to:
+    - llm_inference
+    - rag_vector_store
+    - embedding_service
+    - output_filter
+  keywords:
+    - pii
+    - personal
+    - identify
+    - leak
+    - regurgitate
+    - memorize
+    - email
+    - phone
+    - address
+    - dob
+  mitigations:
+    - PII detection + redaction on RAG ingestion (Presidio, AWS Comprehend)
+    - Output PII scanner on responses; refusal template
+    - Penetration test for prompt-injection-driven exfil of training data
+
+- id: I_002
+  category: Identifying
+  short: vector_inversion
+  title: Identifying — embedding-vector inversion to reconstruct subject
+  description: |
+    An attacker with access to embedding vectors uses an inversion
+    model to reconstruct the original text or image, re-identifying
+    the data subject.
+  applies_to:
+    - rag_vector_store
+    - embedding_service
+  keywords:
+    - embedding
+    - invert
+    - inversion
+    - reconstruct
+    - vector
+    - reidentify
+  mitigations:
+    - Treat vector store as PII-classified — full encryption + access logging
+    - Strip / pseudonymise PII before embedding generation
+    - Vector access strictly mediated by authenticated retrieval API
+
+- id: N_001
+  category: Non-repudiation
+  short: undeniable_action_log
+  title: Non-repudiation — undeniable action log linking subject to event
+  description: |
+    Detailed audit logs (with prompts, IP, device fingerprint,
+    timestamp, biometric token) make it impossible for a subject
+    to plausibly deny an action they took, even where deniability
+    was a stated property of the system.
+  applies_to:
+    - observability_stack
+    - api_gateway
+    - mfa_service
+    - directory_service
+    - llm_inference
+    - web_application
+  keywords:
+    - log
+    - audit
+    - deniability
+    - non-repudiation
+    - undeniable
+    - signed
+    - timestamp
+    - biometric
+  mitigations:
+    - Retention minimisation: delete prompt / response logs after 30–90 days
+    - Tier logging by sensitivity; separate operational vs forensic logs
+    - DPIA documents the deniability vs accountability trade-off
+
+- id: D_001
+  category: Detecting
+  short: presence_inference
+  title: Detecting — inference that a data item / subject exists
+  description: |
+    Even without disclosing the content, the system reveals the
+    presence of an item (a customer record, a chat history, a
+    document) — which itself can be sensitive (e.g. presence of a
+    medical record reveals a diagnosis exists).
+  applies_to:
+    - rag_vector_store
+    - data_source
+    - object_storage
+    - database
+    - llm_inference
+  keywords:
+    - presence
+    - existence
+    - oracle
+    - detect
+    - reveal
+    - timing
+    - sidechannel
+  mitigations:
+    - Constant-time / constant-response negative answers
+    - Coarse-grained tenancy boundaries hide cross-tenant existence
+    - Aggregate-only outputs where presence-leak is the threat
+
+- id: DD_001
+  category: Data_Disclosure
+  short: oversharing_third_party
+  title: Data disclosure — over-sharing personal data with third-party model APIs
+  description: |
+    Personal data is sent to external model APIs (OpenAI, Anthropic,
+    Cohere, etc.) more broadly than necessary, often as raw
+    user prompts, exposing the data to the third-party processor.
+  applies_to:
+    - llm_inference
+    - external_api
+    - api_gateway
+    - tool
+  keywords:
+    - third
+    - party
+    - external
+    - api
+    - share
+    - transfer
+    - processor
+    - oversharing
+    - prompt
+  mitigations:
+    - Data Processing Addenda (DPA) reviewed for every external model API
+    - PII redaction layer before any external API call
+    - Per-purpose data minimisation review at design time
+
+- id: DD_002
+  category: Data_Disclosure
+  short: training_data_unlawful_use
+  title: Data disclosure — secondary use of personal data for model training
+  description: |
+    Personal data collected for one purpose (service operation) is
+    re-used to train an ML model — frequently a GDPR Article 5(1)(b)
+    purpose-limitation breach unless re-consented.
+  applies_to:
+    - training_pipeline
+    - fine_tuning_pipeline
+    - data_source
+    - llm_inference
+  keywords:
+    - secondary
+    - use
+    - training
+    - purpose
+    - limitation
+    - consent
+    - lawful
+    - basis
+    - gdpr
+  mitigations:
+    - Lawful basis per dataset documented (consent / legitimate interest)
+    - Opt-out at collection AND at training-pipeline ingestion
+    - Privacy-by-design: derive a separate "trainable" data lane
+
+- id: DD_003
+  category: Data_Disclosure
+  short: log_pii_overcapture
+  title: Data disclosure — PII over-captured in logs and traces
+  description: |
+    Centralised logging or tracing systems (OpenTelemetry traces,
+    structured logs) accidentally capture full prompts, request
+    bodies, headers — causing PII to spread to ops, on-call,
+    backups and SIEM where it does not belong.
+  applies_to:
+    - observability_stack
+    - api_gateway
+    - serverless_function
+    - llm_inference
+    - web_application
+  keywords:
+    - log
+    - trace
+    - capture
+    - pii
+    - prompt
+    - body
+    - header
+    - exposure
+  mitigations:
+    - Log sanitiser (regex / NER) at ingest; drop sensitive fields
+    - Tier log access; engineers cannot read raw prompt logs by default
+    - Short retention for verbose traces; long retention only on metrics
+
+- id: U_001
+  category: Unawareness
+  short: invisible_processing
+  title: Unawareness — processing not visible to data subject
+  description: |
+    The subject is unaware that an AI system is processing their data
+    (e.g. AI is making a hiring or credit decision behind a generic
+    "thank you for your application" UI), denying them the ability
+    to exercise rights or contest decisions.
+  applies_to:
+    - llm_inference
+    - agent
+    - web_application
+    - user
+  keywords:
+    - notice
+    - transparency
+    - awareness
+    - decision
+    - hidden
+    - automated
+    - profiling
+  mitigations:
+    - Plain-language transparency notice at point of collection
+    - Disclose "AI is processing" at the UI surface
+    - Offer human-review path for automated decisions (GDPR Art. 22)
+
+- id: U_002
+  category: Unawareness
+  short: dark_patterns_consent
+  title: Unawareness — dark-pattern consent for AI features
+  description: |
+    Default-on AI features, pre-ticked consent boxes, or "improve our
+    AI" toggles buried in account settings cause subjects to consent
+    without informed awareness, weakening the legal basis.
+  applies_to:
+    - web_application
+    - user
+    - llm_inference
+  keywords:
+    - consent
+    - dark
+    - pattern
+    - default
+    - opt-in
+    - opt-out
+    - toggle
+    - bury
+  mitigations:
+    - Default-off for AI features; explicit unbiased opt-in
+    - Periodic re-consent prompts with plain-language summary
+    - Granular toggles per AI use-case rather than a single mega-switch
+
+- id: NC_001
+  category: Non_Compliance
+  short: cross_border_transfer
+  title: Non-compliance — cross-border transfer without safeguards
+  description: |
+    Personal data transferred to a third country without an adequacy
+    decision, SCCs, BCRs, or appropriate transfer impact
+    assessment — e.g. EU prompts routed to a US-only model API.
+  applies_to:
+    - external_api
+    - llm_inference
+    - object_storage
+    - api_gateway
+  keywords:
+    - cross
+    - border
+    - transfer
+    - region
+    - adequacy
+    - sccs
+    - bcrs
+    - schrems
+  mitigations:
+    - Region-pinned model endpoints (EU model for EU users)
+    - Standard Contractual Clauses + Transfer Impact Assessment
+    - Data residency checks at deploy time (CI gate on region)
+
+- id: NC_002
+  category: Non_Compliance
+  short: dsr_unfulfilled
+  title: Non-compliance — data-subject rights unfulfillable in model
+  description: |
+    Once personal data is baked into a trained model's weights, the
+    organisation cannot honour an erasure or rectification request
+    without retraining — a structural compliance gap with GDPR
+    Article 17.
+  applies_to:
+    - training_pipeline
+    - fine_tuning_pipeline
+    - llm_inference
+  keywords:
+    - dsr
+    - erasure
+    - right
+    - to
+    - be
+    - forgotten
+    - rectification
+    - retrain
+    - delete
+    - subject
+  mitigations:
+    - Avoid training on identifiable personal data unless strictly necessary
+    - Maintain mapping from model version → training-set provenance
+    - Documented retrain cadence + budget for DSR fulfilment
+
+- id: NC_003
+  category: Non_Compliance
+  short: dpia_missing
+  title: Non-compliance — DPIA / TIA missing for high-risk AI processing
+  description: |
+    EU GDPR Article 35 (and analogous regimes) requires a Data
+    Protection Impact Assessment for high-risk processing.
+    AI / profiling / automated decisioning typically meets the
+    threshold — many shipped AI features go live without one.
+  applies_to:
+    - llm_inference
+    - agent
+    - data_source
+    - training_pipeline
+  keywords:
+    - dpia
+    - tia
+    - impact
+    - assessment
+    - risk
+    - article
+    - "35"
+    - profiling
+  mitigations:
+    - DPIA-required gate in change-management for any new AI feature
+    - Template / catalogue of pre-approved low-risk patterns
+    - Annual review of all DPIAs against actual production behaviour

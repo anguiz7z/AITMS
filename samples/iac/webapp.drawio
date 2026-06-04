@@ -1,0 +1,59 @@
+<mxfile host="app.diagrams.net" modified="2026-05-16T00:00:00.000Z" agent="atms-sample" version="22.0.0" type="device">
+  <diagram name="webapp" id="webapp1">
+    <mxGraphModel dx="800" dy="600" grid="1" gridSize="10" pageScale="1" pageWidth="800" pageHeight="600" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="boundary_internet" value="Internet" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;dashed=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="200" height="200" as="geometry"/>
+        </mxCell>
+        <mxCell id="user" value="Customer" style="shape=actor;" vertex="1" parent="1">
+          <mxGeometry x="100" y="120" width="40" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="boundary_vpc" value="VPC: production" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;dashed=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="280" y="60" width="480" height="500" as="geometry"/>
+        </mxCell>
+        <mxCell id="cdn" value="CloudFront CDN" style="shape=mxgraph.aws4.cloudfront;" vertex="1" parent="1">
+          <mxGeometry x="320" y="100" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="waf" value="AWS WAF" style="shape=mxgraph.aws4.waf;" vertex="1" parent="1">
+          <mxGeometry x="420" y="100" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="alb" value="Application LB" style="shape=mxgraph.aws4.elb;" vertex="1" parent="1">
+          <mxGeometry x="520" y="100" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="api" value="API Gateway" style="shape=mxgraph.aws4.api_gateway;" vertex="1" parent="1">
+          <mxGeometry x="320" y="200" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="lambda" value="Lambda (auth)" style="shape=mxgraph.aws4.lambda;" vertex="1" parent="1">
+          <mxGeometry x="420" y="200" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="cognito" value="Cognito" style="shape=mxgraph.aws4.cognito;" vertex="1" parent="1">
+          <mxGeometry x="520" y="200" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="rds" value="RDS Postgres" style="shape=mxgraph.aws4.rds;" vertex="1" parent="1">
+          <mxGeometry x="320" y="320" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3" value="S3 (uploads)" style="shape=mxgraph.aws4.s3;" vertex="1" parent="1">
+          <mxGeometry x="420" y="320" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="sm" value="Secrets Mgr" style="shape=mxgraph.aws4.secrets_manager;" vertex="1" parent="1">
+          <mxGeometry x="520" y="320" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="cw" value="CloudWatch" style="shape=mxgraph.aws4.cloudwatch;" vertex="1" parent="1">
+          <mxGeometry x="620" y="320" width="60" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="user" target="cdn"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="cdn" target="waf"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="waf" target="alb"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="alb" target="api"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="api" target="lambda"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="lambda" target="cognito"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="lambda" target="rds"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="lambda" target="s3"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="lambda" target="sm"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="lambda" target="cw"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

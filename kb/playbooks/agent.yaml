@@ -1,0 +1,293 @@
+component_type: agent
+description: |
+  An autonomous LLM-driven agent that plans and executes multi-step tasks using tools, possibly
+  calling other agents. Includes ReAct/AutoGPT-style agents, LangGraph agents, MCP clients.
+threats:
+  - id: T_AGENT_001
+    title: Excessive agency / unintended high-impact actions
+    stride_ai: [Elevation_of_Privilege, Tampering]
+    owasp_llm: [LLM06:2025]
+    owasp_agentic: [AGT02, AGT03]
+    atlas: [AML.T0048, AML.T0050]
+    maestro: [M.L7.04, M.L3.03]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_DIRECT]
+    csa_singapore: [CSA_AI.HUMAN.01, CSA_AI.DEPLOY.01]
+    likelihood: 4
+    impact: 5
+    description: |
+      Agent has access to tools beyond what its task requires (e.g., delete, send-email,
+      execute-code). Combined with prompt injection, this becomes a path to severe impact.
+    mitigations:
+      - "Tool allowlist per task; least-privilege scoping per agent run"
+      - "Sandboxed execution for code-running tools; ephemeral credentials"
+      - "Human-in-the-loop on irreversible/high-impact actions"
+      - "Per-agent action quotas; circuit breakers"
+    refs: [AML.M0019, AML.M0023, AML.M0020]
+
+  - id: T_AGENT_002
+    title: Indirect prompt injection via tool outputs
+    stride_ai: [Spoofing, Tampering]
+    owasp_llm: [LLM01:2025]
+    owasp_agentic: [AGT01, AGT06]
+    atlas: [AML.T0051.001]
+    maestro: [M.L3.03, M.L7.04]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 5
+    impact: 4
+    description: |
+      Tool returns content (web fetch, email body, file contents) that contains injected
+      instructions; agent follows them.
+    mitigations:
+      - "Treat all tool output as untrusted; wrap in delimiters"
+      - "Output sanitization for known instruction patterns"
+      - "Prompt-injection scanner on tool outputs before re-prompting"
+    refs: [AML.M0015]
+
+  - id: T_AGENT_003
+    title: Unbounded agent loops / denial of wallet
+    stride_ai: [Denial_of_Service]
+    owasp_llm: [LLM10:2025]
+    owasp_agentic: [AGT04]
+    atlas: [AML.T0029, AML.T0034]
+    maestro: [M.L3.05, M.L4.04]
+    nist_ai_100_2: [NIST_GAI_DENIAL_OF_SERVICE]
+    csa_singapore: [CSA_AI.DEPLOY.03]
+    likelihood: 3
+    impact: 3
+    description: |
+      Agent enters infinite tool-call loops (often triggered by ambiguous tasks or adversarial
+      prompts), consuming tokens and tool quota.
+    mitigations:
+      - "Hard max-iteration limit; max wall-clock"
+      - "Loop detection (repeat tool/argument signatures)"
+      - "Per-run cost ceiling with auto-abort"
+    refs: [AML.M0004]
+
+  - id: T_AGENT_004
+    title: Credential theft from agent context
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM07:2025, LLM02:2025]
+    owasp_agentic: [AGT09, AGT01]
+    atlas: [AML.T0055]
+    maestro: [M.L7.03, M.L3.03]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Agent's context contains tool credentials or per-run API keys; prompt injection or output
+      probing exfiltrates them.
+    mitigations:
+      - "Never inject raw credentials into agent context; use scoped, short-lived tokens"
+      - "Token introspection at the tool gateway, not in agent prompt"
+      - "Detect credential patterns in agent outputs; redact"
+    refs: [AML.M0019, AML.M0012]
+
+  - id: T_AGENT_005
+    title: Hallucinated package / slop squatting in code agents
+    stride_ai: [Spoofing]
+    owasp_llm: [LLM09:2025]
+    owasp_agentic: [AGT05]
+    atlas: [AML.T0058]
+    maestro: [M.L7.04, M.X.01]
+    nist_ai_100_2: [NIST_GAI_CONFABULATION]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Code agent suggests a package that doesn't exist; attacker registers the name on PyPI/npm
+      with a malicious payload; user installs it.
+    mitigations:
+      - "Allowlist known packages; verify existence before suggestion"
+      - "Lockfile + signature verification on install"
+      - "Block fresh / low-reputation packages by default"
+    refs: [AML.M0014]
+
+  - id: T_AGENT_006
+    title: Memory poisoning of agent short/long-term context
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM01:2025]
+    owasp_agentic: [AGT01]
+    atlas: [AML.T0051.001]
+    maestro: [M.L3.03, M.L7.05]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      Attacker writes adversarial entries into the agent's persistent memory store (vector
+      memory, scratchpad, conversation memory) that are recalled later and steer the agent's
+      reasoning or tool selection. Differs from RAG poisoning in that the agent itself produced
+      and trusts the memory.
+    mitigations:
+      - "Validate memory writes against an allowlist of shapes"
+      - "Per-session isolation; expire memory between sessions for untrusted users"
+      - "Sign memory entries; require provenance before recall"
+      - "Anomaly detection on memory-content distributions"
+    refs: [AML.M0015, AML.M0023]
+
+  - id: T_AGENT_007
+    title: Intent breaking and goal manipulation
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM01:2025, LLM06:2025]
+    owasp_agentic: [AGT06, AGT07]
+    atlas: [AML.T0051, AML.T0054]
+    maestro: [M.L7.05, M.X.05]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_DIRECT, NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    csa_singapore: [CSA_AI.HUMAN.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Attacker rewrites the agent's planning or sub-goal generation via prompt injection,
+      poisoned data sources, or compromised tools. Especially severe in ReAct/reflection-style
+      agents where the agent self-revises plans. Can cascade across multi-agent workflows.
+    mitigations:
+      - "Plan-validation framework: a separate model checks plans against a goal contract"
+      - "Boundary management for reflection/self-critique steps"
+      - "Behavioural auditing — flag goal deviations vs declared task"
+      - "Refuse high-impact actions if goal deviation > threshold"
+    refs: [AML.M0021, AML.M0022, AML.M0023]
+
+  - id: T_AGENT_008
+    title: Rogue agent in multi-agent system / infectious backdoor
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM03:2025, LLM06:2025]
+    owasp_agentic: [AGT13, AGT12]
+    atlas: [AML.T0010, AML.T0050]
+    maestro: [M.L7.01, M.X.02]
+    nist_ai_100_2: [NIST_GAI_BACKDOOR]
+    csa_singapore: [CSA_AI.DEPLOY.03, CSA_AI.OPERATE.01]
+    likelihood: 2
+    impact: 5
+    # v0.16.0: only fires when there's actually >1 agent in the system.
+    # A single orchestrator can't have a "rogue peer".
+    applicable_to_topology:
+      - multi_agent_mesh
+    description: |
+      One compromised agent in a multi-agent system spreads malicious instructions, plans, or
+      messages to peers, leading to a fleet-wide compromise. Hosted-agent-marketplace and
+      agent-to-agent (A2A) deployments amplify blast radius.
+    mitigations:
+      - "Restrict agent autonomy with policy constraints; controlled hosting environments"
+      - "Continuous behavioural monitoring of inter-agent traffic"
+      - "Cryptographic message authentication between agents"
+      - "Periodic AI red-teaming with canary agents"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_AGENT_009
+    title: Cascading hallucinations across agent steps
+    stride_ai: [Repudiation, Tampering]
+    owasp_llm: [LLM09:2025]
+    owasp_agentic: [AGT05]
+    atlas: [AML.T0048, AML.T0058]
+    maestro: [M.X.05]
+    nist_ai_100_2: [NIST_GAI_CONFABULATION]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 4
+    impact: 3
+    description: |
+      Hallucinated output from one step (e.g., a fabricated API name, a wrong fact) feeds a
+      later step that treats it as ground truth, compounding error and producing destructive
+      tool invocations or wrong decisions.
+    mitigations:
+      - "Multi-source validation before downstream use"
+      - "Constraint outputs (typed schemas, enums) at every tool call"
+      - "Secondary reviewer model on critical decisions"
+      - "Confidence thresholds and abstention signals"
+    refs: [AML.M0020]
+
+  - id: T_AGENT_010
+    title: Overwhelming the human-in-the-loop reviewer
+    stride_ai: [Denial_of_Service, Defense_Evasion]
+    owasp_llm: [LLM06:2025]
+    owasp_agentic: [AGT10]
+    atlas: [AML.T0029]
+    maestro: [M.L6.02, M.L7.01]
+    csa_singapore: [CSA_AI.HUMAN.01]
+    likelihood: 3
+    impact: 3
+    description: |
+      Attacker (or a buggy agent) generates more approval requests than the reviewer can
+      meaningfully evaluate. Reviewer rubber-stamps; high-risk actions slip through.
+    mitigations:
+      - "Adaptive trust thresholds — auto-approve low-risk, pause for high-risk"
+      - "Hard ceilings on per-period approvals; back-pressure on agent"
+      - "Approval-fatigue telemetry; alert when reviewer accuracy drops"
+    refs: [AML.M0023]
+
+  - id: T_AGENT_011
+    title: Agent-identity lifecycle abuse — orphaned / over-scoped agent service accounts
+    stride_ai: [Elevation_of_Privilege, Spoofing]
+    owasp_llm: [LLM06:2025]
+    owasp_agentic: [AGT03, AGT09]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0055]
+    attack_cloud: [T1078.004, T1098.003]
+    maestro: [M.L7.03]
+    nist_ai_100_2: []
+    csa_singapore: [CSA_AI.HUMAN.01, CSA_AI.DEPLOY.01, CSA_AI.OPERATE.03]
+    likelihood: 3
+    impact: 4
+    description: |
+      Agent workload identities (service principals, IAM roles, MIs) lack
+      lifecycle controls: they're created on agent deploy but never
+      decommissioned, rotated, or right-sized. Over time the identity
+      accumulates permissions from "just one more tool integration" and
+      a compromise of the agent (prompt injection → tool shell) inherits
+      every accumulated permission. Common surface for orphaned agent
+      identities: a deprecated agent project still has the service
+      account that the old agent used, and the SA still has write to
+      production data stores.
+    mitigations:
+      - "Agent identities created from a template with hard expiry (90d) + auto-renew on use"
+      - "Quarterly audit: list agent SAs, last-used, attached permissions"
+      - "Permission boundaries cap maximum effective permissions; no AI agent SA can grant itself more"
+      - "Decommission gate: when agent project is archived, SA is auto-deleted on schedule"
+    refs: [AML.M0019]
+
+
+  - id: T_AGENT_012
+    title: Emergent tool-chain composition beyond design intent
+    stride_ai: [Emergent_Behavior, Elevation_of_Privilege]
+    owasp_llm: [LLM06:2025]
+    owasp_agentic: [AGT05, AGT12, AGT15]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0048, AML.T0050]
+    maestro: [M.L7.04, M.L7.05]
+    csa_singapore: [CSA_AI.HUMAN.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Agent autonomously chains tools in sequences the developer never
+      specified — e.g. search finds an MCP server URL, agent introspects
+      its capabilities, then invokes a privilege-granting tool. Each step
+      within spec, the composition out of spec.
+    mitigations:
+      - "Tool-call planner runs offline first; gate execution on the planner's full intended chain matching policy"
+      - "Per-session tool-call graph audit; alert on never-before-used tools"
+      - "Capability allow-list per agent-version pinned; refuse new tools without explicit re-deploy"
+      - "Specification-gaming detector"
+    refs: [AML.M0015]
+
+  - id: T_AGENT_013
+    title: Multi-agent collusion — agents coordinate to bypass per-agent guardrails
+    stride_ai: [Emergent_Behavior, Tampering]
+    owasp_llm: [LLM06:2025]
+    owasp_agentic: [AGT13, AGT17]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0050]
+    maestro: [M.L7.04, M.L7.05]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      In a multi-agent system, each agent passes per-agent guardrails
+      individually, but the agents coordinate (via shared scratchpads,
+      retrieval corpora, or reward signal) to execute a chain that no
+      single agent could have. Hard to detect with per-agent monitoring.
+    mitigations:
+      - "Cross-agent action-graph reconstruction; evaluate the JOINT plan against policy"
+      - "Signed entries on shared scratchpads with provenance"
+      - "Independent observer agent reviewing the full multi-agent dialogue against the user's original intent"
+    refs: [AML.M0015]

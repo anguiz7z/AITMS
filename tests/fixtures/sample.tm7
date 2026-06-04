@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Synthetic test fixture mimicking the Microsoft Threat Modeling
+     Tool .tm7 format. Authored from format-spec observation; contains
+     no Microsoft-copyrighted content. Used for parser regression
+     tests only. -->
+<ThreatModel xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model"
+             xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+  <DrawingSurfaceList>
+    <DrawingSurfaceModel z:Id="i1" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/">
+      <Borders xmlns:a="http://schemas.microsoft.com/2003/10/Serialization/Arrays"
+               xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model.Abstracts">
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-000000000001</a:Key>
+          <a:Value z:Id="i2" i:type="StencilRectangle">
+            <Properties>
+              <a:anyType i:type="b:HeaderDisplayAttribute"
+                         xmlns:b="http://schemas.datacontract.org/2004/07/ThreatModeling.KnowledgeBase">
+                <b:DisplayName>Customer Browser</b:DisplayName>
+              </a:anyType>
+            </Properties>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-000000000002</a:Key>
+          <a:Value z:Id="i3" i:type="StencilEllipse">
+            <Properties>
+              <a:anyType i:type="b:HeaderDisplayAttribute"
+                         xmlns:b="http://schemas.datacontract.org/2004/07/ThreatModeling.KnowledgeBase">
+                <b:DisplayName>WAF</b:DisplayName>
+              </a:anyType>
+            </Properties>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-000000000003</a:Key>
+          <a:Value z:Id="i4" i:type="StencilEllipse">
+            <Properties>
+              <a:anyType i:type="b:HeaderDisplayAttribute"
+                         xmlns:b="http://schemas.datacontract.org/2004/07/ThreatModeling.KnowledgeBase">
+                <b:DisplayName>API Gateway</b:DisplayName>
+              </a:anyType>
+            </Properties>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-000000000004</a:Key>
+          <a:Value z:Id="i5" i:type="StencilEllipse">
+            <Properties>
+              <a:anyType i:type="b:HeaderDisplayAttribute"
+                         xmlns:b="http://schemas.datacontract.org/2004/07/ThreatModeling.KnowledgeBase">
+                <b:DisplayName>Order Service Lambda</b:DisplayName>
+              </a:anyType>
+            </Properties>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-000000000005</a:Key>
+          <a:Value z:Id="i6" i:type="StencilParallelLines">
+            <Properties>
+              <a:anyType i:type="b:HeaderDisplayAttribute"
+                         xmlns:b="http://schemas.datacontract.org/2004/07/ThreatModeling.KnowledgeBase">
+                <b:DisplayName>RDS SQL Database</b:DisplayName>
+              </a:anyType>
+            </Properties>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-000000000006</a:Key>
+          <a:Value z:Id="i7" i:type="StencilParallelLines">
+            <Properties>
+              <a:anyType i:type="b:HeaderDisplayAttribute"
+                         xmlns:b="http://schemas.datacontract.org/2004/07/ThreatModeling.KnowledgeBase">
+                <b:DisplayName>S3 Uploads Bucket</b:DisplayName>
+              </a:anyType>
+            </Properties>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-000000000007</a:Key>
+          <a:Value z:Id="i8" i:type="StencilParallelLines">
+            <Properties>
+              <a:anyType i:type="b:HeaderDisplayAttribute"
+                         xmlns:b="http://schemas.datacontract.org/2004/07/ThreatModeling.KnowledgeBase">
+                <b:DisplayName>AWS Secrets Manager Vault</b:DisplayName>
+              </a:anyType>
+            </Properties>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-000000000008</a:Key>
+          <a:Value z:Id="i9" i:type="BorderBoundary">
+            <Properties>
+              <a:anyType i:type="b:HeaderDisplayAttribute"
+                         xmlns:b="http://schemas.datacontract.org/2004/07/ThreatModeling.KnowledgeBase">
+                <b:DisplayName>Internet Boundary</b:DisplayName>
+              </a:anyType>
+            </Properties>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+      </Borders>
+      <Lines xmlns:a="http://schemas.microsoft.com/2003/10/Serialization/Arrays"
+             xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model.Abstracts">
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-0000000000a1</a:Key>
+          <a:Value z:Id="i10" i:type="Connector">
+            <SourceGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000001</SourceGuid>
+            <TargetGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000002</TargetGuid>
+            <Properties>
+              <a:anyType i:type="b:HeaderDisplayAttribute"
+                         xmlns:b="http://schemas.datacontract.org/2004/07/ThreatModeling.KnowledgeBase">
+                <b:DisplayName>HTTPS request</b:DisplayName>
+              </a:anyType>
+            </Properties>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-0000000000a2</a:Key>
+          <a:Value z:Id="i11" i:type="Connector">
+            <SourceGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000002</SourceGuid>
+            <TargetGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000003</TargetGuid>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-0000000000a3</a:Key>
+          <a:Value z:Id="i12" i:type="Connector">
+            <SourceGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000003</SourceGuid>
+            <TargetGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000004</TargetGuid>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-0000000000a4</a:Key>
+          <a:Value z:Id="i13" i:type="Connector">
+            <SourceGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000004</SourceGuid>
+            <TargetGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000005</TargetGuid>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-0000000000a5</a:Key>
+          <a:Value z:Id="i14" i:type="Connector">
+            <SourceGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000004</SourceGuid>
+            <TargetGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000006</TargetGuid>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+        <a:KeyValueOfguidanyType>
+          <a:Key>00000000-0000-0000-0000-0000000000a6</a:Key>
+          <a:Value z:Id="i15" i:type="Connector">
+            <SourceGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000004</SourceGuid>
+            <TargetGuid xmlns="http://schemas.datacontract.org/2004/07/ThreatModeling.Model">00000000-0000-0000-0000-000000000007</TargetGuid>
+          </a:Value>
+        </a:KeyValueOfguidanyType>
+      </Lines>
+    </DrawingSurfaceModel>
+  </DrawingSurfaceList>
+</ThreatModel>

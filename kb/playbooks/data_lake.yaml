@@ -1,0 +1,126 @@
+component_type: data_lake
+description: |
+  Curated multi-zone data lake — AWS Lake Formation over S3, Azure Data
+  Lake Storage Gen2 (ADLS Gen2) with hierarchical namespace, GCP data
+  lake on GCS + Dataplex. The canonical source-of-truth for raw,
+  curated, and feature-engineered datasets that fuel ML training,
+  fine-tuning, and RAG ingestion. Permission-policy is non-trivial
+  (catalog-level + table-level + column-level + row-level filters),
+  which is where most attacks land.
+threats:
+  - id: T_LAKE_001
+    title: Lake Formation / Purview ACL drift exposes raw training data
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM10:2025]
+    owasp_api: [API1:2023, API5:2023]
+    atlas: [AML.T0024, AML.T0044]
+    attack_cloud: [T1078.004, T1213, T1530]
+    attack_enterprise: [T1213]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    linddun: [I_001, DD_003, NC_002]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02, CSA_AI.DEPLOY.02]
+    likelihood: 4
+    impact: 5
+    description: |
+      Lake Formation (or Azure Purview / Dataplex) grants are layered
+      on top of underlying S3 / ADLS / GCS bucket IAM. The two diverge
+      over time — Lake Formation says "analyst sees masked columns
+      only," but a stale S3 bucket policy still grants the same
+      analyst raw `s3:GetObject`. The catalog UI shows compliance; the
+      object-store actually grants access. AI feature-engineering jobs
+      then pull the raw underlying objects directly, bypassing the
+      governance layer. Tabular PII intended for trained-on-aggregates
+      leaks verbatim into model embeddings.
+    mitigations:
+      - "Lake Formation hybrid mode disabled — IAM-only-mode prohibited; Lake Formation must mediate every read"
+      - "S3 / ADLS / GCS bucket policy denies access to all principals except the Lake Formation service role"
+      - "Periodic ACL-drift audit comparing Lake catalog ACLs vs underlying bucket policies (custom Lambda / Function App)"
+      - "Column-level + row-level filters on PII columns at the Lake Formation layer; mask in catalog metadata so downstream ML tooling can't request the raw column"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_LAKE_002
+    title: Raw-zone poisoning propagates to every downstream AI model
+    stride_ai: [Tampering]
+    owasp_llm: [LLM04:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0019, AML.T0020, AML.T0059]
+    attack_cloud: [T1565, T1102]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA, NIST_PAI_POISONING_BACKDOOR]
+    owasp_ml: [ML02:2023]
+    maestro: [M.L2.01]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Lakes adopt "land everything raw, transform on read" — but the
+      raw zone is wide-open by design to source systems. A compromised
+      source (CRM exporter, IoT ingestion lambda, partner upload SFTP)
+      writes adversarial records. Every downstream model that
+      ingests via Glue / Data Factory / Dataflow inherits the poisoning.
+      Especially severe when the lake feeds multiple ML pipelines —
+      one poisoned record affects fraud-detection, churn, and
+      recommendation models simultaneously.
+    mitigations:
+      - "Per-source write credentials, scoped to per-source prefixes (e.g. `s3://lake/raw/source=crm/`)"
+      - "Write-side validation: schema + statistical guardrails (Great Expectations, Deequ, Dataplex data quality) before promoting from `raw` to `curated`"
+      - "Object versioning + S3 Object Lock / ADLS soft-delete / GCS retention policy on the raw zone for rollback"
+      - "Lineage tracking (Glue lineage, Purview, Dataplex) so a poisoned record's downstream models can be quickly identified"
+    refs: [AML.M0007, AML.M0008, AML.M0014]
+
+  - id: T_LAKE_003
+    title: Cross-account lake share leaking entire schema
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0024, AML.T0044]
+    attack_cloud: [T1530, T1078.004]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    linddun: [DD_002, I_001, NC_002]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      AWS Lake Formation cross-account sharing via AWS RAM (or Azure
+      Purview cross-tenant sharing) grants a partner / acquired-unit
+      account access to a "subset" of tables. The subset is defined by
+      tag, and a misconfigured tag (`environment=prod` includes a new
+      `payments_raw` table inheriting `prod`) silently expands the
+      share. Partner data scientists discover the new table in their
+      Glue catalog the next day and ingest it into their own AI
+      workflows.
+    mitigations:
+      - "Tag-based cross-account shares limited to allow-list of specific table ARNs (not tag-expressions) for production"
+      - "Daily diff of LF cross-account grants → SNS / Teams alert on every change"
+      - "Resource-based policy on shared tables with explicit `DENY` for accounts not on the allow-list"
+      - "Quarterly access certification campaign for all cross-account lake shares"
+    refs: [AML.M0019]
+
+  - id: T_LAKE_004
+    title: Notebook user with column-level mask bypasses via inferred-feature join
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023, API5:2023]
+    atlas: [AML.T0024]
+    attack_cloud: [T1213]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_INVERSION, NIST_PAI_PRIVACY_MEMBERSHIP]
+    linddun: [L_001, I_001, I_002, DD_003]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 3
+    description: |
+      Lake Formation / Dataplex column-level masking redacts `customer_email`
+      in the curated table. But the data scientist running a feature-
+      engineering notebook joins curated.customer_id ⨝ raw.events on
+      a derived `email_hash` they previously computed — reconstructing
+      the link. The mask is honored at the SQL layer but defeated by
+      join inference once any rendered intermediate dataset is
+      persisted to the user's scratch workspace.
+    mitigations:
+      - "Differential-privacy or k-anonymity guarantees applied at row-level filter time, not just column masking"
+      - "Block notebook environments from joining `curated.*` against `raw.*` — separate IAM tier"
+      - "Approval workflow for any feature-engineering pipeline that emits a non-masked PII column to a downstream model"
+      - "Periodic re-identification audit: sample notebook outputs, check whether PII is recoverable"
+    refs: [AML.M0012, AML.M0019]

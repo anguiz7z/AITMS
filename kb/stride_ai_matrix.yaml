@@ -1,0 +1,69 @@
+# STRIDE-AI Matrix
+# AI-specific expansion of STRIDE. Used by the threat-enumeration engine when a component lacks
+# a dedicated playbook entry, or to augment playbook output.
+
+Spoofing:
+  description: Pretending to be someone or something else.
+  ai_subcategories:
+    - Model impersonation (deepfake input, voice clone tricking voice agent)
+    - Prompt injection persona (system-prompt override making LLM act as different entity)
+    - Tool-result spoofing (fake tool returns trusted-looking content)
+    - Source spoofing (poisoned RAG document claims to be from authoritative source)
+
+Tampering:
+  description: Unauthorized modification of data or code.
+  ai_subcategories:
+    - Model weight tampering (registry write access abused)
+    - Training/fine-tune data poisoning (backdoor triggers)
+    - RAG corpus poisoning (adversarial documents)
+    - Prompt template tampering (system prompt modified)
+    - Embedding-store tampering (malicious vectors injected)
+
+Repudiation:
+  description: Denying having performed an action without others being able to prove otherwise.
+  ai_subcategories:
+    - No provenance on agent-taken actions
+    - No audit trail of model decisions
+    - Hallucinated content with no source attribution
+    - Lack of model lineage (which model version produced what)
+
+Information_Disclosure:
+  description: Exposure of information to unauthorized parties.
+  ai_subcategories:
+    - Training data extraction (memorization of PII)
+    - System prompt leakage (instructions exposed)
+    - Embedding inversion (text reconstructed from vectors)
+    - Cross-tenant leakage (RAG / vector store partitioning failure)
+    - Model extraction (functional copy stolen via API)
+    - Membership inference (was X in the training set?)
+
+Denial_of_Service:
+  description: Making the system unavailable or degraded.
+  ai_subcategories:
+    - Token flooding (long prompts, long completions exhaust quota)
+    - Embedding bombing (high-cost ingestion)
+    - Infinite tool-calling loops (agent runaway)
+    - Adversarial inputs causing slow inference
+    - Cost-DoS / Denial of Wallet (force expensive model calls)
+
+Elevation_of_Privilege:
+  description: Gaining capabilities without authorization.
+  ai_subcategories:
+    - Excessive agency (agent has tools beyond least-privilege)
+    - Tool privilege escalation (LLM args exploit tool to gain more access)
+    - Jailbreak to root role (bypass safety to perform admin-level instructions)
+    - Indirect prompt injection elevating capability through chained calls
+
+Lateral_Movement:
+  description: >-
+    Pivoting from an initial foothold through intermediate components
+    (stepping stones) toward a higher-value target (crown jewel). The
+    STRIDE-LM extension prescribed by the CSA Singapore Guide to Cyber
+    Threat Modelling (2021); anchored in MITRE ATT&CK TA0008 / ATLAS
+    AML.TA0015.
+  ai_subcategories:
+    - Agent-to-tool pivot (compromised agent reaches tools/services beyond its lane)
+    - Credential reuse across the AI supply chain (training -> registry -> inference)
+    - RAG/vector-store hop (poisoned corpus access used to reach the backing data store)
+    - MCP/tool-chain traversal (one tool's output drives access to the next system)
+    - Network pivot via shared trust zone (orchestrator -> embedding/store -> secrets)

@@ -1,0 +1,70 @@
+component_type: output_filter
+description: |
+  Post-LLM filter that sanitizes, redacts, or blocks model outputs before they reach the user
+  or downstream system. Often combined with guardrails.
+threats:
+  - id: T_OF_001
+    title: Output filter evasion (encoding tricks)
+    stride_ai: [Defense_Evasion]
+    owasp_llm: [LLM05:2025]
+    atlas: [AML.T0015]
+    nist_ai_100_2: [NIST_PAI_EVASION, NIST_GAI_ADVERSARIAL_MISUSE]
+    owasp_ml: [ML01:2023, ML09:2023]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      Model outputs use encoding (base64, leetspeak, homoglyph, fragmented) to bypass keyword
+      and classifier filters; downstream system decodes / renders the unsafe content.
+    mitigations:
+      - "Multi-layer filtering including decode-then-rescan"
+      - "Strict character-set normalization before render"
+      - "Render-side sanitization (DOMPurify, bleach)"
+    refs: [AML.M0015]
+
+  - id: T_OF_002
+    title: PII leak through output filter gap
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    atlas: [AML.T0057]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_INVERSION, NIST_PAI_PRIVACY_ATTRIBUTE]
+    linddun: [I_001, DD_003]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      Filter misses PII (uncommon name formats, partial info, multi-turn aggregation), data
+      reaches user.
+    mitigations:
+      - "Multiple PII detectors with different strategies (Presidio + custom + ML)"
+      - "Multi-turn context in detection"
+      - "Confidence-tiered redaction"
+    refs: [AML.M0015]
+
+  - id: T_OF_003
+    title: Filter bypass via adversarial output not matching detector training distribution
+    stride_ai: [Defense_Evasion, Tampering]
+    owasp_llm: [LLM05:2025, LLM09:2025]
+    owasp_agentic: [AGT01, AGT06]
+    # v1.0.5 fix: AML.T0042 does not exist in MITRE ATLAS. The accurate
+    # technique for evading an output-filter classifier is AML.T0015
+    # (Evade AI Model); AML.T0043 (Craft Adversarial Data) stays.
+    atlas: [AML.T0015, AML.T0043]
+    nist_ai_100_2: [NIST_PAI_EVASION]
+    owasp_ml: [ML01:2023, ML09:2023]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      Output-filter classifier was trained on a fixed dataset of unsafe
+      patterns. Adversarial prompt drives the LLM to produce content
+      structured outside the detector's training distribution: novel
+      profanity stems, code-mixed languages, ASCII-art steganography,
+      RLHF-discovered jailbreak families. The filter scores it as safe;
+      it passes downstream.
+    mitigations:
+      - "Continuous filter retraining on red-team corpus + production false-negatives"
+      - "Diverse filter ensemble (regex + classifier + LLM-judge) — majority-vote denial"
+      - "Out-of-distribution detector: flag outputs whose token distribution differs from baseline"
+      - "Human review queue for low-confidence filter decisions (10-20% sample)"
+    refs: [T1027, AML.M0022, ML01:2023]

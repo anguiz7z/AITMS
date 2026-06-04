@@ -1,0 +1,194 @@
+# Loss-magnitude priors for the FAIR-lite quantitative engine.
+#
+# Each entry maps (industry × revenue_bucket × deployment_stage) to a
+# tier providing default loss_low / loss_high and frequency multipliers.
+# The quantitative engine looks up the most-specific matching tier and
+# scales the per-threat loss range accordingly.
+#
+# Cite: Verizon DBIR 2024 (incident-loss percentiles by industry),
+# Ponemon 2024 Cost of a Data Breach Report (avg incident cost by
+# org size), IBM 2024 Cost of an AI Incident report. The numbers are
+# order-of-magnitude defaults — users with real loss history should
+# override per-threat via the Threat.loss_low / loss_high fields.
+
+# Headline buckets — each tier defines (loss_low_default, loss_high_default,
+# frequency_multiplier). The quantitative engine multiplies the threat's
+# baseline by frequency_multiplier and clips to the tier's loss range.
+
+tiers:
+  # ─── Tier-1 banks / large financial institutions ─────────────────────────
+  - id: tier1_bank_production
+    match:
+      industry: tier1_bank
+      deployment_stage: production
+    loss_low_default: 1_000_000
+    loss_high_default: 500_000_000
+    frequency_multiplier: 1.0
+    rationale: |
+      Large bank ($500M+ revenue from AI surface). Threats with intrinsic
+      L=4-5, I=4-5 already imply 4-9-figure losses; we keep at the
+      high end given the customer concentration + reputational tail.
+
+  - id: tier1_bank_pilot
+    match:
+      industry: tier1_bank
+      deployment_stage: [poc, pilot]
+    loss_low_default: 10_000
+    loss_high_default: 5_000_000
+    frequency_multiplier: 0.2
+    rationale: |
+      Pre-production banking AI. No customer accounts, no real money
+      moving. Loss is reputational + remediation only. 5x lower
+      frequency assumption.
+
+  # ─── Regional banks / fintech / insurers ────────────────────────────────
+  - id: regional_bank_production
+    match:
+      industry: [regional_bank, fintech, insurer]
+      deployment_stage: production
+    loss_low_default: 500_000
+    loss_high_default: 50_000_000
+    frequency_multiplier: 0.8
+
+  - id: regional_bank_pilot
+    match:
+      industry: [regional_bank, fintech, insurer]
+      deployment_stage: [poc, pilot]
+    loss_low_default: 5_000
+    loss_high_default: 1_000_000
+    frequency_multiplier: 0.15
+
+  # ─── Healthcare / pharma ─────────────────────────────────────────────────
+  - id: healthcare_production
+    match:
+      industry: [healthcare_provider, pharma_biotech]
+      deployment_stage: production
+    loss_low_default: 500_000
+    loss_high_default: 100_000_000
+    frequency_multiplier: 0.7
+    rationale: |
+      Healthcare PII + HIPAA penalties drive the high end; reputational
+      damage is severe but rare. Pharma adds IP / trade-secret theft as
+      a tail risk.
+
+  - id: healthcare_pilot
+    match:
+      industry: [healthcare_provider, pharma_biotech]
+      deployment_stage: [poc, pilot]
+    loss_low_default: 5_000
+    loss_high_default: 500_000
+    frequency_multiplier: 0.15
+
+  # ─── Government / defense / critical infrastructure ─────────────────────
+  - id: govt_critical_production
+    match:
+      industry: [government_defense, critical_infrastructure, energy_utility]
+      deployment_stage: production
+    loss_low_default: 2_000_000
+    loss_high_default: 1_000_000_000
+    frequency_multiplier: 0.5
+    rationale: |
+      Tail risk is geopolitical / safety-of-life. Lower frequency
+      (most agencies have tighter perimeters and review) but extreme
+      worst-case (substation outage, deepfake-induced policy action,
+      classified data exfil).
+
+  - id: govt_critical_pilot
+    match:
+      industry: [government_defense, critical_infrastructure, energy_utility]
+      deployment_stage: [poc, pilot]
+    loss_low_default: 50_000
+    loss_high_default: 10_000_000
+    frequency_multiplier: 0.10
+
+  # ─── Tech SaaS / e-commerce / media (over $5B revenue) ──────────────────
+  - id: tech_large_production
+    match:
+      industry: [tech_saas, ecommerce, media_entertainment]
+      revenue_bucket: over_5b
+      deployment_stage: production
+    loss_low_default: 1_000_000
+    loss_high_default: 200_000_000
+    frequency_multiplier: 1.2
+    rationale: |
+      Big-tech surface: many tenants, broad customer base, high attack
+      volume. Frequency above baseline because of scale; magnitude is
+      capped by single-incident blast-radius limits modern hyperscalers
+      build in.
+
+  # ─── Tech SaaS / e-commerce / media (mid-size, $500M–$5B) ───────────────
+  - id: tech_midmarket_production
+    match:
+      industry: [tech_saas, ecommerce, media_entertainment]
+      revenue_bucket: 500m_to_5b
+      deployment_stage: production
+    loss_low_default: 200_000
+    loss_high_default: 20_000_000
+    frequency_multiplier: 1.0
+
+  # ─── Tech / e-commerce SMB (under $500M) ────────────────────────────────
+  - id: tech_smb_production
+    match:
+      industry: [tech_saas, ecommerce, media_entertainment]
+      revenue_bucket: [under_50m, 50m_to_500m]
+      deployment_stage: production
+    loss_low_default: 50_000
+    loss_high_default: 5_000_000
+    frequency_multiplier: 0.9
+
+  - id: tech_smb_pilot
+    match:
+      industry: [tech_saas, ecommerce, media_entertainment]
+      deployment_stage: [poc, pilot]
+    loss_low_default: 2_000
+    loss_high_default: 200_000
+    frequency_multiplier: 0.15
+    rationale: |
+      POC at an SMB tech company — losses are dominated by engineer
+      time + delayed launch, not customer impact. Loss upper cap at
+      $200k recognizes a worst-case "scrap the POC, refund pilot
+      customers" scenario.
+
+  # ─── Telecom / manufacturing / education ────────────────────────────────
+  - id: industrial_production
+    match:
+      industry: [telecom, manufacturing, education]
+      deployment_stage: production
+    loss_low_default: 300_000
+    loss_high_default: 30_000_000
+    frequency_multiplier: 0.7
+
+  - id: industrial_pilot
+    match:
+      industry: [telecom, manufacturing, education]
+      deployment_stage: [poc, pilot]
+    loss_low_default: 5_000
+    loss_high_default: 500_000
+    frequency_multiplier: 0.15
+
+  # ─── SMB / midmarket fallback ───────────────────────────────────────────
+  - id: midmarket_default_production
+    match:
+      industry: [midmarket_other, smb_other]
+      deployment_stage: production
+    loss_low_default: 50_000
+    loss_high_default: 5_000_000
+    frequency_multiplier: 0.8
+
+  - id: midmarket_default_pilot
+    match:
+      industry: [midmarket_other, smb_other]
+      deployment_stage: [poc, pilot]
+    loss_low_default: 1_000
+    loss_high_default: 100_000
+    frequency_multiplier: 0.15
+
+  # ─── Final catch-all ────────────────────────────────────────────────────
+  - id: catchall
+    match: {}      # matches anything not matched above
+    loss_low_default: 100_000
+    loss_high_default: 10_000_000
+    frequency_multiplier: 0.7
+    rationale: |
+      Backstop tier when none of the above match. Keeps the engine
+      working on user-supplied YAMLs without business_context fields.

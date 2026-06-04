@@ -1,0 +1,84 @@
+component_type: email_server
+description: |
+  Email server / mail relay — Microsoft Exchange (on-prem), Microsoft 365,
+  Google Workspace, Postfix, Sendmail. The single largest phishing entry
+  point for most organisations and a high-value target for data exfil.
+threats:
+  - id: T_MAIL_001
+    title: Phishing / business email compromise via inbound mail
+    stride_ai: [Spoofing, Tampering]
+    attack_enterprise: [T1566, T1566.001, T1566.002]
+    maestro: [M.L1.07]
+    likelihood: 5
+    impact: 5
+    description: |
+      Inbound phishing remains the #1 initial-access vector. Without
+      proper SPF/DKIM/DMARC enforcement, attackers spoof internal
+      senders. Without sandbox detonation, malicious attachments
+      reach inboxes. Without click-time URL rewriting, links resolve
+      to credential-harvest pages.
+    mitigations:
+      - "DMARC quarantine/reject policy; SPF hard-fail; DKIM signing"
+      - "Inbound attachment sandbox detonation (Defender ATP, Proofpoint TAP)"
+      - "Click-time URL rewriting with reputation lookup"
+      - "Banner injection for external senders"
+      - "User reporting button (`Report phishing`) wired to SOC"
+    refs: [T1566, T1566.001, T1566.002]
+
+  - id: T_MAIL_002
+    title: Mailbox auto-forwarding rule abused for data exfil
+    stride_ai: [Information_Disclosure, Tampering]
+    attack_enterprise: [T1114.003, T1098.002]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Once an attacker compromises a mailbox (phish, password spray,
+      OAuth consent grant) the first persistence move is usually a
+      hidden inbox rule that forwards all mail (or filters by
+      keyword: `wire`, `invoice`, `password`) to an external address.
+    mitigations:
+      - "Disable external auto-forwarding by default tenant policy"
+      - "Alert on new inbox rule creation (especially with external recipient)"
+      - "Conditional Access policy blocking legacy auth (POP/IMAP)"
+      - "MFA on all mailboxes; revoke OAuth grants for unknown apps"
+    refs: [T1114.003, T1098.002]
+
+  - id: T_MAIL_003
+    title: Exposed Exchange / OWA / ECP server with unpatched CVE
+    stride_ai: [Elevation_of_Privilege, Tampering]
+    attack_enterprise: [T1190, T1133]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Internet-facing on-prem Exchange has shipped multiple
+      pre-auth RCE chains over the last 5 years (ProxyLogon,
+      ProxyShell, ProxyNotShell, Outlook NTLM leak). One unpatched
+      box → full domain compromise via Exchange's high-privilege
+      service account.
+    mitigations:
+      - "Migrate to Exchange Online or hybrid; minimise on-prem footprint"
+      - "Patch within 14 days of vendor advisory; subscribe to MSRC alerts"
+      - "Restrict ECP / PowerShell endpoints to admin VLAN"
+      - "Run Exchange health-check + post-patch IOC sweep after each CU"
+    refs: [T1190, T1133]
+
+  - id: T_MAIL_004
+    title: Outbound mail used for data exfil / DLP bypass
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1048.003, T1567]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Insider or compromised account exfiltrates data via the trusted
+      mail channel — encrypted attachments, attachments split
+      across many small messages, or content embedded in calendar
+      items / Teams messages routed via mail.
+    mitigations:
+      - "Outbound DLP scanning content + attachments + calendar items"
+      - "Block password-protected ZIP attachments at gateway"
+      - "Cap per-day outbound volume per mailbox; alert on anomalies"
+      - "Disable PST export from web client"
+    refs: [T1048.003, T1567]

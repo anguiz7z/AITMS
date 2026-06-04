@@ -1,0 +1,86 @@
+component_type: log_aggregator
+description: |
+  Centralised log aggregation — AWS CloudWatch Logs, Azure Monitor Log
+  Analytics, GCP Cloud Logging, Splunk, Elastic / OpenSearch, Datadog
+  Logs, Sumo Logic, New Relic. The destination every AI workload ships
+  to: API gateway logs, agent traces, model invocations, tool calls,
+  guardrail-blocked events. Distinct from `observability_stack` in
+  that this playbook focuses on log-specific failure modes (ingestion,
+  retention, query-side abuse).
+threats:
+  - id: T_LOGAGG_001
+    title: Sensitive prompts / completions in logs reachable by broad audience
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM07:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024, AML.T0056]
+    attack_cloud: [T1530, T1213]
+    linddun: [DD_003, I_001, N_001]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L5.05]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 5
+    impact: 4
+    description: |
+      `log.info(f"prompt={prompt}")` and `log.info(f"completion={resp}")`
+      sprinkled by overworked engineers, plus the default Bedrock /
+      Azure OpenAI / Vertex audit logs that include full prompt content
+      when enabled. Log Analytics / CloudWatch / Datadog has wide
+      org-level read access — every engineer with `Reader` role can
+      kql/query/grep through customer PII at will. Easier exfil path
+      than the production database.
+    mitigations:
+      - "SDK-side prompt-redaction wrapper: log only hashed prompt + classifier verdict, never raw content"
+      - "Log destination-level ACLs: AI-application logs in a separate log group / table / workspace with strict reader-list"
+      - "Saved-search audit: query CloudWatch Logs Insights / Log Analytics for any saved query that selects prompt fields; review owners"
+      - "DLP scan-at-rest on logs (Macie, Purview, custom SIEM rules) reporting weekly on PII findings in log content"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_LOGAGG_002
+    title: Log query as the attack surface — query-engine RCE or DoS
+    stride_ai: [Elevation_of_Privilege, Denial_of_Service]
+    owasp_api: [API8:2023, API10:2023]
+    atlas: []
+    attack_cloud: [T1190, T1059]
+    attack_enterprise: [T1190]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      Log query engines (Elastic ES|QL, KQL, SPL) have historical
+      CVEs: Elasticsearch CVE-2014-3120 RCE via dynamic scripting,
+      OpenSearch CVE-2022-23634, Splunk CVE-2023-46214. Self-hosted
+      log clusters in particular reachable from the engineering laptop
+      VPN are popular pivot targets. The attacker queries to
+      enumerate, then exploits the engine itself for code execution.
+    mitigations:
+      - "Patch SLA: 7 days for query-engine CVEs, 0 days for active-exploit"
+      - "Query engine not directly internet-reachable; behind SSO + MFA"
+      - "Network isolation: log cluster has no outbound internet; cannot become C2 home"
+      - "Audit logging of queries themselves — alert on unusual aggregations or `*:` wildcards from non-analyst principals"
+    refs: []
+
+  - id: T_LOGAGG_003
+    title: Retention policy deletion erases incident-evidence trail
+    stride_ai: [Repudiation]
+    owasp_api: [API9:2023]
+    atlas: [AML.T0015]
+    attack_cloud: [T1485, T1562.008]
+    attack_enterprise: [T1485, T1562.008]
+    maestro: [M.L5.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      Default retention often 30-90 days. A multi-month attacker
+      campaign (typical dwell time for advanced threats) leaves no
+      log trail by the time it's discovered. AI workload-specific:
+      slow data-poisoning campaigns (T_MLFEAT_001, T_LAKE_002) extend
+      across multiple retention windows.
+    mitigations:
+      - "Tiered retention: SIEM hot tier 90d, cold archive 1y+ with WORM (CloudWatch Logs to S3 Object Lock, Log Analytics archive tier, Splunk SmartStore frozen)"
+      - "AI workload logs explicitly tagged for extended retention (2-year minimum) — the 'compliance evidence' tier"
+      - "Cross-account / cross-tenant archive (logs forwarded to a separate AWS account / Azure tenant) so a primary-account compromise doesn't reach the archive"
+      - "Quarterly restore-from-archive drill"
+    refs: [AML.M0023]

@@ -1,0 +1,38 @@
+# NIST AI Risk Management Framework — Generative AI Profile (NIST AI 600-1)
+# Source: https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf
+# Selected risks aligned to GenAI; used to enrich threat citations.
+
+- id: NIST.AI.600-1.GV-1.3
+  category: Govern
+  title: Establish documented policies for AI accountability and oversight
+  description: Document org-wide policies on the development, deployment, and use of GenAI systems.
+
+- id: NIST.AI.600-1.MP-2.1
+  category: Map
+  title: Identify intended/unintended uses and the legal/ethical implications
+  description: Document scope of use, prohibited uses, and downstream risks; refresh as use evolves.
+
+- id: NIST.AI.600-1.MS-1.1
+  category: Measure
+  title: Test for hallucinations / confabulation
+  description: Evaluate model factuality with domain-relevant benchmarks before and after deployment.
+
+- id: NIST.AI.600-1.MS-2.7
+  category: Measure
+  title: Measure security risks (prompt injection, data leakage, model evasion)
+  description: Adversarial testing programs that target prompt injection, data leakage, and evasion.
+
+- id: NIST.AI.600-1.MG-2.4
+  category: Manage
+  title: Implement controls for harmful content and dangerous outputs
+  description: Deploy guardrails, content moderation, and human review for generative outputs.
+
+- id: NIST.AI.600-1.MG-3.1
+  category: Manage
+  title: Plan for incident response specific to AI systems
+  description: AI incident playbooks for prompt injection, model misuse, harmful output, data leak.
+
+- id: NIST.AI.600-1.MG-4.1
+  category: Manage
+  title: Continuously monitor GenAI systems in production
+  description: Telemetry on input distribution, output distribution, abuse patterns, drift, cost.

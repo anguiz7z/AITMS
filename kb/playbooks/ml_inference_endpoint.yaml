@@ -1,0 +1,73 @@
+component_type: ml_inference_endpoint
+description: |
+  Managed ML inference endpoint — SageMaker Endpoint, Azure ML Endpoint, Vertex
+  AI Endpoint. Hosts a trained / fine-tuned model; receives feature vectors or
+  prompts; returns predictions or generated text. The model itself is a
+  primary AI asset; the endpoint is the production attack surface.
+threats:
+  - id: T_MLEND_001
+    title: Custom prediction routine RCE via uploaded model artifact
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM03:2025]
+    owasp_agentic: [AGT12]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0010, AML.T0011]
+    attack_cloud: [T1059, T1190]
+    maestro: [M.L1.06, M.L4.05]
+    owasp_ml: [ML06:2023, ML10:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01, CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Model artifact uploaded to the registry includes a Python pickle / custom
+      inference handler that executes code on load. Attacker who controls the
+      registry path (over-permissive `s3:PutObject`, compromised CI) gets RCE
+      in the inference container with the endpoint's IAM role.
+    mitigations:
+      - "Pickle ban: enforce ONNX / SavedModel / safetensors only"
+      - "Model-registry IAM: PutObject scoped per-team + signed manifest required"
+      - "Inference container runs as non-root with no outbound internet"
+      - "ECR / Artifact Registry image-scanning blocks high-CVE base images"
+    refs: [AML.M0023]
+
+  - id: T_MLEND_002
+    title: Model extraction via inference API
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM04:2025]
+    owasp_api: [API4:2023, API10:2023]
+    atlas: [AML.T0024]
+    maestro: [M.L1.03, M.L7.04]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_MEMBERSHIP, NIST_PAI_PRIVACY_INVERSION]
+    owasp_ml: [ML05:2023, ML04:2023]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Attacker queries the endpoint with carefully-chosen inputs over time and
+      reconstructs the model's decision boundary / weights / training data.
+      For LLMs: token-by-token probability extraction, membership inference,
+      prompt-extraction.
+    mitigations:
+      - "Per-tenant rate limits with token-bucket; alert on sustained probing"
+      - "Confidence-score truncation / output noise"
+      - "Watermarking for high-value models"
+      - "Differential-privacy training for sensitive datasets"
+    refs: [AML.M0015]
+
+  - id: T_MLEND_003
+    title: Endpoint autoscaler cold-start exposes config in logs
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API9:2023]
+    atlas: [AML.T0024]
+    maestro: [M.L4.04]
+    likelihood: 2
+    impact: 3
+    description: |
+      Autoscaler cold-start logs include the bootstrap config (model URI, KMS
+      key ARN, S3 path) before redaction kicks in. An attacker with read on
+      CloudWatch / Application Insights sees the path to swap or poison.
+    mitigations:
+      - "Inference-container bootstrap logs filtered by Lambda extension before reaching CloudWatch"
+      - "Endpoint config in Parameter Store / Secrets Manager, never in env vars"
+      - "CloudWatch Logs IAM access restricted to per-service principals"
+    refs: [AML.M0023]

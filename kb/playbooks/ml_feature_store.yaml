@@ -1,0 +1,98 @@
+component_type: ml_feature_store
+description: |
+  Managed feature store — AWS SageMaker Feature Store, GCP Vertex AI
+  Feature Store, Azure ML Feature Store, Databricks Feature Store,
+  Feast, Tecton. Online (low-latency, key→features for inference) and
+  offline (training-set materialisation) modes. Centralises the
+  pre-computed inputs every model in the org depends on. Compromise
+  means simultaneous training-time poisoning + inference-time evasion
+  across every downstream model.
+threats:
+  - id: T_MLFEAT_001
+    title: Training-serving skew exploited via feature-write race
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM04:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0019, AML.T0020, AML.T0043]
+    attack_cloud: [T1565.001]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA, NIST_PAI_EVASION]
+    owasp_ml: [ML02:2023, ML01:2023]
+    maestro: [M.L2.01, M.L1.04]
+    csa_singapore: [CSA_AI.DEVELOP.01, CSA_AI.OPERATE.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Online and offline feature stores must agree, but write paths
+      diverge: offline gets daily batch from Glue; online gets a stream
+      from Kafka. An attacker who controls only the online write path
+      pushes adversarial features at inference time without polluting
+      the training data. The model trained on "clean" features
+      misbehaves at serving time on attacker-controlled keys
+      (fraud-detection allowing the attacker's transactions, lending
+      model lowering risk score). The skew is invisible in
+      training-eval metrics.
+    mitigations:
+      - "Online + offline write paths require the same signed-feature provenance; reject features without matching offline backfill"
+      - "Online feature TTL forced to be shorter than expected source-of-truth update latency; stale features rejected"
+      - "Cross-path consistency check: hourly join of online materialisation vs offline; alert on divergence"
+      - "Read-path integrity: model evaluates feature freshness + signature at inference; rejects if signature missing"
+    refs: [AML.M0007, AML.M0008]
+
+  - id: T_MLFEAT_002
+    title: PII leak via feature reverse-engineering / membership inference
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM10:2025]
+    owasp_api: [API3:2023, API4:2023]
+    atlas: [AML.T0024, AML.T0024.001]
+    attack_cloud: [T1530, T1213]
+    linddun: [I_001, I_002, DD_003]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_INVERSION, NIST_PAI_PRIVACY_MEMBERSHIP, NIST_GAI_DATA_EXTRACTION]
+    owasp_ml: [ML03:2023]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      Feature stores hold computed features like `avg_transaction_30d`,
+      `n_logins_last_7d`, `device_fingerprint_hash`. With API
+      read-access to the online store, an attacker queries by user_id
+      and reconstructs sensitive behavioural patterns — even when the
+      raw transactions are encrypted in source. The SageMaker online
+      store `GetRecord` API and the Vertex `streamingFetchFeatureValues`
+      enable mass key-based extraction once the access is obtained.
+    mitigations:
+      - "Online store IAM scoped to specific feature-group + specific key-range; no `*` read"
+      - "Aggregated-features only for high-sensitivity groups; raw counters bucketised before storage"
+      - "Per-feature classification tags; features marked `pii=true` accessible only by privileged service accounts"
+      - "Rate-limit + anomaly detection on per-key fetch volume — alert on enumeration-style probing"
+    refs: [AML.M0012, AML.M0019]
+
+  - id: T_MLFEAT_003
+    title: Backfill / reprocessing job re-poisons offline features
+    stride_ai: [Tampering, Denial_of_Service]
+    owasp_llm: [LLM04:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0019, AML.T0020]
+    attack_cloud: [T1565.001]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA]
+    owasp_ml: [ML02:2023]
+    maestro: [M.L2.01]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 5
+    description: |
+      Feature stores routinely backfill historical features when the
+      transformation definition changes. An attacker who modifies the
+      backfill job (which often runs with broad write privileges on
+      every feature group) rewrites months of historical features
+      with subtly-shifted distributions. Every model retrained after
+      the backfill inherits the corruption — invisible because the
+      time-travel feature lookup returns the rewritten data, not the
+      original. Especially destructive because rollback requires
+      regenerating from the original source data, often impossible.
+    mitigations:
+      - "Backfill jobs require explicit approval per feature-group; default-deny on multi-feature backfills"
+      - "Feature versioning: every backfill produces a new feature version; old version retained for rollback"
+      - "Backfill-vs-current statistical drift check before publish; fail-loud if distribution shifts > threshold"
+      - "Immutable history: enable feature-store time-travel with append-only semantics, not overwrite"
+    refs: [AML.M0007, AML.M0008]

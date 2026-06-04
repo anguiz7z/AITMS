@@ -1,0 +1,143 @@
+{% extends "web/base.html" %}
+{% set active = 'docs' %}
+{% block title %}Docs · ATMS{% endblock %}
+{% block content %}
+<h1>Docs</h1>
+<p class="muted">
+  Reference content that used to live as separate top-level nav items.
+  Each card opens the original page — same content, same routes, just
+  collapsed off the global nav. Flip the matching feature flag in
+  <code>src/atms/features.py</code> (or set the env var) to restore an
+  individual page to the top-level nav. See README
+  <em>"Re-enabling hibernated features"</em>.
+</p>
+
+<style>
+  .docs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .docs-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    background: var(--panel);
+  }
+  .docs-card h3 { margin: 0 0 6px 0; font-size: 16px; }
+  .docs-card h3 a { color: var(--accent); text-decoration: none; }
+  .docs-card h3 a:hover { text-decoration: underline; }
+  .docs-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+</style>
+
+<div class="docs-grid">
+  <div class="docs-card">
+    <h3><a href="/kb">Knowledge base →</a></h3>
+    <p>Bundled corpus counts: playbooks, frameworks, compliance controls, MITRE ATLAS, CISA KEV / EPSS, cloud-service catalog. The data driving every analysis.</p>
+  </div>
+
+  <div class="docs-card">
+    <h3><a href="/playbooks">Playbooks →</a></h3>
+    <p>One per component type (121 total). Each lists the typical AI-specific threats, pre-mapped to STRIDE-for-AI, OWASP LLM Top 10, and MITRE ATLAS. Pure YAML in <code>kb/playbooks/</code>.</p>
+  </div>
+
+  <div class="docs-card">
+    <h3><a href="/maestro">MAESTRO →</a></h3>
+    <p>The 7-layer agentic-AI threat-modelling reference architecture from CSA (2025). Browse per-layer threats — Foundation Models, Data Operations, Agent Frameworks, Deployment, Evaluation, Security &amp; Compliance, Agent Ecosystem.</p>
+  </div>
+
+  <div class="docs-card">
+    <h3><a href="/agentic">OWASP Agentic →</a></h3>
+    <p>OWASP Agentic AI Threats &amp; Mitigations (OWASP ASI, 2025). 15 canonical threats (T1–T15) plus 2 ATMS extensions — memory poisoning, tool misuse, intent breaking, rogue agents, inter-agent protocol abuse.</p>
+  </div>
+
+  <div class="docs-card">
+    <h3><a href="/methodology">Methodology →</a></h3>
+    <p>Per-threat framework provenance. STRIDE-for-AI category, MITRE ATLAS technique IDs, OWASP LLM / Agentic refs, NIST citations — all rendered side-by-side for the last analysed system.</p>
+  </div>
+
+  <div class="docs-card">
+    <h3><a href="/architecture">Architecture →</a></h3>
+    <p>Live mermaid diagram of every ATMS module — inputs, engines, KB, reporting, surfaces. Drift-guarded by <code>scripts/check_architecture_drift.py</code>.</p>
+  </div>
+
+  <div class="docs-card">
+    <h3><a href="/capabilities">Capabilities →</a></h3>
+    <p>One-page surface inventory: every input format, framework, export, and HTTP endpoint exposed by this build. Live counts via <code>/api/v1/metrics</code>.</p>
+  </div>
+
+  <div class="docs-card">
+    <h3><a href="/about">About →</a></h3>
+    <p>What ATMS is, why STRIDE-for-AI is the right anchor, how risk scoring works, license, source repo.</p>
+  </div>
+</div>
+
+<h2 style="margin-top: 40px;">Tools</h2>
+<p class="muted">
+  Working analysis surfaces beyond the core Analyze loop. These are all
+  enabled — they live here (rather than as separate top-bar tabs) to keep
+  the global nav focused. Pin any one back onto the top bar with its
+  <code>ATMS_FEATURE_NAV_&lt;NAME&gt;=1</code> flag.
+</p>
+
+<div class="docs-grid">
+  <div class="docs-card">
+    <h3><a href="/iac">IaC ingest →</a></h3>
+    <p>Generate a System model from Terraform, CloudFormation, Kubernetes, Azure ARM/Bicep, Pulumi, or docker-compose. Deterministic, offline.</p>
+  </div>
+  <div class="docs-card">
+    <h3><a href="/evidence">Evidence →</a></h3>
+    <p>Enrich a threat model with VAPT / scan findings (Nessus, SARIF, CSV, STIX 2.1) so evidence-backed threats drive the final severity.</p>
+  </div>
+  <div class="docs-card">
+    <h3><a href="/redteam">Red-team →</a></h3>
+    <p>Ingest red-team / breach-and-attack-simulation results to mark threats as observed or exploited in the report.</p>
+  </div>
+  <div class="docs-card">
+    <h3><a href="/compliance">Compliance →</a></h3>
+    <p>Map threats + mitigations onto compliance frameworks (NIST, ISO, CSA, etc.) and export the coverage matrix.</p>
+  </div>
+  <div class="docs-card">
+    <h3><a href="/devices">Devices →</a></h3>
+    <p>Browse the OT / IoT / network device catalog ATMS uses to classify components and seed device-specific threats.</p>
+  </div>
+  <div class="docs-card">
+    <h3><a href="/diff">Diff →</a></h3>
+    <p>Compare two saved analyses to see which threats / mitigations changed — useful for quarterly re-assessments.</p>
+  </div>
+</div>
+
+<h2 style="margin-top: 40px;">Feature state</h2>
+<p class="muted">
+  Below: the features currently disabled by default in this build.
+  Each is one flag flip away from coming back. The corresponding code
+  is still in the repo — see <code>src/atms/features.py</code>.
+</p>
+
+<details style="margin-top: 16px;">
+  <summary style="cursor: pointer; color: var(--accent);">Show all flag states</summary>
+  <table style="width: 100%; margin-top: 12px; border-collapse: collapse;">
+    <thead>
+      <tr>
+        <th style="text-align: left; padding: 6px 12px; border-bottom: 1px solid var(--border);">Flag</th>
+        <th style="text-align: left; padding: 6px 12px; border-bottom: 1px solid var(--border);">State</th>
+        <th style="text-align: left; padding: 6px 12px; border-bottom: 1px solid var(--border);">Re-enable</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for name, value in features|dictsort %}
+      <tr>
+        <td style="padding: 4px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono);">{{ name }}</td>
+        <td style="padding: 4px 12px; border-bottom: 1px solid var(--border);">
+          {% if value %}<span style="color: #4ade80;">ON</span>{% else %}<span style="color: #94a3b8;">off</span>{% endif %}
+        </td>
+        <td style="padding: 4px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono); color: var(--muted);">
+          {% if not value %}ATMS_FEATURE_{{ name|upper }}=1{% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</details>
+{% endblock %}

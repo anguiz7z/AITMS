@@ -1,0 +1,67 @@
+component_type: industrial_protocol
+description: |
+  Industrial / OT protocol bus — Modbus TCP, OPC-UA, DNP3, EtherNet/IP,
+  PROFINET, IEC-61850, BACnet. Carries control commands between PLCs,
+  SCADA, RTUs and HMIs. Mostly designed in an era when "the network
+  is trusted" was an axiom — almost none enforce auth or integrity
+  by default.
+threats:
+  - id: T_OTP_001
+    title: Unauthenticated control commands on Modbus / DNP3 / EtherNet-IP
+    stride_ai: [Spoofing, Tampering]
+    attack_enterprise: [T0855, T0836]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Modbus TCP, classic DNP3, and EtherNet/IP have no built-in
+      authentication. Anyone on the OT VLAN can send a write-coil
+      or operate command and PLCs will execute. Attackers who pivot
+      from IT to OT typically reach this layer via flat networks
+      or jump hosts with cached credentials.
+    mitigations:
+      - "OT-IT segmentation per Purdue model; data diode for one-way"
+      - "Migrate to OPC-UA with certs + signing where vendors support it"
+      - "Allow-list of source IPs per protocol on OT firewall"
+      - "Continuous protocol-aware monitoring (Claroty, Nozomi, Dragos)"
+    refs: [T0855, T0836]
+
+  - id: T_OTP_002
+    title: Replay / packet-injection on the OT bus
+    stride_ai: [Tampering, Repudiation]
+    attack_enterprise: [T0856, T0830]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Without integrity protection, an attacker on a span port
+      records a valid command sequence and replays it later
+      (e.g. open valve, change setpoint). Combined with HMI
+      spoofing (CRASHOVERRIDE/INDUSTROYER pattern), the operator
+      sees normal screens while the process is being manipulated.
+    mitigations:
+      - "OPC-UA signing/encryption profile for all greenfield deployments"
+      - "Network IDS with OT protocol decoders + baseline drift alerts"
+      - "Engineering-workstation lockdown: no general internet, app allowlist"
+      - "Out-of-band physical telemetry (analogue gauges) on critical loops"
+    refs: [T0856, T0830]
+
+  - id: T_OTP_003
+    title: Internet-exposed industrial endpoints (Shodan-discoverable)
+    stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+    attack_enterprise: [T1133, T1190]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Shodan and Censys index hundreds of thousands of Modbus,
+      BACnet, S7 and DNP3 endpoints reachable from the public
+      internet. Misconfigured site routers, accidental UPnP,
+      and "temporary" maintenance VPNs are the typical causes.
+      Once visible they are scanned and probed within hours.
+    mitigations:
+      - "Quarterly Shodan/Censys sweep of company ASN + known site IPs"
+      - "Default-deny WAN ACL on all OT site routers"
+      - "Replace permanent vendor VPN tunnels with brokered, time-boxed access"
+      - "Disable UPnP on all site networks"
+    refs: [T1133, T1190]

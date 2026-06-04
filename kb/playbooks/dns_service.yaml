@@ -1,0 +1,95 @@
+component_type: dns_service
+description: |
+  Managed DNS — AWS Route 53 (Public + Private Hosted Zones), Azure DNS
+  (+ Private DNS Zones), GCP Cloud DNS, OCI DNS, Cloudflare DNS, NS1.
+  Resolves the names every AI workload uses to reach LLM providers,
+  vector stores, model registries, RAG corpora, and tool endpoints.
+  DNS compromise effectively MITMs every downstream call. Often
+  delegated to a small platform team — central, high-impact, low-touch.
+threats:
+  - id: T_DNS_001
+    title: Hijacked DNS record reroutes AI inference / tool API to attacker
+    stride_ai: [Spoofing, Tampering, Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM07:2025]
+    owasp_agentic: [AGT09]
+    owasp_api: [API8:2023, API10:2023]
+    atlas: [AML.T0019, AML.T0049, AML.T0051.001]
+    attack_cloud: [T1557, T1071.004, T1584.002]
+    attack_enterprise: [T1557, T1071.004, T1584.002]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      An attacker with `route53:ChangeResourceRecordSets` (or the
+      Azure DNS Zone Contributor / GCP `dns.admin` role) overrides
+      records the AI workload depends on. Agent calls `tools.api.acme.com`
+      thinking it reaches the legitimate tool; in fact it reaches an
+      attacker-controlled proxy that observes every prompt /
+      arg / response and can inject prompt-injection payloads in
+      replies. Especially severe because AI calls are often
+      conversational and untrusted-content-aware — a malicious
+      response is hard to distinguish from a "weird answer."
+    mitigations:
+      - "DNS zone IAM scoped to platform-network team only; no app-team write to prod zones"
+      - "DNSSEC enabled on all public zones; resolvers validate signatures"
+      - "Certificate pinning + SPIFFE/SVID at the SDK layer so DNS hijack alone doesn't yield TLS spoof"
+      - "Change-control: every record modification routed through PR + signed-by-two; CloudTrail alert on DNS API calls outside the change window"
+    refs: [AML.M0007, AML.M0019]
+
+  - id: T_DNS_002
+    title: NXDOMAIN / dangling-CNAME subdomain takeover of AI service hostname
+    stride_ai: [Spoofing, Tampering]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API1:2023, API8:2023]
+    atlas: [AML.T0019, AML.T0049]
+    attack_cloud: [T1583.001, T1584.002]
+    attack_enterprise: [T1583.001]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      `ai-staging.acme.com` CNAME → `acme-staging-elb-abc123.us-east-1.elb.amazonaws.com`,
+      but the ELB was deleted. Attacker registers an ELB / Azure
+      App Service with the same name (or via wildcard match), takes
+      over the subdomain, and now serves browser-trusted content
+      under your zone. Common discovery via Detectify / OWASP / EdOverflow
+      research. AI use case: a deprecated demo subdomain
+      becomes a phishing-by-prompt-injection collection point that
+      AI-product users trust.
+    mitigations:
+      - "Automated dangling-DNS scanning (DNSTwist, AWS Route53 Resolver query logging review, internal subdomain monitor)"
+      - "CNAME records for cloud resources include the resource ID in the value; re-creation by another tenant fails the matching"
+      - "Deprovisioning runbook: delete DNS record FIRST, then the resource — not the reverse"
+      - "Daily diff of zone records vs deployed resources to catch drift"
+    refs: [AML.M0019]
+
+  - id: T_DNS_003
+    title: DNS-tunnel exfil of prompt logs / training data
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API4:2023]
+    atlas: [AML.T0024, AML.T0024.002]
+    attack_cloud: [T1071.004, T1041]
+    attack_enterprise: [T1071.004, T1048.003]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      DNS resolution typically traverses egress firewalls without
+      inspection. An attacker with code execution on an AI inference
+      / training host encodes prompt logs or training-data slices into
+      DNS subdomain lookups against an attacker-controlled
+      authoritative server (`<base64-slice>.exfil.attacker.example`).
+      Slow but reliable; AI workloads with high prompt volume produce
+      enough material to be worth the trickle.
+    mitigations:
+      - "Egress DNS routed through a managed resolver (Route 53 Resolver, Azure Private Resolver, Cloud DNS) — block resolution of non-allow-listed parent domains"
+      - "DNS query logging on AI subnets → SIEM; alert on high-entropy subdomain patterns and bursty TXT queries"
+      - "Block egress port 53 except to the managed resolver"
+      - "DNS firewall (Route 53 Resolver DNS Firewall, Azure Firewall DNS rules) with up-to-date C2 / DGA threat-feed allow-list"
+    refs: [AML.M0019]

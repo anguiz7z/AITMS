@@ -1,0 +1,76 @@
+component_type: nosql_database
+description: |
+  Managed NoSQL store — DynamoDB, Cosmos DB, Firestore, DocumentDB, MongoDB
+  Atlas. Common for agent session state, chat history, prompt template caches,
+  tool-call audit logs. Multi-tenant LLM platforms partition by customer here.
+threats:
+  - id: T_NOSQL_001
+    title: Cross-tenant pollution via weak partition key
+    stride_ai: [Information_Disclosure, Tampering]
+    owasp_llm: [LLM02:2025]
+    owasp_agentic: [AGT01, AGT09]
+    owasp_api: [API1:2023, API3:2023]
+    atlas: [AML.T0057]
+    attack_cloud: [T1213]
+    attack_enterprise: [T1213]
+    linddun: [I_001, L_001, DD_003]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Chat history / sessionAttributes / tool-call audit table uses a
+      session_id partition key that's predictable or unauthenticated. An
+      attacker iterates session_ids and pulls other tenants' prompts +
+      response history + tool-call records. Cross-tenant data breach.
+    mitigations:
+      - "Partition key includes tenant_id + tenant_id used in PK condition expressions"
+      - "Per-tenant IAM-scoped query conditions enforced at the row level"
+      - "Application-side enforcement of tenant scoping on every query"
+      - "Item-level audit trail with tenant_id mismatch alert"
+    refs: [AML.M0019]
+
+  - id: T_NOSQL_002
+    title: On-demand pricing → query-cost DoS via expensive Scan
+    stride_ai: [Denial_of_Service]
+    owasp_llm: [LLM10:2025]
+    owasp_api: [API4:2023]
+    attack_cloud: [T1499.004]
+    attack_enterprise: [T1499]
+    maestro: [M.L4.04]
+    likelihood: 3
+    impact: 3
+    description: |
+      DynamoDB on-demand pricing without query-cost guardrails. Attacker
+      crafts agent prompts that drive expensive Scan operations on the
+      session-history table → cost-DoS via API gateway → agent → DDB.
+    mitigations:
+      - "Provisioned-capacity mode for production tables (predictable cost)"
+      - "Cost-anomaly alarms on DynamoDB throughput by table tag"
+      - "Agent-tool that hits NoSQL has hard timeouts + query-cost budget"
+    refs: [AML.M0004]
+
+  - id: T_NOSQL_003
+    title: NoSQL injection via unsanitized agent / LLM-derived queries
+    stride_ai: [Tampering, Information_Disclosure, Elevation_of_Privilege]
+    owasp_llm: [LLM05:2025]
+    owasp_agentic: [AGT01, AGT06]
+    owasp_api: [API3:2023, API8:2023]
+    atlas: [AML.T0049, AML.T0050]
+    attack_cloud: [T1213]
+    attack_enterprise: [T1213, T1190]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Agent or LLM generates Mongo / DynamoDB / Firestore queries from
+      user natural-language input and the app concatenates them into the
+      query directly. MongoDB operator injection (`$ne`, `$where`,
+      `$regex`) bypasses auth or dumps collections. Equivalent risk for
+      PartiQL on DynamoDB and Firestore filters. The model-as-query-generator
+      pattern is increasingly common and rarely guarded.
+    mitigations:
+      - "Parameterised query API only; never concatenate LLM output into a query string"
+      - "Strict allowlist of operations + fields the agent can target; reject anything else"
+      - "Schema-validation gate on LLM-generated queries before execution"
+      - "Per-tenant scoped least-privilege DB role; agent never has cross-tenant read"
+    refs: [T1213, T1190, API3:2023]

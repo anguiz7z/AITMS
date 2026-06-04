@@ -1,0 +1,73 @@
+component_type: waf
+description: |
+  Web Application Firewall — managed cloud service (AWS WAF, Azure WAF,
+  Cloud Armor, Cloudflare) or appliance (F5 ASM, Imperva). Sits in front
+  of AI inference endpoints / agent APIs / chat UIs to enforce rate limits,
+  block known-bad payloads, and surface AI-specific abuse patterns.
+threats:
+  - id: T_WAF_001
+    title: WAF rule set missing AI-abuse signatures
+    stride_ai: [Denial_of_Service, Tampering]
+    owasp_llm: [LLM01:2025, LLM10:2025]
+    owasp_agentic: [AGT04]
+    owasp_api: [API4:2023, API10:2023]
+    atlas: [AML.T0051]
+    maestro: [M.L7.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      WAF is configured with the default OWASP ModSecurity Core Rule Set but no
+      AI-specific patterns (prompt-injection markers, jailbreak corpora, large
+      base64 blobs in prompt body, repeat-request patterns indicating
+      model-extraction). LLM-targeted attacks pass through unflagged.
+    mitigations:
+      - "AWS WAF Bot Control + custom managed rules for LLM abuse patterns"
+      - "Custom rate-limit by client-IP + JWT subject for /chat and /completions endpoints"
+      - "Log all blocked requests + the matched rule; feed to SIEM for drift detection"
+      - "Cloudflare AI Audit / Azure AI Content Safety in front of the model endpoint"
+    refs: [AML.M0004]
+
+  - id: T_WAF_002
+    title: WAF bypass via path normalisation / IP allow-list scoped wrong
+    stride_ai: [Spoofing, Defense_Evasion]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API2:2023]
+    attack_cloud: [T1190]
+    attack_enterprise: [T1190]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      WAF only inspects traffic on the public listener; an internal VPC
+      endpoint to the same backend (Bedrock VPC endpoint, App Service inbound
+      via internal LB) bypasses WAF entirely. Or path-normalisation differs
+      between WAF and backend, allowing crafted paths through.
+    mitigations:
+      - "All backend listeners (public + private + service-to-service) traverse the same WAF policy"
+      - "WAF normalisation aligned with backend (decoded URLs, case folded)"
+      - "WAF logs include the full original request path, not the normalised one"
+    refs: [AML.M0019]
+
+  - id: T_WAF_003
+    title: WAF DoS / fail-open on AI traffic spike
+    stride_ai: [Denial_of_Service, Defense_Evasion]
+    owasp_llm: [LLM10:2025]
+    owasp_api: [API4:2023]
+    atlas: [AML.T0029, AML.T0034]
+    attack_enterprise: [T1499, T1499.004]
+    maestro: [M.L4.04]
+    likelihood: 3
+    impact: 4
+    description: |
+      Sudden spike in chat / agent traffic (legitimate viral usage, or
+      attacker-triggered) overwhelms the WAF processing budget. WAF
+      either rate-limits everything (DoS for legitimate users) or
+      fail-opens to keep the service available — and bad traffic
+      passes through to the model. Pattern observed in 2024 incidents
+      against high-traffic AI APIs.
+    mitigations:
+      - "WAF capacity-plan for 10x baseline; auto-scale where the WAF supports it"
+      - "Tiered rate-limit: AI-prompt endpoints get separate quota from static-asset endpoints"
+      - "WAF fail-closed for AI-prompt endpoints; never fail-open on the LLM surface"
+      - "Off-WAF defence in depth: model endpoint itself enforces per-tenant rate-limit + token budget"
+    refs: [T1499.004, API4:2023, AML.M0004]

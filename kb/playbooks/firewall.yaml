@@ -1,0 +1,66 @@
+component_type: firewall
+description: |
+  Network firewall / next-gen firewall — Palo Alto, Cisco ASA / Firepower,
+  Fortinet, Check Point, pfSense, AWS Network Firewall, Azure Firewall.
+  Inspects + filters traffic at network boundaries.
+threats:
+  - id: T_FW_001
+    title: Over-permissive rule ('any-any-allow' or wildcard)
+    stride_ai: [Spoofing, Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1133, T1190]
+    attack_cloud: [T1190]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Rule base contains `any source → any destination → any port → allow`,
+      or wildcards that effectively bypass the firewall. Often left over
+      from troubleshooting. Renders the firewall a placebo.
+    mitigations:
+      - "Periodic rule-base review with explicit owner per rule"
+      - "Rule expiry dates / mandatory recertification annually"
+      - "Default-deny with explicit allow per service"
+      - "Rule-base-as-code (Terraform / Ansible) for review and audit"
+    refs: [T1133, T1190]
+
+  - id: T_FW_002
+    title: Outdated firmware / known CVE on management plane
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190, T1133]
+    maestro: [M.X.01]
+    likelihood: 3
+    impact: 5
+    # v0.16.0: firmware patching is only the customer's responsibility on
+    # appliance/virtual-appliance deployments. AWS WAF / Azure Firewall /
+    # Cloud Armor / Cloudflare are managed services — the vendor patches.
+    requires:
+      metadata.deployment_mode: [appliance, virtual_appliance]
+    not_applicable_to:
+      metadata.vendor: [AWS, Microsoft, Google, Cloudflare]
+      metadata.deployment_mode: [managed_service, saas]
+    description: |
+      Firewall vendors ship CVEs regularly (Palo Alto GlobalProtect, Cisco ASA
+      WebVPN, Fortinet FortiOS). Unpatched firmware lets a remote attacker
+      take over the firewall — game over.
+    mitigations:
+      - "Vendor advisory subscription with 24h patch SLA on critical"
+      - "Management plane on a dedicated, isolated network (no internet)"
+      - "MFA on every admin account; rotate on staff change"
+      - "Periodic external scan + bug-bounty inclusion"
+    refs: [T1190, T1133]
+
+  - id: T_FW_003
+    title: Logging incomplete / not forwarded to SIEM
+    stride_ai: [Repudiation]
+    attack_enterprise: [T1562]
+    maestro: [M.L5.05]
+    likelihood: 4
+    impact: 3
+    description: |
+      Firewall logs only blocked traffic, not allows; or logs are local-only
+      with no SIEM forwarding. Post-incident forensics has no usable data.
+    mitigations:
+      - "Forward all flows (allowed AND denied) to SIEM"
+      - "Local log retention insufficient — at least 90 days at SIEM"
+      - "Firewall config-change logging with real-time alert"
+    refs: [T1562]

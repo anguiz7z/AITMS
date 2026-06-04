@@ -1,0 +1,89 @@
+component_type: web_proxy
+description: |
+  Forward / web proxy — Squid, Bluecoat ProxySG, Zscaler Internet
+  Access, Netskope Web Gateway, Cisco Umbrella SIG, Microsoft Entra
+  Internet Access. Mediates outbound web traffic from corporate and
+  cloud-workload egress points. In AI estates, the proxy is the
+  enforcement layer that prevents sensitive data from leaving via
+  user uploads to ChatGPT, Claude, Gemini, or unsanctioned LLM SaaS.
+threats:
+  - id: T_PROXY_001
+    title: Shadow-AI / unsanctioned LLM service used despite proxy policy
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM10:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024, AML.T0044]
+    attack_cloud: [T1567]
+    attack_enterprise: [T1078, T1567]
+    linddun: [DD_003, NC_002]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 5
+    impact: 4
+    description: |
+      Employees use ChatGPT, Claude, Gemini, Poe, Perplexity, free
+      open-source LLM portals, and copy proprietary code, customer
+      lists, and strategy docs into them. Proxy categorisation lags
+      the launch rate of new AI SaaS (a new vendor every week in 2024-25).
+      Samsung's 2023 ChatGPT incident, Apple's 2023 generative-AI
+      ban, the LawFirms 2024 client-PII-in-ChatGPT findings all
+      document this systemically.
+    mitigations:
+      - "Maintain an up-to-date AI-SaaS category in the proxy (Zscaler / Netskope publish curated lists); block by default, allow-list specific approved tools"
+      - "DLP inspection on uploads to approved AI tools: pattern-match SSN, customer-ID, code-secret patterns, document classifications"
+      - "Sanctioned-internal-LLM portal (Azure OpenAI / Bedrock with corp SSO) so employees have a sanctioned alternative"
+      - "Monthly shadow-AI usage report to security + business unit leaders; spike triggers a controlled-tool rollout"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_PROXY_002
+    title: TLS-decrypt bypass for AI-API destinations
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    attack_cloud: [T1573, T1567]
+    attack_enterprise: [T1573]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 4
+    impact: 3
+    description: |
+      Many AI SaaS vendors disable TLS-decrypt via cert-pinning, gRPC
+      streams, or QUIC + Encrypted Client Hello. The proxy can see
+      destination but not content. The DLP rule that catches SSN in
+      cleartext doesn't fire when the channel is opaque. Increasingly
+      a deliberate design choice by AI vendors to protect customer
+      prompts from corporate inspection — which neutralises the
+      org's DLP enforcement.
+    mitigations:
+      - "Maintain an explicit list of AI destinations that bypass TLS-decrypt; treat them as full-block unless explicitly allow-listed"
+      - "API-gateway pattern: route all sanctioned AI use through an internal proxy that has access to the cleartext (SSO + corp-managed key)"
+      - "Endpoint DLP (Microsoft Purview Endpoint DLP, Symantec DLP) inspects before the data leaves the device — defeats the encrypted-channel limitation"
+      - "Network-side: track destination-volume anomaly even without payload visibility; flag tenants with bursts to AI destinations"
+    refs: [AML.M0019]
+
+  - id: T_PROXY_003
+    title: Compromised CA / proxy MITMing legitimate AI provider calls
+    stride_ai: [Spoofing, Tampering, Information_Disclosure]
+    owasp_api: [API2:2023, API8:2023]
+    atlas: [AML.T0049]
+    attack_cloud: [T1557, T1556]
+    attack_enterprise: [T1557, T1556]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      Forward proxies typically install a corporate root CA on all
+      managed endpoints. Compromise of that CA (proxy admin compromise,
+      misissued cert) lets the attacker MITM every TLS connection the
+      device makes — including to OpenAI / Anthropic. Every prompt,
+      every response observable + mutable. The 2019 Lenovo Superfish
+      pattern still applies. Especially severe because the cloud-AI
+      vendor's TLS pinning is defeated by the workplace-installed CA.
+    mitigations:
+      - "Proxy CA private key in HSM with quorum (M-of-N) admin access only"
+      - "Certificate-pinning at the application layer for sensitive AI clients (mobile app, native client)"
+      - "Continuous CT log monitoring (Cert Spotter, Facebook CT Monitor) for mis-issued certs under corp CA"
+      - "Annual rotation + audit of proxy CA cert; emergency-revoke procedure tested quarterly"
+    refs: [AML.M0019]

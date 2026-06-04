@@ -1,0 +1,110 @@
+component_type: soar
+description: |
+  Security Orchestration, Automation, and Response — platform that
+  runs incident-response playbooks across security tooling. Examples:
+  Palo Alto XSOAR, Microsoft Sentinel SOAR (Logic Apps), Splunk
+  Phantom (now SOAR), Tines, Torq, Swimlane, Chronicle SOAR. Holds
+  API keys + service accounts to every security tool and many
+  enterprise systems; high-impact compromise target.
+threats:
+  - id: T_SOAR_001
+    title: SOAR service-account credential aggregation enables cross-tool compromise
+    stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+    attack_enterprise: [T1078.004, T1552.005]
+    attack_cloud: [T1078.004, T1552.005]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      SOAR holds API credentials for SIEM, EDR, firewall, IAM, ticketing,
+      threat-intel, ITSM, cloud-admin platforms. A single SOAR
+      compromise inherits all those keys — and many SOAR vaults
+      store credentials in cleartext in the integration config. Stealing
+      the SOAR vault is "stealing every API key in security".
+    mitigations:
+      - "Integration credentials in external vault (HashiCorp Vault, AKV); SOAR fetches at runtime"
+      - "Per-integration least-privilege scope (e.g. EDR read-only, not full-admin)"
+      - "Quarterly credential rotation enforced via automation"
+      - "Audit log of every credential fetch with anomaly detection"
+    refs: [T1078, T1552, AML.M0019]
+
+  - id: T_SOAR_002
+    title: Malicious playbook execution causes mass-damage automation
+    stride_ai: [Tampering, Denial_of_Service]
+    attack_enterprise: [T1485, T1565]
+    maestro: [M.L7.11]
+    likelihood: 2
+    impact: 5
+    description: |
+      Attacker (insider or via compromised admin) modifies or invokes
+      a playbook that mass-blocks users, mass-isolates hosts, mass-
+      changes firewall rules, or mass-deletes evidence. SOAR
+      automation runs at machine speed — minutes to widespread
+      damage. Mistakes by overworked analysts have produced near-
+      equivalent outages.
+    mitigations:
+      - "Two-person approval for playbook publishes; protected branch + signed commits"
+      - "Action quotas — max N firewall changes / host isolations per playbook run"
+      - "Dry-run / simulation mode required before production rollout"
+      - "Roll-back automation for every destructive action"
+    refs: [AML.M0007, T1485, AML.M0019]
+
+  - id: T_SOAR_003
+    title: Playbook-input injection via attacker-controlled alert data
+    stride_ai: [Tampering, Information_Disclosure]
+    attack_enterprise: [T1059, T1190]
+    maestro: [M.L1.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      SOAR playbooks parse fields from inbound alerts (filenames,
+      URLs, hostnames). Attacker who can plant a crafted log entry
+      (e.g. user-agent containing a shell payload, hostname with
+      template-injection chars) gets the SOAR to execute code in a
+      command-injection / template-injection sink. SSRF and command-
+      injection bugs in SOAR connectors are very common.
+    mitigations:
+      - "Strict input validation on alert fields used in playbook commands"
+      - "Parameterised API calls; never shell-concat alert content"
+      - "Connector code reviewed for injection sinks; SAST in playbook CI"
+      - "Sandbox / containerised execution for untrusted-input handlers"
+    refs: [T1059, T1190, AML.M0015]
+
+  - id: T_SOAR_004
+    title: Webhook / inbound integration spoofed by attacker
+    stride_ai: [Spoofing, Tampering]
+    attack_enterprise: [T1190, T1078]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 3
+    description: |
+      SOAR exposes webhooks (Slack callbacks, Jira webhooks, custom
+      alert ingest). Without strong auth (often only a shared secret
+      in a URL parameter) attacker can post forged alerts triggering
+      automated response playbooks at will — DoS-by-automation.
+    mitigations:
+      - "HMAC-signed webhook payloads with rotated shared secret"
+      - "Mutual-TLS for sensitive webhooks"
+      - "Rate-limiting per webhook source"
+      - "Allow-list source-IP where the integration documents stable IP ranges"
+    refs: [T1190, AML.M0019]
+
+  - id: T_SOAR_005
+    title: SOAR observability gap — limited audit-log visibility into automation actions
+    stride_ai: [Repudiation, Defense_Evasion]
+    attack_enterprise: [T1562, T1070]
+    maestro: [M.L5.05]
+    likelihood: 3
+    impact: 3
+    description: |
+      Many SOAR platforms log "playbook started" but not the
+      specific API calls made downstream. Forensics post-incident
+      lacks the granular trace needed to reconstruct what the SOAR
+      actually did during an attack window.
+    mitigations:
+      - "Forward all SOAR action logs (per API call) to SIEM"
+      - "Include playbook-version hash in every audit event"
+      - "Immutable archive of every playbook run for retention period"
+      - "Periodic chaos-test: trigger known-bad input and verify audit trail completeness"
+    refs: [T1562, AML.M0019]

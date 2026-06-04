@@ -1,0 +1,103 @@
+# MITRE ATLAS Mitigations (selected)
+# Source: https://atlas.mitre.org/mitigations/
+# Curated for ATMS — referenced from playbooks
+
+- id: AML.M0000
+  name: Limit Public Release of Information
+  description: Limit the publication of system architecture, model details, and training data information.
+
+- id: AML.M0001
+  name: Limit Model Artifact Release
+  description: Restrict access to model weights, architecture, and training data to reduce extraction surface.
+
+- id: AML.M0002
+  name: Passive AI Output Obfuscation
+  description: Add noise to outputs or limit precision to make extraction/inversion harder.
+
+- id: AML.M0003
+  name: Model Hardening
+  description: Use adversarial training, randomized smoothing, or certified defenses to reduce evasion.
+
+- id: AML.M0004
+  name: Restrict Number of AI Model Queries
+  description: Rate limit and quota inference API access; detect probing patterns.
+
+- id: AML.M0005
+  name: Control Access to AI Models and Data at Rest
+  description: Apply RBAC, encryption, signed artifacts, and audit logs to model registries and datasets.
+
+- id: AML.M0006
+  name: Use Ensemble Methods
+  description: Use multiple models in ensemble to reduce single-model evasion success.
+
+- id: AML.M0007
+  name: Sanitize Training Data
+  description: Validate, dedupe, and provenance-check training, fine-tune, and RAG datasets.
+
+- id: AML.M0008
+  name: Validate AI Model
+  description: Test models against integrity canaries, behavioral baselines, and adversarial benchmarks before deploy.
+
+- id: AML.M0009
+  name: Use Multi-Modal Sensors
+  description: Combine multiple input modalities to make adversarial perturbations harder to construct.
+
+- id: AML.M0010
+  name: Input Restoration
+  description: Pre-process inputs to remove adversarial perturbations (e.g., randomization, smoothing).
+
+- id: AML.M0011
+  name: Restrict Library Loading
+  description: Pin and verify ML library and framework versions; verify signatures.
+
+- id: AML.M0012
+  name: Encrypt Sensitive Information
+  description: Encrypt sensitive data at rest and in transit, including embeddings and model artifacts.
+
+- id: AML.M0013
+  name: Code Signing
+  description: Sign and verify model artifacts, plugins, and pipelines.
+
+- id: AML.M0014
+  name: Verify AI Artifacts
+  description: Verify SHA256 / signatures on downloaded models, datasets, embeddings.
+
+- id: AML.M0015
+  name: Adversarial Input Detection
+  description: Deploy detection systems for adversarial inputs (input filters, anomaly detectors, prompt-injection classifiers).
+
+- id: AML.M0016
+  name: Vulnerability Scanning
+  description: Scan ML pipelines, frameworks, and dependencies for vulnerabilities.
+
+- id: AML.M0017
+  name: AI Model Distribution Methods
+  description: Use private model registries with signed releases; avoid public hubs for sensitive models.
+
+- id: AML.M0018
+  name: User Training
+  description: Train users to recognize prompt injection, social engineering, and AI-generated misinformation.
+
+- id: AML.M0019
+  name: Control Access to AI Models and Data in Production
+  description: RBAC and audit logs at every inference call; per-tenant isolation.
+
+- id: AML.M0020
+  name: Generative AI Guardrails
+  description: Establish acceptable use policies, content moderation, and human review workflows.
+
+- id: AML.M0021
+  name: Generative AI Guidelines
+  description: Apply RLHF, constitutional AI, or other alignment techniques to reduce harmful outputs.
+
+- id: AML.M0022
+  name: Generative AI Model Alignment
+  description: Deploy input/output guardrails (e.g., NeMo Guardrails, Llama Guard) for content and behavior filtering.
+
+- id: AML.M0023
+  name: AI Bill of Materials
+  description: Log all inference requests, agent actions, tool invocations with full audit trail.
+
+- id: AML.M0024
+  name: AI Telemetry Logging
+  description: "Maintain an SBOM for AI: models, datasets, frameworks, plugins, embeddings, with versions."

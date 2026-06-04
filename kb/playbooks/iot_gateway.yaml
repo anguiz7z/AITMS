@@ -1,0 +1,105 @@
+component_type: iot_gateway
+description: |
+  IoT gateway — edge device that aggregates traffic from IoT sensors
+  / actuators and bridges to the cloud. Examples: AWS IoT Greengrass,
+  Azure IoT Edge, Google Cloud IoT Edge (legacy), Cisco IoT IR1101,
+  Dell Edge Gateway. Often deployed in remote / unsupervised locations,
+  runs Linux, hosts the edge ML inference workload, and holds keys
+  for cloud authentication.
+threats:
+  - id: T_IOTGW_001
+    title: Physical tamper at unsupervised gateway extracts device certificate
+    stride_ai: [Information_Disclosure, Spoofing]
+    attack_enterprise: [T1200, T1552.004]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Gateway in a roadside cabinet, factory floor, or retail back-of-
+      house can be opened, debugged via JTAG/UART, and have its
+      device certificate / private key extracted. The attacker can
+      then impersonate the gateway to the cloud — feeding poisoned
+      telemetry or attacking the cloud's IoT API surface.
+    mitigations:
+      - "Hardware-rooted identity (TPM / Secure Element / Nitro Enclave) — keys non-extractable"
+      - "Secure boot + measured boot; remote attestation to cloud"
+      - "Tamper-evident enclosures with switch-monitored alarm"
+      - "Per-device certificate with short rotation; revocation enforced cloud-side"
+    refs: [T1200, AML.M0019]
+
+  - id: T_IOTGW_002
+    title: Outdated firmware / dependency drift on edge runtime
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190, T1203]
+    maestro: [M.X.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      Greengrass / IoT Edge runtimes ship a base OS + runtime that
+      drift behind upstream. Fleet of thousands of gateways may
+      have a known CVE for months. Public internet exposure on
+      misconfigured cellular APN compounds the risk.
+    mitigations:
+      - "OTA update pipeline with staged canary rollout; mandatory firmware version SLA"
+      - "Inventory + CVE-mapping dashboard for fleet"
+      - "Egress-only network posture; no inbound public IP"
+      - "Auto-quarantine devices on EOL firmware"
+    refs: [AML.M0007, T1190]
+
+  - id: T_IOTGW_003
+    title: Malicious local module / Greengrass component runs on gateway
+    stride_ai: [Tampering]
+    attack_enterprise: [T1543, T1195]
+    maestro: [M.L7.11]
+    likelihood: 2
+    impact: 4
+    description: |
+      Greengrass component / IoT Edge module from an untrusted source
+      (typo-squat in the AWS Component Manager, malicious GitHub
+      Action publishing artifact) is deployed to the fleet. Component
+      runs with the gateway's IAM / device-cert privileges.
+    mitigations:
+      - "Code-signed components; gateway refuses unsigned"
+      - "Allowlist of component publishers / repositories"
+      - "Component scanning for secrets, malware, supply-chain anomaly"
+      - "Per-component IAM with minimum privilege (not the device role)"
+    refs: [AML.M0007, T1195]
+
+  - id: T_IOTGW_004
+    title: Gateway used as pivot into the IoT-controlled physical system
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1021, T1570]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Gateway speaks Modbus / BACnet / OPC-UA to building-management
+      / SCADA / robotics downstream. RCE on the gateway provides
+      shell access into a Purdue-Level-2 control network with no
+      additional barrier. Inverse of the corp-to-OT pattern.
+    mitigations:
+      - "Strict downstream-protocol allowlist on gateway egress"
+      - "Compartment the gateway: distinct logical interfaces for cloud vs control bus"
+      - "IDS on downstream control protocols"
+      - "Application allowlist on the gateway"
+    refs: [T0883, T1021, AML.M0019]
+
+  - id: T_IOTGW_005
+    title: Cloud-IoT bulk de-provision causes operational outage
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1485, T1531]
+    maestro: [M.L4.04]
+    likelihood: 2
+    impact: 4
+    description: |
+      Compromised cloud-IoT admin or buggy automation script
+      revokes / disables thousands of device certificates at once.
+      Every gateway loses cloud connectivity, fails over to local
+      cache, eventually stops collecting telemetry / executing
+      commands. Recovery requires per-device manual intervention.
+    mitigations:
+      - "Two-person approval for bulk-cert-revoke operations"
+      - "Rate-limit cert-revoke at the cloud IoT control plane"
+      - "Offline-mode operation tested for at least 48h continuous"
+      - "Disaster-recovery rehearsal that includes cert-mass-revoke scenario"
+    refs: [T1485, AML.M0019]

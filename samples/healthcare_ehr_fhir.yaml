@@ -1,0 +1,208 @@
+name: healthcare-ehr-fhir
+description: |
+  Hospital EHR (Electronic Health Record) with FHIR API, a clinical
+  decision-support LLM, PHI vault, and HIPAA-scoped data flows.
+  Demonstrates ATMS coverage of healthcare-vertical compliance:
+  HIPAA Security Rule, GDPR (EU patients), ISO 27018, SOC 2 PHI.
+business_context: |
+  Tier-1 acute-care hospital, 850-bed campus, regulated under HIPAA +
+  state-equivalent statutes; ~30k patient records active.
+industry: healthcare_provider
+deployment_stage: production
+revenue_bucket: 500m_to_5b
+is_high_risk_under_eu_ai_act: true
+
+components:
+  # Patients / clinicians
+  - id: patient
+    name: Patient (portal)
+    type: user
+    trust_zone: external
+  - id: clinician
+    name: Clinician (web UI)
+    type: user
+    trust_zone: clinical
+  # Edge / perimeter
+  - id: waf
+    name: AWS WAF
+    type: waf
+    trust_zone: perimeter
+    controls: [encryption_in_transit]
+  - id: cdn
+    name: CloudFront
+    type: cdn
+    trust_zone: perimeter
+  - id: api_gw
+    name: FHIR API Gateway
+    type: api_gateway
+    trust_zone: edge
+    description: FHIR R4 endpoint, OAuth2/SMART-on-FHIR.
+    controls: [mfa_required]
+  # Identity
+  - id: idp
+    name: Hospital IdP (Okta)
+    type: identity_provider
+    trust_zone: identity
+    controls: [mfa_required]
+  - id: mfa
+    name: MFA (Okta Verify)
+    type: mfa_service
+    trust_zone: identity
+  - id: cliniciandir
+    name: Clinical AD
+    type: directory_service
+    trust_zone: identity
+  # Core EHR
+  - id: ehr_api
+    name: EHR Application API
+    type: web_application
+    trust_zone: clinical
+    description: Epic-style clinical workflows; chart access, orders, results.
+  - id: cds_llm
+    name: Clinical Decision Support LLM
+    type: llm_inference
+    trust_zone: clinical
+    description: GPT-4o medical fine-tune for differential-dx suggestions; reviewer required.
+  - id: cds_guard
+    name: Clinical Output Guardrails
+    type: guardrails
+    trust_zone: clinical
+    controls: [prompt_injection_guard]
+  - id: dlp
+    name: PHI DLP
+    type: dlp
+    trust_zone: clinical
+  # Data
+  - id: phi_db
+    name: Patient Records DB
+    type: database
+    trust_zone: phi
+    controls: [encryption_at_rest, backup_immutable]
+    description: Primary PHI store, full audit log.
+  - id: imaging_store
+    name: DICOM Imaging Store
+    type: object_storage
+    trust_zone: phi
+    controls: [encryption_at_rest]
+  - id: rag_kb
+    name: Clinical Guidelines Vector Store
+    type: rag_vector_store
+    trust_zone: clinical
+  - id: phi_vault
+    name: PHI Secrets Vault
+    type: secrets_vault
+    trust_zone: phi
+    controls: [encryption_at_rest]
+  - id: kms
+    name: HSM
+    type: hsm
+    trust_zone: phi
+  - id: bkp
+    name: Backup Service
+    type: backup_service
+    trust_zone: phi
+  # Reviewer (EU AI Act human oversight)
+  - id: reviewer
+    name: Clinician (Reviewer)
+    type: user
+    trust_zone: clinical
+  # Observability
+  - id: siem
+    name: Sentinel (Healthcare SIEM)
+    type: siem
+    trust_zone: observability
+  - id: edr
+    name: CrowdStrike Falcon
+    type: edr_agent
+    trust_zone: observability
+  - id: log_agg
+    name: Splunk Logs
+    type: log_aggregator
+    trust_zone: observability
+
+dataflows:
+  - source: patient
+    target: cdn
+    label: HTTPS portal request
+    crosses_boundary: true
+  - source: cdn
+    target: waf
+    label: TLS forward
+  - source: waf
+    target: api_gw
+    label: TLS forward
+    crosses_boundary: true
+  - source: clinician
+    target: waf
+    label: HTTPS (clinical SSO)
+    crosses_boundary: true
+  - source: api_gw
+    target: idp
+    label: OAuth2 SMART-on-FHIR
+  - source: idp
+    target: mfa
+    label: TOTP challenge
+  - source: idp
+    target: cliniciandir
+    label: SAML assertion
+  - source: api_gw
+    target: ehr_api
+    label: TLS + JWT bearer
+    crosses_boundary: true
+  - source: ehr_api
+    target: phi_db
+    label: TLS SQL (redacted audit)
+    data_classification: restricted
+    crosses_boundary: true
+  - source: ehr_api
+    target: imaging_store
+    label: TLS HTTP (audit)
+    data_classification: restricted
+  - source: ehr_api
+    target: dlp
+    label: PII redaction
+  - source: dlp
+    target: cds_llm
+    label: redacted prompt
+  - source: cds_llm
+    target: cds_guard
+    label: filtered output
+  - source: cds_guard
+    target: reviewer
+    label: review + sign-off (human oversight)
+  - source: cds_llm
+    target: rag_kb
+    label: similarity search
+  - source: ehr_api
+    target: phi_vault
+    label: get-secret (mTLS)
+  - source: phi_vault
+    target: kms
+    label: envelope encryption
+  - source: phi_db
+    target: bkp
+    label: encrypted snapshot
+  - source: ehr_api
+    target: log_agg
+    label: redacted audit log
+  - source: log_agg
+    target: siem
+    label: forward
+  - source: edr
+    target: siem
+    label: detection alerts
+
+trust_boundaries:
+  - id: external_zone
+    type: network
+    components_inside: [patient]
+  - id: clinical_zone
+    type: network
+    components_inside: [ehr_api, cds_llm, cds_guard, rag_kb, dlp, clinician, reviewer]
+  - id: phi_zone
+    type: data_classification
+    components_inside: [phi_db, imaging_store, phi_vault, kms, bkp]
+    description: HIPAA-protected health information boundary.
+  - id: observability_zone
+    type: network
+    components_inside: [siem, edr, log_agg]

@@ -1,0 +1,117 @@
+component_type: ml_experiment_tracker
+description: |
+  ML experiment tracking platform — logs metrics, hyperparameters,
+  artefacts, model versions, and reproduces training runs. Examples:
+  MLflow (open-source or Databricks managed), Weights & Biases,
+  Comet ML, Neptune.ai, ClearML, SageMaker Experiments, Vertex AI
+  Experiments. Stores artefacts (model.pkl, dataset references)
+  and often acts as the source of truth for which model promotion
+  candidate to ship.
+threats:
+  - id: T_MLEXP_001
+    title: Malicious / pickled model artefact in tracker enables RCE on download
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM03:2025]
+    atlas_techniques: [AML.T0010, AML.T0011]
+    attack_enterprise: [T1195.002, T1059]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 4
+    impact: 5
+    description: |
+      MLflow / W&B / Comet host pickled model artefacts. Pickle
+      deserialisation is arbitrary-code-execution by design.
+      Attacker who can upload a pickle, OR who can update a
+      "blessed" pickle via run logging, executes code on every
+      consumer that pulls and instantiates the model (typically
+      a CI / deploy pipeline with broad cloud privileges).
+    mitigations:
+      - "Reject pickle; require safetensors / ONNX / TFLite artefact formats"
+      - "Artefact signing (SLSA) + verification before instantiate"
+      - "Sandboxed model-load environment for unverified artefacts"
+      - "Per-experiment IAM; only logged-in run owner can write"
+    refs: [AML.M0007, T1195]
+
+  - id: T_MLEXP_002
+    title: MLflow Tracking Server pre-auth RCE / path-traversal (CVE-2023-1177 class)
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190, T1059]
+    maestro: [M.X.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Self-hosted MLflow servers have shipped multiple critical
+      CVEs (CVE-2023-1177 path traversal, CVE-2023-6831, CVE-2024-27132).
+      Internet-exposed servers (very common in research orgs) are
+      mass-scanned and exploited within days of disclosure.
+    mitigations:
+      - "Never expose tracker UI to the internet; require VPN / private network"
+      - "Patch SLA <72h for critical CVE"
+      - "Authentication enabled (MLflow basic-auth or OIDC); no anonymous writes"
+      - "External attack-surface monitoring for known-vulnerable MLflow versions"
+    refs: [T1190, AML.M0007]
+
+  - id: T_MLEXP_003
+    title: Sensitive dataset / metric / parameter leakage via experiment artefacts
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    atlas_techniques: [AML.T0024]
+    attack_enterprise: [T1213]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Researchers log sample inputs, prompts, intermediate text
+      generations, evaluation outputs as run artefacts. Many
+      contain PII or confidential business content from the
+      training set. Shared tracker workspace makes them visible
+      across teams — and external SaaS tier (W&B Cloud free tier)
+      may store outside the org's data boundary.
+    mitigations:
+      - "Mandatory data-classification tag on every run; restrict cross-team read on sensitive"
+      - "PII-redaction in the log-artefact pipeline"
+      - "Self-hosted / VPC-deploy for sensitive workloads; never use SaaS for restricted data"
+      - "Per-experiment retention with auto-purge"
+    refs: [T1213, AML.M0019]
+
+  - id: T_MLEXP_004
+    title: Model-promotion bypass — non-blessed model promoted to production
+    stride_ai: [Tampering, Defense_Evasion]
+    owasp_llm: [LLM04:2025]
+    atlas_techniques: [AML.T0019]
+    attack_enterprise: [T1565]
+    maestro: [M.L7.11]
+    likelihood: 3
+    impact: 4
+    description: |
+      "Promotion" of a model from staging to production often boils
+      down to changing a tag in the tracker. An attacker who can
+      set tags can promote an untested / backdoored model into the
+      hot path. Downstream serving picks up the new version on next
+      reload.
+    mitigations:
+      - "Promotion gated by signed approval workflow (not just a tag flip)"
+      - "Two-person review on every prod-promotion"
+      - "Eval-set required to pass before promotion; tracker enforces"
+      - "Audit log of every promotion / demotion"
+    refs: [AML.M0007, T1565]
+
+  - id: T_MLEXP_005
+    title: Embedded API key in shared W&B / Comet run
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1552.001, T1552.004]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 3
+    description: |
+      Researchers commit training code that prints env-vars to logs;
+      W&B / Comet console captures the full training-script stdout.
+      OPENAI_API_KEY, HF_TOKEN, AWS_SECRET visible to anyone who can
+      see the run. Sharing run-URL externally (in a paper / blog)
+      leaks secrets globally.
+    mitigations:
+      - "Stdout-scrubbing in tracker SDK (mask known env-var patterns)"
+      - "Pre-commit secret-scan in research repos"
+      - "Per-user / per-team workspace; share runs with redacted UI"
+      - "Vault-based key injection so keys never appear in env-vars at training time"
+    refs: [T1552, AML.M0019]

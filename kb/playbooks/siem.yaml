@@ -1,0 +1,70 @@
+component_type: siem
+description: |
+  Security Information & Event Management (Sentinel, Chronicle, Splunk, QRadar,
+  Sumo Logic). Aggregates logs from cloud control planes, EDR, IDS, network
+  appliances, AI inference platforms. Critical for detecting AI-system abuse
+  patterns over time.
+threats:
+  - id: T_SIEM_001
+    title: AI-system logs not ingested → blind to LLM abuse
+    stride_ai: [Defense_Evasion]
+    owasp_llm: [LLM05:2025]
+    owasp_api: [API9:2023]
+    atlas: [AML.T0040]
+    maestro: [M.L5.05]
+    likelihood: 4
+    impact: 4
+    description: |
+      Bedrock invocation logs, OpenAI usage logs, agent trace data, prompt /
+      response audit trails, and guardrail-blocked events are not flowing into
+      the SIEM. SOC has no visibility for prompt injection, model abuse,
+      or cost-DoS detection.
+    mitigations:
+      - "Bedrock model invocation logging enabled → CloudTrail → SIEM ingest pipeline"
+      - "Azure OpenAI logs → Log Analytics → Sentinel"
+      - "Per-tenant AI use dashboard with anomaly detection on prompt volume + token cost"
+      - "Guardrail-blocked events alert as P2 incident"
+    refs: [AML.M0023]
+
+  - id: T_SIEM_002
+    title: SIEM ingest pipeline poisoning / log truncation under load
+    stride_ai: [Tampering, Repudiation]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0040]
+    attack_enterprise: [T1562.008]
+    maestro: [M.L5.05]
+    likelihood: 2
+    impact: 4
+    description: |
+      Attacker floods the SIEM with high-volume noise (cheap brute-force on
+      adjacent surface) to push real AI-abuse signals out of the retention
+      window or trigger ingest-quota truncation. Detection delayed past
+      the response window.
+    mitigations:
+      - "Tier ingestion: AI-system logs route to a high-priority, larger-quota table"
+      - "Anomaly detection on ingest volume + alert on log-source silence"
+      - "Offline daily review of guardrail-blocked events even if SIEM dropped them"
+    refs: [AML.M0023]
+
+  - id: T_SIEM_003
+    title: Detection rules lag — no MITRE ATLAS / OWASP LLM coverage
+    stride_ai: [Defense_Evasion]
+    owasp_llm: [LLM05:2025]
+    owasp_api: [API9:2023]
+    atlas: [AML.T0040]
+    attack_enterprise: [T1562]
+    maestro: [M.L5.05]
+    likelihood: 4
+    impact: 4
+    description: |
+      SIEM has mature ATT&CK coverage but no detection rules mapped to
+      MITRE ATLAS techniques (AML.T0051 prompt injection, AML.T0024
+      model extraction, AML.T0040 evasion) or OWASP LLM Top 10 patterns.
+      AI-system abuse signals exist in the logs but no rule fires.
+      Common gap when SOC team has not been re-trained for AI workloads.
+    mitigations:
+      - "Build ATLAS-to-SIEM rule mappings: each AML technique → at least one detection"
+      - "Quarterly purple-team exercise replays ATLAS techniques against the AI stack; measure detection coverage"
+      - "OWASP LLM Top 10 → SIEM analytic mapping document maintained as living artefact"
+      - "Subscribe to AI-threat-intel feed (Lakera, Robust Intelligence) for new technique signatures"
+    refs: [T1562, AML.M0019, AML.T0040]

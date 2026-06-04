@@ -1,0 +1,99 @@
+component_type: private_link
+description: |
+  Private connectivity service — AWS PrivateLink (VPC Endpoint Service +
+  Interface Endpoint), Azure Private Link (Private Endpoint + Private
+  Link Service), GCP Private Service Connect, OCI Private Endpoint.
+  Lets cross-VPC / cross-tenant connectivity flow without traversing
+  the public internet — popular for keeping AI inference / vector
+  store / model registry calls private. The trust boundary inverts:
+  what looks like "private" is in fact a cross-tenant pinhole.
+threats:
+  - id: T_PRIVLINK_001
+    title: Endpoint approval bypass / auto-accept exposing AI service to wrong tenants
+    stride_ai: [Spoofing, Elevation_of_Privilege, Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM10:2025]
+    owasp_api: [API1:2023, API5:2023]
+    atlas: [AML.T0044]
+    attack_cloud: [T1133, T1078.004]
+    attack_enterprise: [T1133]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01, CSA_AI.DEPLOY.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      AWS PrivateLink endpoint service set `AcceptanceRequired=false`
+      or Azure Private Link Service `autoApproval` list overly broad.
+      Any account / subscription can create an interface endpoint to
+      your private AI inference endpoint or vector store. The
+      consumer-account assumes their traffic to it is "private," but
+      so is everyone else's — and you have no out-of-band signal that
+      a new consumer wired up. Especially severe because the
+      consumer-side feels secure ("we're on private endpoints!") and
+      the producer-side never gets a visible alert.
+    mitigations:
+      - "AcceptanceRequired=true on every PrivateLink endpoint service; explicit allow-list of consumer accounts"
+      - "Azure Private Link manual approval workflow with ticketing integration"
+      - "AWS Config rule / Azure Policy enforcing auto-approval=false on every endpoint service"
+      - "Daily alert on new accepted endpoints; weekly review of full consumer list"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_PRIVLINK_002
+    title: DNS hijack / private-DNS poisoning rerouting inference traffic
+    stride_ai: [Spoofing, Tampering, Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM07:2025]
+    owasp_agentic: [AGT09]
+    owasp_api: [API8:2023, API10:2023]
+    atlas: [AML.T0019, AML.T0049, AML.T0051.001]
+    attack_cloud: [T1557, T1071.004]
+    attack_enterprise: [T1557, T1071.004]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Private Link relies on private DNS (Route53 PHZ, Azure Private
+      DNS Zone, Cloud DNS) to override the public name for the
+      service. A compromised IAM principal with `route53:ChangeResourceRecordSets`
+      on the PHZ overrides the CNAME and points the agent's calls to
+      Bedrock / Azure OpenAI / Vertex through an attacker-owned
+      proxy. The agent doesn't see a TLS error because the attacker
+      runs a same-account ACM cert — same SNI, same trust chain. Every
+      prompt is captured, every response can be subtly tampered with
+      (prompt-injection inserted as "system message").
+    mitigations:
+      - "Private DNS zone IAM locked to platform-network team; deny `ChangeResourceRecordSets` from app accounts"
+      - "Certificate pinning at the SDK / app layer for inference endpoints; refuse calls with cert thumbprints not on the allow-list"
+      - "Egress traffic mirror to a separate inspection account; flag any traffic to private-IP that doesn't match the service's expected CIDR"
+      - "Audit + alert on every PHZ record change with on-call paging"
+    refs: [AML.M0007, AML.M0019]
+
+  - id: T_PRIVLINK_003
+    title: PrivateLink permits data exfil bypassing egress controls
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API4:2023, API8:2023]
+    atlas: [AML.T0024, AML.T0044]
+    attack_cloud: [T1567, T1041]
+    attack_enterprise: [T1567]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      The "trusted PrivateLink" assumption causes orgs to whitelist
+      PrivateLink traffic in their egress firewalls. An attacker who
+      registers an endpoint service pointing to an attacker-owned NLB
+      gets a private-DNS-routable tunnel out of the victim VPC,
+      invisible to the IDS/IPS and the egress proxy. Used as a known
+      exfil channel in red-team engagements. AI workloads with broad
+      egress (calling many AI APIs, fetching public datasets) make
+      this anomaly easy to bury.
+    mitigations:
+      - "VPC endpoint policy whitelists specific service-name principals (`com.amazonaws.region.bedrock-runtime`), not `*`"
+      - "AWS Org SCP: deny `ec2:CreateVpcEndpoint` for services not on the platform-approved list"
+      - "Egress firewall inspects PrivateLink SNI / service-name; alert on unknown endpoint usage"
+      - "Per-VPC inventory of all PrivateLink consumer endpoints; daily diff"
+    refs: [AML.M0019, AML.M0023]

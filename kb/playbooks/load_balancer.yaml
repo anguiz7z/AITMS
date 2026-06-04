@@ -1,0 +1,65 @@
+component_type: load_balancer
+description: |
+  Layer 4/7 load balancer — F5 BIG-IP, NGINX+, HAProxy, AWS ELB / ALB / NLB,
+  Azure Load Balancer, GCP Cloud Load Balancer. Distributes traffic; often
+  terminates TLS and runs WAF.
+threats:
+  - id: T_LB_001
+    title: Outdated load-balancer firmware (vendor CVEs)
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190]
+    maestro: [M.X.01]
+    likelihood: 3
+    impact: 5
+    # v0.16.0: firmware threats apply only to appliances. CloudFront /
+    # ALB / Front Door / Cloud Load Balancing are vendor-patched.
+    requires:
+      metadata.deployment_mode: [appliance, virtual_appliance]
+    not_applicable_to:
+      metadata.vendor: [AWS, Microsoft, Google, Cloudflare, Akamai, Fastly]
+      metadata.deployment_mode: [managed_service, saas, cdn]
+    description: |
+      F5 BIG-IP has had multiple critical RCE CVEs (e.g. CVE-2020-5902).
+      Unpatched LB is direct internet RCE. Same risk applies to other
+      vendors.
+    mitigations:
+      - "Vendor security advisory subscription with 24h patch SLA"
+      - "Management plane on isolated network; no internet"
+      - "External attack-surface scanning"
+    refs: [T1190]
+
+  - id: T_LB_002
+    title: TLS misconfiguration (weak ciphers / wildcard cert)
+    stride_ai: [Information_Disclosure, Spoofing]
+    owasp_api: [API8:2023]
+    attack_enterprise: [T1040]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 3
+    description: |
+      LB negotiates SSL 3.0 / TLS 1.0 / weak ciphers, uses a wildcard cert
+      shared across many services, missing HSTS. MITM risk where the
+      attacker is on a hostile network.
+    mitigations:
+      - "TLS 1.2+ only; modern cipher suites; HSTS preload"
+      - "Per-service certs (ACM / Let's Encrypt automation)"
+      - "Continuous SSL Labs / similar scan"
+    refs: [T1040, API8:2023]
+
+  - id: T_LB_003
+    title: Backend-server selection abuse
+    stride_ai: [Spoofing, Tampering]
+    owasp_api: [API1:2023, API8:2023]
+    attack_enterprise: [T1190]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 4
+    description: |
+      Smuggling-class attacks exploit differences in how the LB and the
+      backend parse requests (HTTP request smuggling, host-header injection).
+      Used to bypass auth or poison cache.
+    mitigations:
+      - "Same HTTP parser between LB and backend"
+      - "Strict header validation; reject malformed Host / Content-Length"
+      - "Defense-in-depth: WAF rules for known smuggling patterns"
+    refs: [T1190, API1:2023, API8:2023]

@@ -1,0 +1,87 @@
+component_type: container_security
+description: |
+  Container & workload runtime security — Aqua Security, Sysdig
+  Secure, Wiz Runtime Sensor, Snyk Container, Palo Alto Prisma Cloud
+  Compute (Twistlock), Microsoft Defender for Containers, Falco. Image
+  scanning, admission control, runtime behavioural detection, and
+  Kubernetes posture enforcement. AI workloads are
+  container-heavy (SageMaker / Vertex training jobs, KServe, Triton
+  Inference Server, Ray clusters) so container-security gaps are AI
+  gaps.
+threats:
+  - id: T_CTRSEC_001
+    title: Runtime sensor blind to AI-specific exploit primitives
+    stride_ai: [Defense_Evasion]
+    owasp_llm: [LLM03:2025, LLM05:2025]
+    owasp_api: [API9:2023]
+    atlas: [AML.T0040]
+    attack_cloud: [T1610, T1611, T1562]
+    attack_enterprise: [T1059, T1525]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      Falco / Sysdig rules cover shell exec, network listener, file
+      modify — but model-loading exploits (pickle deserialization
+      RCE in a model artefact, ONNX Runtime exploit, vLLM exec via
+      crafted request) execute within the expected `python` /
+      `torchrun` process. Runtime sensor sees nothing anomalous.
+      The OWASP ML 2023 backdoor-loading attacks and the 2024 LeftoverLocals
+      / GPU-shared-memory attacks both fall under this gap.
+    mitigations:
+      - "Custom Falco rules for model-loader behaviour: alert on `python` process loading from unexpected paths, network connections after model load"
+      - "eBPF-based AI-specific telemetry: track CUDA / Vulkan syscall patterns; flag GPU memory access from non-expected processes"
+      - "Model integrity: trainer signs model artefact at output, runtime sensor verifies signature at load time and alerts on mismatch"
+      - "Behavioural baseline per model deployment: any deviation from established inference-call pattern (latency, output token distribution) flags"
+    refs: [AML.M0007, AML.M0023]
+
+  - id: T_CTRSEC_002
+    title: Admission controller bypassed via pod-create privilege in AI namespace
+    stride_ai: [Elevation_of_Privilege, Tampering]
+    owasp_api: [API5:2023, API8:2023]
+    atlas: [AML.T0010]
+    attack_cloud: [T1525, T1611]
+    attack_enterprise: [T1611]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Container admission controllers (Kyverno, OPA Gatekeeper, Aqua,
+      Sysdig admission) enforce policy at pod-create. A
+      compromised data-scientist service account with broad
+      `pods/create` in the AI namespace can spin up a privileged
+      pod bypassing the policy chain (mounting `/`, no readOnlyRootFilesystem,
+      using a `latest` tag of an unscanned image). The "scientists
+      need wide RBAC to iterate quickly" common rationale opens this.
+    mitigations:
+      - "Kyverno / Gatekeeper policies enforced at validation phase (not just audit); failed admission rejects the pod"
+      - "Namespace-scoped RBAC: no human user has direct `pods/create` in prod AI namespace — go through GitOps (Argo CD, Flux) signed manifests"
+      - "Image-signature verification policy (Cosign + Sigstore policy-controller) enforced in admission"
+      - "Pod Security Admission `restricted` profile baseline for every namespace; explicit annotation required to escalate"
+    refs: [AML.M0007, AML.M0023]
+
+  - id: T_CTRSEC_003
+    title: Image scan results ignored due to vulnerability fatigue
+    stride_ai: [Repudiation, Defense_Evasion]
+    owasp_api: [API9:2023]
+    atlas: [AML.T0010]
+    attack_cloud: [T1554]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      AI inference base images (CUDA, PyTorch, Hugging Face) typically
+      have 500+ CVEs at scan time, most theoretical. The platform team
+      sets the scanner to "warn, don't block" because blocking
+      would halt every deployment. The one critical RCE in
+      ONNX Runtime (or curl, or jpeg-turbo) is then deployed alongside
+      the noise.
+    mitigations:
+      - "EPSS-driven prioritisation: block on top 5% EPSS regardless of CVSS; ignore high-CVSS-low-EPSS noise"
+      - "Tiered policy: critical CVEs in network-reachable images = hard-block; same CVE in offline-training image = warn"
+      - "Vendor-curated base images (AWS Deep Learning AMI, Azure Curated Environments, distroless from Google) reduce baseline CVE count by 90%+"
+      - "Weekly metric: ratio of in-use images with newer-patch-available; target < 5%"
+    refs: [AML.M0023]

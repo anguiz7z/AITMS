@@ -1,0 +1,2046 @@
+# ATMS device & product catalog (v0.11)
+# Curated list of real, currently-deployed products keyed by ATMS component
+# type. Surfaced as a vendor / product / version picker inside the GUI editor
+# (writes selections into `component.metadata.vendor / .product / .version`).
+#
+# Entry schema:
+#   id:        stable snake_case key (used by code)
+#   vendor:    vendor / project / publisher
+#   product:   product / service name
+#   category:  ATMS component_type (one of the 40)
+#   versions:  list of version strings the user can pick
+#   description: one short line
+#   os:        host OS family if relevant ('cloud' for SaaS / managed)
+#   notes:     optional caveats / hardening hints
+#
+# Curated 2026-05-09. Versions reflect what's currently in production /
+# vendor-supported as of that date. Entries are illustrative — the catalogue
+# is meant to give users a head-start on labelling, not to be exhaustive.
+
+# ──────────────────────────── AI / Models ──────────────────────────────────
+- id: anthropic_claude_api
+  vendor: Anthropic
+  product: Claude (API)
+  category: llm_inference
+  versions:
+    - "Claude Opus 4.7"
+    - "Claude Sonnet 4.6"
+    - "Claude Haiku 4.5"
+    - "Claude Opus 4.1"
+    - "Claude Sonnet 4"
+    - "Claude 3.7 Sonnet"
+    - "Claude 3.5 Sonnet (legacy)"
+    - "Claude 3.5 Haiku (legacy)"
+    - "Claude 3 Opus (legacy)"
+  description: Anthropic Claude family via api.anthropic.com.
+  os: cloud
+  notes: "Default routing region varies; data residency via region endpoints."
+
+- id: openai_gpt_api
+  vendor: OpenAI
+  product: GPT (API)
+  category: llm_inference
+  versions:
+    - "gpt-5"
+    - "gpt-5-turbo"
+    - "gpt-4.5"
+    - "gpt-4o"
+    - "gpt-4o-mini"
+    - "gpt-4-turbo"
+    - "gpt-3.5-turbo (legacy)"
+    - "o1 / o1-mini"
+    - "o3 / o3-mini"
+  description: OpenAI GPT family via platform.openai.com.
+  os: cloud
+
+- id: google_gemini_api
+  vendor: Google
+  product: Gemini (Vertex AI / AI Studio)
+  category: llm_inference
+  versions:
+    - "Gemini 2.5 Pro"
+    - "Gemini 2.5 Flash"
+    - "Gemini 2.0 Flash"
+    - "Gemini 1.5 Pro"
+    - "Gemini 1.5 Flash"
+  description: Google Gemini, hosted on Vertex AI or AI Studio.
+  os: cloud
+
+- id: aws_bedrock
+  vendor: AWS
+  product: Amazon Bedrock
+  category: llm_inference
+  versions:
+    - "Anthropic Claude (Bedrock)"
+    - "Mistral Large 2 (Bedrock)"
+    - "Meta Llama 3.3 (Bedrock)"
+    - "Amazon Titan Text"
+    - "Amazon Nova Pro"
+    - "AI21 Jamba"
+    - "Cohere Command R+"
+  description: Multi-vendor LLMs hosted on AWS Bedrock.
+  os: cloud
+
+- id: azure_openai
+  vendor: Microsoft
+  product: Azure OpenAI Service
+  category: llm_inference
+  versions:
+    - "gpt-5 (Azure)"
+    - "gpt-4o (Azure)"
+    - "gpt-4-turbo (Azure)"
+    - "o3 (Azure)"
+  description: OpenAI models hosted in Azure tenancy with regional pinning.
+  os: cloud
+
+- id: azure_ai_foundry
+  vendor: Microsoft
+  product: Azure AI Foundry
+  category: llm_inference
+  versions:
+    - "Phi-4"
+    - "Phi-3.5"
+    - "Mistral Large 2"
+    - "Llama 3.3"
+  description: Multi-model inference + agent platform on Azure.
+  os: cloud
+
+- id: vertex_ai_endpoint
+  vendor: Google
+  product: Vertex AI Model Endpoint
+  category: llm_inference
+  versions:
+    - "Gemini 2.5"
+    - "Gemini 1.5"
+    - "PaLM 2 (legacy)"
+    - "Custom-deployed model"
+  description: Managed model serving on GCP Vertex AI.
+  os: cloud
+
+- id: aws_sagemaker_endpoint
+  vendor: AWS
+  product: SageMaker Endpoint
+  category: llm_inference
+  versions:
+    - "JumpStart-deployed (Llama 3.x)"
+    - "JumpStart-deployed (Mistral)"
+    - "Custom container endpoint"
+  description: Real-time / serverless SageMaker inference.
+  os: cloud
+
+- id: hf_inference
+  vendor: Hugging Face
+  product: Inference Endpoints
+  category: llm_inference
+  versions: ["Dedicated endpoint", "Serverless inference API"]
+  description: Hosted HF model serving.
+  os: cloud
+
+- id: groq_cloud
+  vendor: Groq
+  product: GroqCloud
+  category: llm_inference
+  versions: ["Llama 3.3 70B (Groq)", "Mixtral 8x22B (Groq)", "Gemma 2 (Groq)"]
+  description: Low-latency LPU-accelerated open-model inference.
+  os: cloud
+
+- id: together_ai
+  vendor: Together AI
+  product: Together Inference
+  category: llm_inference
+  versions: ["Llama 3.3", "Mixtral 8x22B", "Qwen 2.5"]
+  description: Multi-model open-weights inference platform.
+  os: cloud
+
+- id: fireworks_ai
+  vendor: Fireworks
+  product: Fireworks Inference
+  category: llm_inference
+  versions: ["Llama 3.3", "Mixtral", "Custom fine-tunes"]
+  os: cloud
+  description: Fast open-model inference.
+
+- id: cohere_command
+  vendor: Cohere
+  product: Command R / R+ / R7B
+  category: llm_inference
+  versions: ["Command R+ (08-2024)", "Command R (08-2024)", "Command R7B"]
+  os: cloud
+
+- id: ai21_jamba
+  vendor: AI21
+  product: Jamba
+  category: llm_inference
+  versions: ["Jamba 1.5 Large", "Jamba 1.5 Mini"]
+  os: cloud
+
+- id: ollama_local
+  vendor: Ollama
+  product: Ollama (local runtime)
+  category: llm_inference
+  versions: ["0.5.x", "0.4.x", "0.3.x"]
+  description: Local-first model runner; common for laptop development.
+  os: linux,macos,windows
+  notes: "Listens on 11434 by default; secure to localhost or per-network ACL."
+
+- id: vllm
+  vendor: vLLM Project
+  product: vLLM
+  category: llm_inference
+  versions: ["0.7.x", "0.6.x", "0.5.x"]
+  os: linux
+  description: Production-grade open-source LLM server.
+
+- id: tgi
+  vendor: Hugging Face
+  product: Text Generation Inference (TGI)
+  category: llm_inference
+  versions: ["3.x", "2.x"]
+  os: linux
+
+- id: triton_inference
+  vendor: NVIDIA
+  product: Triton Inference Server
+  category: llm_inference
+  versions: ["25.x", "24.x", "23.x"]
+  os: linux
+
+- id: lmstudio
+  vendor: LM Studio
+  product: LM Studio (desktop)
+  category: llm_inference
+  versions: ["0.3.x"]
+  os: windows,macos,linux
+  description: Desktop UI + server for local model inference.
+
+# ──────────────────────────── Embedding services ───────────────────────────
+- id: openai_embeddings
+  vendor: OpenAI
+  product: text-embedding-3
+  category: embedding_service
+  versions: ["text-embedding-3-large", "text-embedding-3-small", "text-embedding-ada-002 (legacy)"]
+  os: cloud
+
+- id: voyage_embeddings
+  vendor: Voyage AI
+  product: Voyage Embeddings
+  category: embedding_service
+  versions: ["voyage-3", "voyage-3-lite", "voyage-code-3"]
+  os: cloud
+
+- id: cohere_embed
+  vendor: Cohere
+  product: Embed v3
+  category: embedding_service
+  versions: ["embed-english-v3.0", "embed-multilingual-v3.0"]
+  os: cloud
+
+- id: aws_titan_embed
+  vendor: AWS
+  product: Titan Embeddings
+  category: embedding_service
+  versions: ["Titan Text Embeddings v2", "Titan Text Embeddings v1"]
+  os: cloud
+
+- id: vertex_embeddings
+  vendor: Google
+  product: Vertex Embeddings
+  category: embedding_service
+  versions: ["text-embedding-004", "text-embedding-005"]
+  os: cloud
+
+- id: sentence_transformers
+  vendor: SBERT
+  product: sentence-transformers
+  category: embedding_service
+  versions: ["3.x", "2.x"]
+  os: linux,macos,windows
+
+- id: nomic_embed
+  vendor: Nomic AI
+  product: nomic-embed-text
+  category: embedding_service
+  versions: ["v1.5", "v1"]
+  os: cloud,linux
+
+# ──────────────────────────── Vector / RAG stores ──────────────────────────
+- id: pinecone
+  vendor: Pinecone
+  product: Pinecone
+  category: rag_vector_store
+  versions: ["Serverless", "Pod-based (s1, p1, p2)"]
+  os: cloud
+
+- id: weaviate
+  vendor: Weaviate
+  product: Weaviate
+  category: rag_vector_store
+  versions: ["1.27", "1.26", "1.25"]
+  os: linux,cloud
+
+- id: chromadb
+  vendor: Chroma
+  product: ChromaDB
+  category: rag_vector_store
+  versions: ["0.5.x", "0.4.x"]
+  os: linux,macos,windows
+
+- id: qdrant
+  vendor: Qdrant
+  product: Qdrant
+  category: rag_vector_store
+  versions: ["1.13", "1.12", "1.11"]
+  os: linux,cloud
+
+- id: milvus
+  vendor: Zilliz
+  product: Milvus
+  category: rag_vector_store
+  versions: ["2.5", "2.4", "2.3"]
+  os: linux,cloud
+
+- id: pgvector
+  vendor: pgvector
+  product: PostgreSQL pgvector
+  category: rag_vector_store
+  versions: ["0.8", "0.7", "0.6"]
+  os: linux
+
+- id: opensearch_vector
+  vendor: AWS
+  product: OpenSearch (vector engine)
+  category: rag_vector_store
+  versions: ["2.18", "2.17", "2.15"]
+  os: linux,cloud
+
+- id: elasticsearch_vector
+  vendor: Elastic
+  product: Elasticsearch (vector search)
+  category: rag_vector_store
+  versions: ["8.16", "8.15", "8.14"]
+  os: linux,cloud
+
+- id: azure_ai_search
+  vendor: Microsoft
+  product: Azure AI Search (vector)
+  category: rag_vector_store
+  versions: ["GA", "Preview"]
+  os: cloud
+
+- id: vertex_matching_engine
+  vendor: Google
+  product: Vertex AI Vector Search
+  category: rag_vector_store
+  versions: ["Current"]
+  os: cloud
+
+- id: faiss
+  vendor: Meta
+  product: FAISS (in-process)
+  category: rag_vector_store
+  versions: ["1.9", "1.8"]
+  os: linux,macos,windows
+
+# ──────────────────────────── Agentic frameworks ───────────────────────────
+- id: langchain
+  vendor: LangChain
+  product: LangChain
+  category: agent
+  versions: ["0.3.x", "0.2.x", "0.1.x"]
+  os: python
+
+- id: langgraph
+  vendor: LangChain
+  product: LangGraph
+  category: agent
+  versions: ["0.2.x", "0.1.x"]
+  os: python
+
+- id: autogen
+  vendor: Microsoft
+  product: AutoGen
+  category: agent
+  versions: ["0.4.x", "0.2.x"]
+  os: python
+
+- id: crewai
+  vendor: CrewAI
+  product: CrewAI
+  category: agent
+  versions: ["0.86", "0.80", "0.70"]
+  os: python
+
+- id: llamaindex
+  vendor: LlamaIndex
+  product: LlamaIndex
+  category: agent
+  versions: ["0.12.x", "0.11.x", "0.10.x"]
+  os: python
+
+- id: semantic_kernel
+  vendor: Microsoft
+  product: Semantic Kernel
+  category: agent
+  versions: ["1.x"]
+  os: python,dotnet
+
+- id: smolagents
+  vendor: Hugging Face
+  product: smolagents
+  category: agent
+  versions: ["1.x"]
+  os: python
+
+- id: agno
+  vendor: Agno
+  product: Agno (formerly phidata)
+  category: agent
+  versions: ["1.x"]
+  os: python
+
+- id: bedrock_agents
+  vendor: AWS
+  product: Bedrock Agents
+  category: agent
+  versions: ["GA"]
+  os: cloud
+
+- id: azure_ai_agent
+  vendor: Microsoft
+  product: Azure AI Agent Service
+  category: agent
+  versions: ["GA"]
+  os: cloud
+
+- id: copilot_studio
+  vendor: Microsoft
+  product: Copilot Studio
+  category: agent
+  versions: ["GA"]
+  os: cloud
+
+- id: github_copilot_workspace
+  vendor: GitHub
+  product: GitHub Copilot Workspace
+  category: agent
+  versions: ["Preview", "GA"]
+  os: cloud
+
+# ──────────────────────────── MCP servers ─────────────────────────────────
+- id: mcp_filesystem
+  vendor: Anthropic
+  product: MCP filesystem server
+  category: mcp_server
+  versions: ["Current reference"]
+  os: linux,macos,windows
+
+- id: mcp_github
+  vendor: Anthropic
+  product: MCP GitHub server
+  category: mcp_server
+  versions: ["Current reference"]
+  os: linux,macos,windows
+
+- id: mcp_slack
+  vendor: Anthropic
+  product: MCP Slack server
+  category: mcp_server
+  versions: ["Current reference"]
+  os: linux,macos,windows
+
+- id: mcp_postgres
+  vendor: Anthropic
+  product: MCP Postgres server
+  category: mcp_server
+  versions: ["Current reference"]
+  os: linux,macos,windows
+
+- id: mcp_custom
+  vendor: Custom
+  product: Custom MCP server
+  category: mcp_server
+  versions: ["Internal"]
+  os: linux,macos,windows
+
+# ──────────────────────────── Training / fine-tune ────────────────────────
+- id: sagemaker_training
+  vendor: AWS
+  product: SageMaker Training Jobs
+  category: training_pipeline
+  versions: ["GA"]
+  os: cloud
+
+- id: vertex_training
+  vendor: Google
+  product: Vertex AI Training
+  category: training_pipeline
+  versions: ["GA"]
+  os: cloud
+
+- id: azure_ml_training
+  vendor: Microsoft
+  product: Azure ML Training
+  category: training_pipeline
+  versions: ["v2"]
+  os: cloud
+
+- id: kubeflow
+  vendor: Kubeflow
+  product: Kubeflow Pipelines
+  category: training_pipeline
+  versions: ["1.10", "1.9"]
+  os: linux
+
+- id: ray_train
+  vendor: Anyscale
+  product: Ray Train
+  category: training_pipeline
+  versions: ["2.x"]
+  os: linux
+
+- id: mlflow_pipelines
+  vendor: Databricks
+  product: MLflow Recipes
+  category: training_pipeline
+  versions: ["2.x"]
+  os: python
+
+- id: hf_trainer
+  vendor: Hugging Face
+  product: transformers Trainer
+  category: training_pipeline
+  versions: ["4.46", "4.45"]
+  os: python
+
+- id: pytorch_lightning
+  vendor: Lightning AI
+  product: PyTorch Lightning
+  category: training_pipeline
+  versions: ["2.4", "2.3"]
+  os: python
+
+- id: openai_finetune
+  vendor: OpenAI
+  product: OpenAI Fine-tuning API
+  category: fine_tuning_pipeline
+  versions: ["Current"]
+  os: cloud
+
+- id: anthropic_finetune
+  vendor: Anthropic
+  product: Claude Fine-tuning (Bedrock)
+  category: fine_tuning_pipeline
+  versions: ["GA"]
+  os: cloud
+
+- id: huggingface_peft
+  vendor: Hugging Face
+  product: PEFT (LoRA / QLoRA)
+  category: fine_tuning_pipeline
+  versions: ["0.13", "0.12"]
+  os: python
+
+- id: axolotl
+  vendor: OpenAccess AI Collective
+  product: Axolotl
+  category: fine_tuning_pipeline
+  versions: ["0.5", "0.4"]
+  os: python,linux
+
+- id: unsloth
+  vendor: Unsloth AI
+  product: Unsloth
+  category: fine_tuning_pipeline
+  versions: ["2024.x", "2025.x"]
+  os: python
+
+# ──────────────────────────── Model registry / prompt store ───────────────
+- id: mlflow_registry
+  vendor: Databricks
+  product: MLflow Model Registry
+  category: model_registry
+  versions: ["2.x"]
+  os: cloud,python
+
+- id: hf_hub
+  vendor: Hugging Face
+  product: Hugging Face Hub
+  category: model_registry
+  versions: ["Current"]
+  os: cloud
+
+- id: sagemaker_registry
+  vendor: AWS
+  product: SageMaker Model Registry
+  category: model_registry
+  versions: ["GA"]
+  os: cloud
+
+- id: vertex_registry
+  vendor: Google
+  product: Vertex AI Model Registry
+  category: model_registry
+  versions: ["GA"]
+  os: cloud
+
+- id: azure_ml_registry
+  vendor: Microsoft
+  product: Azure ML Registry
+  category: model_registry
+  versions: ["v2"]
+  os: cloud
+
+- id: weights_biases
+  vendor: Weights & Biases
+  product: W&B Models
+  category: model_registry
+  versions: ["Current"]
+  os: cloud
+
+- id: langsmith
+  vendor: LangChain
+  product: LangSmith
+  category: prompt_template_store
+  versions: ["Current"]
+  os: cloud
+
+- id: promptlayer
+  vendor: PromptLayer
+  product: PromptLayer
+  category: prompt_template_store
+  versions: ["Current"]
+  os: cloud
+
+- id: prompthub_internal
+  vendor: Custom
+  product: Internal prompt hub (Git-backed)
+  category: prompt_template_store
+  versions: ["N/A"]
+  os: any
+
+# ──────────────────────────── Guardrails / output filters ─────────────────
+- id: bedrock_guardrails
+  vendor: AWS
+  product: Bedrock Guardrails
+  category: guardrails
+  versions: ["GA"]
+  os: cloud
+
+- id: azure_content_safety
+  vendor: Microsoft
+  product: Azure AI Content Safety
+  category: guardrails
+  versions: ["GA"]
+  os: cloud
+
+- id: nemo_guardrails
+  vendor: NVIDIA
+  product: NeMo Guardrails
+  category: guardrails
+  versions: ["0.10", "0.9"]
+  os: python
+
+- id: llama_guard
+  vendor: Meta
+  product: Llama Guard
+  category: guardrails
+  versions: ["3 (8B)", "2 (7B)", "1 (7B)"]
+  os: python
+
+- id: lakera
+  vendor: Lakera
+  product: Lakera Guard
+  category: guardrails
+  versions: ["Current"]
+  os: cloud
+
+- id: prompt_armor
+  vendor: PromptArmor
+  product: PromptArmor
+  category: guardrails
+  versions: ["Current"]
+  os: cloud
+
+- id: protectai
+  vendor: Protect AI
+  product: Protect AI Guardian / LLM Guard
+  category: guardrails
+  versions: ["Current"]
+  os: cloud,python
+
+- id: presidio
+  vendor: Microsoft
+  product: Presidio (PII anonymizer)
+  category: output_filter
+  versions: ["2.x"]
+  os: python
+
+- id: aws_comprehend_pii
+  vendor: AWS
+  product: Amazon Comprehend (PII)
+  category: output_filter
+  versions: ["GA"]
+  os: cloud
+
+- id: gcp_dlp
+  vendor: Google
+  product: Cloud DLP
+  category: output_filter
+  versions: ["GA"]
+  os: cloud
+
+# ──────────────────────────── Data sources ────────────────────────────────
+- id: snowflake_dwh
+  vendor: Snowflake
+  product: Snowflake Data Cloud
+  category: data_source
+  versions: ["Current"]
+  os: cloud
+
+- id: bigquery
+  vendor: Google
+  product: BigQuery
+  category: data_source
+  versions: ["Current"]
+  os: cloud
+
+- id: redshift
+  vendor: AWS
+  product: Amazon Redshift
+  category: data_source
+  versions: ["RA3", "Serverless"]
+  os: cloud
+
+- id: synapse
+  vendor: Microsoft
+  product: Azure Synapse Analytics
+  category: data_source
+  versions: ["Current"]
+  os: cloud
+
+- id: databricks_lakehouse
+  vendor: Databricks
+  product: Databricks Lakehouse
+  category: data_source
+  versions: ["Current"]
+  os: cloud
+
+- id: salesforce_data_cloud
+  vendor: Salesforce
+  product: Salesforce Data Cloud
+  category: data_source
+  versions: ["Current"]
+  os: cloud
+
+- id: confluence
+  vendor: Atlassian
+  product: Confluence
+  category: data_source
+  versions: ["Cloud", "Server 9.x", "Data Center 9.x"]
+  os: cloud,linux,windows
+
+- id: sharepoint
+  vendor: Microsoft
+  product: SharePoint
+  category: data_source
+  versions: ["Online (M365)", "Server SE", "Server 2019", "Server 2016"]
+  os: cloud,windows
+
+# ──────────────────────────── External APIs (illustrative) ────────────────
+- id: stripe_api
+  vendor: Stripe
+  product: Stripe API
+  category: external_api
+  versions: ["2024-12-18", "2024-09-30"]
+  os: cloud
+
+- id: slack_api
+  vendor: Salesforce / Slack
+  product: Slack API
+  category: external_api
+  versions: ["Current"]
+  os: cloud
+
+- id: github_api
+  vendor: GitHub
+  product: GitHub REST + GraphQL API
+  category: external_api
+  versions: ["v3 REST", "v4 GraphQL"]
+  os: cloud
+
+- id: zendesk_api
+  vendor: Zendesk
+  product: Zendesk Support API
+  category: external_api
+  versions: ["v2"]
+  os: cloud
+
+# ──────────────────────────── Cloud — IAM / Vault / KMS ───────────────────
+- id: aws_iam_role
+  vendor: AWS
+  product: IAM Role
+  category: iam_principal
+  versions: ["Current"]
+  os: cloud
+
+- id: aws_sso_iam_identity_center
+  vendor: AWS
+  product: IAM Identity Center (AWS SSO)
+  category: iam_principal
+  versions: ["Current"]
+  os: cloud
+
+- id: azure_managed_identity
+  vendor: Microsoft
+  product: Azure Managed Identity
+  category: iam_principal
+  versions: ["System-assigned", "User-assigned"]
+  os: cloud
+
+- id: gcp_service_account
+  vendor: Google
+  product: GCP Service Account
+  category: iam_principal
+  versions: ["Current"]
+  os: cloud
+
+- id: aws_secrets_manager
+  vendor: AWS
+  product: AWS Secrets Manager
+  category: secrets_vault
+  versions: ["GA"]
+  os: cloud
+
+- id: azure_key_vault
+  vendor: Microsoft
+  product: Azure Key Vault
+  category: secrets_vault
+  versions: ["Standard", "Premium"]
+  os: cloud
+
+- id: gcp_secret_manager
+  vendor: Google
+  product: Google Secret Manager
+  category: secrets_vault
+  versions: ["GA"]
+  os: cloud
+
+- id: hashicorp_vault
+  vendor: HashiCorp
+  product: HashiCorp Vault
+  category: secrets_vault
+  versions: ["1.18", "1.17", "1.16"]
+  os: linux,cloud
+
+- id: cyberark_pam
+  vendor: CyberArk
+  product: CyberArk Privileged Access Manager
+  category: secrets_vault
+  versions: ["13.x", "12.x"]
+  os: linux,windows
+
+- id: aws_kms
+  vendor: AWS
+  product: AWS KMS
+  category: kms_key
+  versions: ["Current"]
+  os: cloud
+
+- id: azure_kv_keys
+  vendor: Microsoft
+  product: Azure Key Vault Keys / Managed HSM
+  category: kms_key
+  versions: ["Standard", "Premium-HSM", "Managed HSM"]
+  os: cloud
+
+- id: gcp_cloud_kms
+  vendor: Google
+  product: Google Cloud KMS
+  category: kms_key
+  versions: ["Software", "HSM", "External"]
+  os: cloud
+
+- id: cloudhsm
+  vendor: AWS
+  product: AWS CloudHSM
+  category: kms_key
+  versions: ["hsm2m.medium"]
+  os: cloud
+
+# ──────────────────────────── Cloud — storage, compute, network ──────────
+- id: amazon_s3
+  vendor: AWS
+  product: Amazon S3
+  category: object_storage
+  versions: ["Standard", "Intelligent-Tiering", "Glacier"]
+  os: cloud
+
+- id: azure_blob
+  vendor: Microsoft
+  product: Azure Blob Storage
+  category: object_storage
+  versions: ["Hot", "Cool", "Archive"]
+  os: cloud
+
+- id: gcp_storage
+  vendor: Google
+  product: Google Cloud Storage
+  category: object_storage
+  versions: ["Standard", "Nearline", "Coldline", "Archive"]
+  os: cloud
+
+- id: minio
+  vendor: MinIO
+  product: MinIO
+  category: object_storage
+  versions: ["RELEASE.2025-01"]
+  os: linux
+
+- id: aws_vpc
+  vendor: AWS
+  product: Amazon VPC
+  category: network_segment
+  versions: ["Current"]
+  os: cloud
+
+- id: azure_vnet
+  vendor: Microsoft
+  product: Azure VNet
+  category: network_segment
+  versions: ["Current"]
+  os: cloud
+
+- id: gcp_vpc
+  vendor: Google
+  product: GCP VPC
+  category: network_segment
+  versions: ["Current"]
+  os: cloud
+
+- id: aws_lambda
+  vendor: AWS
+  product: AWS Lambda
+  category: serverless_function
+  versions: ["x86_64", "arm64 / Graviton"]
+  os: cloud
+
+- id: azure_functions
+  vendor: Microsoft
+  product: Azure Functions
+  category: serverless_function
+  versions: ["v4 (.NET 8 / Node 20 / Python 3.12)"]
+  os: cloud
+
+- id: gcp_cloud_functions
+  vendor: Google
+  product: Cloud Functions / Cloud Run Functions
+  category: serverless_function
+  versions: ["Gen2"]
+  os: cloud
+
+- id: aws_apigw
+  vendor: AWS
+  product: Amazon API Gateway
+  category: api_gateway
+  versions: ["REST", "HTTP", "WebSocket"]
+  os: cloud
+
+- id: azure_apim
+  vendor: Microsoft
+  product: Azure API Management
+  category: api_gateway
+  versions: ["Standard v2", "Premium v2"]
+  os: cloud
+
+- id: gcp_apigee
+  vendor: Google
+  product: Apigee
+  category: api_gateway
+  versions: ["X", "Hybrid"]
+  os: cloud
+
+- id: kong_gateway
+  vendor: Kong
+  product: Kong Gateway
+  category: api_gateway
+  versions: ["3.8", "3.7", "3.6"]
+  os: linux,cloud
+
+- id: aws_eks
+  vendor: AWS
+  product: Amazon EKS
+  category: container_runtime
+  versions: ["1.31", "1.30", "1.29", "1.28"]
+  os: cloud
+
+- id: azure_aks
+  vendor: Microsoft
+  product: Azure Kubernetes Service
+  category: container_runtime
+  versions: ["1.31", "1.30", "1.29"]
+  os: cloud
+
+- id: gcp_gke
+  vendor: Google
+  product: Google Kubernetes Engine
+  category: container_runtime
+  versions: ["1.31", "1.30", "1.29"]
+  os: cloud
+
+- id: openshift
+  vendor: Red Hat
+  product: OpenShift Container Platform
+  category: container_runtime
+  versions: ["4.17", "4.16", "4.15"]
+  os: linux,cloud
+
+- id: docker_engine
+  vendor: Docker
+  product: Docker Engine
+  category: container_runtime
+  versions: ["27.x", "26.x", "25.x"]
+  os: linux,windows,macos
+
+- id: aws_sqs
+  vendor: AWS
+  product: Amazon SQS
+  category: message_queue
+  versions: ["Standard", "FIFO"]
+  os: cloud
+
+- id: azure_servicebus
+  vendor: Microsoft
+  product: Azure Service Bus
+  category: message_queue
+  versions: ["Standard", "Premium"]
+  os: cloud
+
+- id: gcp_pubsub
+  vendor: Google
+  product: Cloud Pub/Sub
+  category: message_queue
+  versions: ["Current"]
+  os: cloud
+
+- id: kafka
+  vendor: Apache
+  product: Apache Kafka
+  category: message_queue
+  versions: ["3.9", "3.8", "3.7"]
+  os: linux
+
+- id: confluent_cloud
+  vendor: Confluent
+  product: Confluent Cloud
+  category: message_queue
+  versions: ["Current"]
+  os: cloud
+
+- id: rabbitmq
+  vendor: VMware
+  product: RabbitMQ
+  category: message_queue
+  versions: ["4.0", "3.13"]
+  os: linux,windows
+
+- id: cloudwatch
+  vendor: AWS
+  product: Amazon CloudWatch
+  category: observability_stack
+  versions: ["Current"]
+  os: cloud
+
+- id: azure_monitor
+  vendor: Microsoft
+  product: Azure Monitor / Log Analytics
+  category: observability_stack
+  versions: ["Current"]
+  os: cloud
+
+- id: splunk_enterprise
+  vendor: Splunk
+  product: Splunk Enterprise / Cloud
+  category: observability_stack
+  versions: ["9.4", "9.3", "9.2"]
+  os: linux,cloud
+
+- id: datadog
+  vendor: Datadog
+  product: Datadog
+  category: observability_stack
+  versions: ["Current"]
+  os: cloud
+
+- id: elastic_stack
+  vendor: Elastic
+  product: Elastic Stack (ELK)
+  category: observability_stack
+  versions: ["8.16", "8.15", "8.14"]
+  os: linux,cloud
+
+- id: grafana_cloud
+  vendor: Grafana Labs
+  product: Grafana Cloud / Grafana OSS
+  category: observability_stack
+  versions: ["11.x", "10.x"]
+  os: linux,cloud
+
+- id: ms_sentinel
+  vendor: Microsoft
+  product: Microsoft Sentinel
+  category: observability_stack
+  versions: ["Current"]
+  os: cloud
+
+- id: ibm_qradar
+  vendor: IBM
+  product: IBM QRadar
+  category: observability_stack
+  versions: ["7.5"]
+  os: linux
+
+# ──────────────────────────── Databases ───────────────────────────────────
+- id: ms_sql_server
+  vendor: Microsoft
+  product: SQL Server
+  category: database
+  versions: ["2022", "2019", "2017", "2016 (EOL 7/2026)", "2014 (EOL)"]
+  os: windows,linux
+
+- id: oracle_db
+  vendor: Oracle
+  product: Oracle Database
+  category: database
+  versions: ["23ai", "21c", "19c", "12c (EOL)", "11g (EOL)"]
+  os: linux,windows
+
+- id: postgresql
+  vendor: PostgreSQL
+  product: PostgreSQL
+  category: database
+  versions: ["17", "16", "15", "14", "13"]
+  os: linux,windows,macos
+
+- id: mysql
+  vendor: Oracle
+  product: MySQL
+  category: database
+  versions: ["8.4 LTS", "8.0", "5.7 (EOL)"]
+  os: linux,windows
+
+- id: mariadb
+  vendor: MariaDB
+  product: MariaDB
+  category: database
+  versions: ["11.4 LTS", "10.11 LTS", "10.6 LTS"]
+  os: linux,windows
+
+- id: ibm_db2
+  vendor: IBM
+  product: IBM Db2
+  category: database
+  versions: ["12.1", "11.5"]
+  os: linux,windows,zos
+
+- id: mongodb
+  vendor: MongoDB
+  product: MongoDB
+  category: database
+  versions: ["8.0", "7.0", "6.0"]
+  os: linux,windows,macos
+
+- id: redis
+  vendor: Redis
+  product: Redis
+  category: database
+  versions: ["7.4", "7.2", "6.2"]
+  os: linux,windows
+
+- id: elasticsearch_db
+  vendor: Elastic
+  product: Elasticsearch (search index)
+  category: database
+  versions: ["8.16", "8.15"]
+  os: linux,cloud
+
+- id: dynamodb
+  vendor: AWS
+  product: DynamoDB
+  category: database
+  versions: ["Current"]
+  os: cloud
+
+- id: cosmosdb
+  vendor: Microsoft
+  product: Azure Cosmos DB
+  category: database
+  versions: ["NoSQL", "MongoDB", "Cassandra", "Gremlin"]
+  os: cloud
+
+# ──────────────────────────── Firewalls ───────────────────────────────────
+- id: palo_alto_panos
+  vendor: Palo Alto Networks
+  product: PAN-OS Firewall (PA-Series / VM-Series)
+  category: firewall
+  versions: ["11.2", "11.1", "11.0", "10.2", "10.1"]
+  os: panos
+
+- id: fortigate
+  vendor: Fortinet
+  product: FortiGate
+  category: firewall
+  versions: ["FortiOS 7.6", "FortiOS 7.4", "FortiOS 7.2", "FortiOS 7.0"]
+  os: fortios
+
+- id: cisco_ftd
+  vendor: Cisco
+  product: Firepower Threat Defense (FTD)
+  category: firewall
+  versions: ["7.6", "7.4", "7.2"]
+  os: ftd
+
+- id: cisco_asa
+  vendor: Cisco
+  product: ASA
+  category: firewall
+  versions: ["9.20", "9.18", "9.16"]
+  os: asa
+
+- id: checkpoint_gaia
+  vendor: Check Point
+  product: Quantum Gateway (Gaia)
+  category: firewall
+  versions: ["R82", "R81.20", "R81.10"]
+  os: gaia
+
+- id: sonicwall
+  vendor: SonicWall
+  product: SonicWall NSA / TZ
+  category: firewall
+  versions: ["SonicOS 7.1", "SonicOS 7.0"]
+  os: sonicos
+
+- id: sophos_xgs
+  vendor: Sophos
+  product: Sophos XGS Firewall
+  category: firewall
+  versions: ["v21", "v20"]
+  os: sfos
+
+- id: pfsense
+  vendor: Netgate
+  product: pfSense / pfSense Plus
+  category: firewall
+  versions: ["2.7 CE", "24.11 Plus"]
+  os: freebsd
+
+- id: opnsense
+  vendor: OPNsense
+  product: OPNsense
+  category: firewall
+  versions: ["25.1", "24.10"]
+  os: freebsd
+
+# ──────────────────────────── Directory / IDP ─────────────────────────────
+- id: ad_ds
+  vendor: Microsoft
+  product: Active Directory Domain Services
+  category: directory_service
+  versions:
+    - "Windows Server 2025"
+    - "Windows Server 2022"
+    - "Windows Server 2019"
+    - "Windows Server 2016"
+    - "Windows Server 2012 R2 (EOL)"
+  os: windows
+  notes: Domain functional level matters for Kerberoast/DCSync hardening.
+
+- id: entra_id
+  vendor: Microsoft
+  product: Microsoft Entra ID (Azure AD)
+  category: directory_service
+  versions: ["Free", "P1", "P2", "Governance"]
+  os: cloud
+
+- id: adfs
+  vendor: Microsoft
+  product: Active Directory Federation Services
+  category: directory_service
+  versions: ["WS 2022", "WS 2019", "WS 2016"]
+  os: windows
+
+- id: openldap
+  vendor: OpenLDAP
+  product: OpenLDAP
+  category: directory_service
+  versions: ["2.6", "2.5"]
+  os: linux
+
+- id: freeipa
+  vendor: Red Hat
+  product: FreeIPA
+  category: directory_service
+  versions: ["4.12", "4.11"]
+  os: linux
+
+- id: okta
+  vendor: Okta
+  product: Okta Workforce Identity Cloud
+  category: directory_service
+  versions: ["Current"]
+  os: cloud
+
+- id: ping_identity
+  vendor: Ping Identity
+  product: PingOne / PingFederate
+  category: directory_service
+  versions: ["12.x"]
+  os: cloud,linux
+
+- id: jumpcloud
+  vendor: JumpCloud
+  product: JumpCloud Directory
+  category: directory_service
+  versions: ["Current"]
+  os: cloud
+
+# ──────────────────────────── MFA ─────────────────────────────────────────
+- id: duo
+  vendor: Cisco
+  product: Duo Security
+  category: mfa_service
+  versions: ["Current"]
+  os: cloud
+
+- id: ms_authenticator
+  vendor: Microsoft
+  product: Microsoft Authenticator
+  category: mfa_service
+  versions: ["Current"]
+  os: ios,android
+
+- id: okta_verify
+  vendor: Okta
+  product: Okta Verify
+  category: mfa_service
+  versions: ["Current"]
+  os: ios,android
+
+- id: yubikey
+  vendor: Yubico
+  product: YubiKey 5 Series
+  category: mfa_service
+  versions: ["5C NFC", "5 NFC", "5Ci", "Bio Series"]
+  os: hardware
+
+- id: rsa_securid
+  vendor: RSA
+  product: SecurID
+  category: mfa_service
+  versions: ["Authenticator app", "Hardware token"]
+  os: cloud,hardware
+
+- id: google_authenticator
+  vendor: Google
+  product: Google Authenticator
+  category: mfa_service
+  versions: ["Current"]
+  os: ios,android
+
+- id: passkey_fido2
+  vendor: FIDO Alliance
+  product: Passkey / FIDO2
+  category: mfa_service
+  versions: ["FIDO2", "WebAuthn L3"]
+  os: any
+
+# ──────────────────────────── Email ───────────────────────────────────────
+- id: exchange_online
+  vendor: Microsoft
+  product: Exchange Online (M365)
+  category: email_server
+  versions: ["Current"]
+  os: cloud
+
+- id: exchange_server
+  vendor: Microsoft
+  product: Exchange Server (on-prem)
+  category: email_server
+  versions: ["SE 2026", "2019 CU14", "2016 CU23 (EOL)", "2013 (EOL)"]
+  os: windows
+  notes: ProxyShell / ProxyNotShell history; patch + IOC sweep mandatory.
+
+- id: google_workspace
+  vendor: Google
+  product: Google Workspace (Gmail)
+  category: email_server
+  versions: ["Current"]
+  os: cloud
+
+- id: postfix
+  vendor: Postfix
+  product: Postfix
+  category: email_server
+  versions: ["3.9", "3.8", "3.7"]
+  os: linux
+
+- id: sendmail
+  vendor: Proofpoint
+  product: Sendmail
+  category: email_server
+  versions: ["8.18", "8.17"]
+  os: linux
+
+- id: proofpoint_essentials
+  vendor: Proofpoint
+  product: Proofpoint Essentials / TAP
+  category: email_server
+  versions: ["Current"]
+  os: cloud
+
+- id: mimecast
+  vendor: Mimecast
+  product: Mimecast Email Security
+  category: email_server
+  versions: ["Current"]
+  os: cloud
+
+# ──────────────────────────── Load balancers ──────────────────────────────
+- id: f5_bigip
+  vendor: F5
+  product: BIG-IP
+  category: load_balancer
+  versions: ["17.5", "17.1", "16.1", "15.1"]
+  os: tmos
+
+- id: haproxy
+  vendor: HAProxy Tech
+  product: HAProxy
+  category: load_balancer
+  versions: ["3.0", "2.9", "2.8 LTS"]
+  os: linux
+
+- id: nginx_plus
+  vendor: F5
+  product: NGINX Plus
+  category: load_balancer
+  versions: ["R33", "R32", "R31"]
+  os: linux
+
+- id: nginx_oss
+  vendor: NGINX
+  product: NGINX (OSS)
+  category: load_balancer
+  versions: ["1.27", "1.26", "1.24 LTS"]
+  os: linux,windows
+
+- id: citrix_netscaler
+  vendor: Cloud Software Group
+  product: Citrix NetScaler ADC
+  category: load_balancer
+  versions: ["14.1", "13.1"]
+  os: netscaler
+
+- id: aws_alb
+  vendor: AWS
+  product: Application / Network Load Balancer
+  category: load_balancer
+  versions: ["ALB", "NLB"]
+  os: cloud
+
+- id: traefik
+  vendor: Traefik Labs
+  product: Traefik Proxy
+  category: load_balancer
+  versions: ["v3.2", "v3.1"]
+  os: linux,windows
+
+# ──────────────────────────── VPN gateways ────────────────────────────────
+- id: globalprotect
+  vendor: Palo Alto Networks
+  product: GlobalProtect
+  category: vpn_gateway
+  versions: ["6.3", "6.2", "6.1"]
+  os: panos
+
+- id: cisco_anyconnect
+  vendor: Cisco
+  product: AnyConnect / Secure Client
+  category: vpn_gateway
+  versions: ["5.1", "5.0", "4.10"]
+  os: any
+
+- id: forticlient
+  vendor: Fortinet
+  product: FortiClient VPN / FortiGate IPSec
+  category: vpn_gateway
+  versions: ["7.4", "7.2", "7.0"]
+  os: fortios,any
+
+- id: openvpn_access
+  vendor: OpenVPN Inc.
+  product: OpenVPN Access Server
+  category: vpn_gateway
+  versions: ["2.13", "2.12"]
+  os: linux
+
+- id: wireguard
+  vendor: WireGuard Project
+  product: WireGuard
+  category: vpn_gateway
+  versions: ["1.0.x"]
+  os: linux,windows,macos
+
+- id: zscaler_zpa
+  vendor: Zscaler
+  product: Zscaler Private Access (ZPA)
+  category: vpn_gateway
+  versions: ["Current"]
+  os: cloud
+
+- id: ms_always_on_vpn
+  vendor: Microsoft
+  product: Always On VPN
+  category: vpn_gateway
+  versions: ["WS 2022", "WS 2019"]
+  os: windows
+
+# ──────────────────────────── Network switches ────────────────────────────
+- id: cisco_catalyst_9k
+  vendor: Cisco
+  product: Catalyst 9000 Series
+  category: network_switch
+  versions: ["IOS-XE 17.15", "IOS-XE 17.12", "IOS-XE 17.9"]
+  os: ios-xe
+
+- id: cisco_nexus_9k
+  vendor: Cisco
+  product: Nexus 9000 Series
+  category: network_switch
+  versions: ["NX-OS 10.5", "NX-OS 10.4", "NX-OS 10.3"]
+  os: nx-os
+
+- id: arista_7050
+  vendor: Arista
+  product: Arista 7050X / 7280R / 7500R
+  category: network_switch
+  versions: ["EOS 4.33", "EOS 4.32", "EOS 4.31"]
+  os: eos
+
+- id: juniper_ex
+  vendor: Juniper Networks
+  product: EX Series
+  category: network_switch
+  versions: ["Junos 24.2", "Junos 23.4", "Junos 22.4"]
+  os: junos
+
+- id: hpe_aruba_cx
+  vendor: HPE Aruba
+  product: Aruba CX Switches
+  category: network_switch
+  versions: ["AOS-CX 10.14", "AOS-CX 10.13"]
+  os: aos-cx
+
+- id: mikrotik_routeros
+  vendor: MikroTik
+  product: MikroTik switches / routers
+  category: network_switch
+  versions: ["RouterOS 7.16", "RouterOS 7.14"]
+  os: routeros
+
+- id: ubiquiti_unifi
+  vendor: Ubiquiti
+  product: UniFi Switch
+  category: network_switch
+  versions: ["UniFi OS 4.x", "UniFi OS 3.x"]
+  os: unifios
+
+# ──────────────────────────── Web applications (templates) ────────────────
+- id: custom_django
+  vendor: Custom
+  product: Django web application
+  category: web_application
+  versions: ["Django 5.1", "Django 4.2 LTS"]
+  os: any
+  description: Internal-built Python web app.
+
+- id: custom_fastapi
+  vendor: Custom
+  product: FastAPI web application
+  category: web_application
+  versions: ["FastAPI 0.115", "0.110"]
+  os: any
+
+- id: custom_spring_boot
+  vendor: Custom
+  product: Spring Boot web application
+  category: web_application
+  versions: ["Spring Boot 3.4", "3.3", "3.2"]
+  os: any
+
+- id: custom_rails
+  vendor: Custom
+  product: Ruby on Rails web application
+  category: web_application
+  versions: ["Rails 7.2", "7.1"]
+  os: any
+
+- id: custom_nextjs
+  vendor: Custom
+  product: Next.js application
+  category: web_application
+  versions: ["Next.js 15", "14"]
+  os: any
+
+- id: sap_fiori
+  vendor: SAP
+  product: SAP Fiori Portal
+  category: web_application
+  versions: ["S/4HANA 2023", "S/4HANA 2022"]
+  os: any
+
+- id: servicenow
+  vendor: ServiceNow
+  product: ServiceNow (Now Platform)
+  category: web_application
+  versions: ["Yokohama", "Xanadu", "Washington DC"]
+  os: cloud
+
+# ──────────────────────────── Endpoints ───────────────────────────────────
+- id: windows_11
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  category: endpoint
+  versions: ["24H2 (Build 26100)", "23H2", "22H2"]
+  os: windows
+
+- id: windows_10
+  vendor: Microsoft
+  product: Windows 10 (managed laptop)
+  category: endpoint
+  versions: ["22H2 (EOL Oct 2025)"]
+  os: windows
+  notes: EOL upcoming — extended security updates required after 2025-10.
+
+- id: macos_endpoint
+  vendor: Apple
+  product: macOS workstation
+  category: endpoint
+  versions:
+    - "macOS 17 (current)"
+    - "macOS 15 Sequoia"
+    - "macOS 14 Sonoma"
+    - "macOS 13 Ventura (EOL)"
+  os: macos
+
+- id: ubuntu_desktop
+  vendor: Canonical
+  product: Ubuntu Desktop
+  category: endpoint
+  versions: ["24.04 LTS", "22.04 LTS", "20.04 LTS"]
+  os: linux
+
+- id: chromeos_flex
+  vendor: Google
+  product: ChromeOS Flex
+  category: endpoint
+  versions: ["131", "129"]
+  os: chromeos
+
+- id: ios_corporate
+  vendor: Apple
+  product: iOS / iPadOS managed device
+  category: endpoint
+  versions: ["iOS 18", "iOS 17"]
+  os: ios
+
+- id: android_corporate
+  vendor: Google
+  product: Android Enterprise device
+  category: endpoint
+  versions: ["Android 15", "Android 14", "Android 13"]
+  os: android
+
+- id: crowdstrike_falcon
+  vendor: CrowdStrike
+  product: Falcon (EDR sensor on endpoint)
+  category: endpoint
+  versions: ["7.x"]
+  os: any
+  description: An endpoint with the Falcon EDR sensor installed.
+
+- id: defender_for_endpoint
+  vendor: Microsoft
+  product: Defender for Endpoint sensor
+  category: endpoint
+  versions: ["Current"]
+  os: any
+
+- id: sentinelone_singularity
+  vendor: SentinelOne
+  product: Singularity sensor
+  category: endpoint
+  versions: ["24.x"]
+  os: any
+
+# ──────────────────────────── Legacy mainframes / midrange ───────────────
+- id: ibm_zos
+  vendor: IBM
+  product: IBM Z (z/OS)
+  category: legacy_mainframe
+  versions: ["z/OS 3.1", "z/OS 2.5", "z/OS 2.4"]
+  os: zos
+
+- id: ibm_i
+  vendor: IBM
+  product: IBM i (AS/400 / iSeries)
+  category: legacy_mainframe
+  versions: ["IBM i 7.6 (2025)", "IBM i 7.5", "IBM i 7.4", "IBM i 7.3"]
+  os: ibmi
+  notes: 5250 telnet often left enabled; QSECOFR default password risk.
+
+- id: ibm_aix
+  vendor: IBM
+  product: IBM AIX
+  category: legacy_mainframe
+  versions: ["AIX 7.3", "AIX 7.2"]
+  os: aix
+
+- id: oracle_solaris
+  vendor: Oracle
+  product: Oracle Solaris
+  category: legacy_mainframe
+  versions: ["Solaris 11.4"]
+  os: solaris
+
+- id: hp_ux
+  vendor: HPE
+  product: HP-UX
+  category: legacy_mainframe
+  versions: ["11i v3 B.11.31"]
+  os: hpux
+
+- id: openvms
+  vendor: VMS Software Inc.
+  product: OpenVMS
+  category: legacy_mainframe
+  versions: ["x86-64 9.2", "Alpha 8.4"]
+  os: openvms
+
+- id: unisys_clearpath
+  vendor: Unisys
+  product: ClearPath Forward
+  category: legacy_mainframe
+  versions: ["MCP 21.0", "OS 2200 19.0"]
+  os: clearpath
+
+- id: hp_nonstop
+  vendor: HPE
+  product: HPE NonStop (Tandem)
+  category: legacy_mainframe
+  versions: ["L23.x", "J06.x"]
+  os: nonstop
+
+# ──────────────────────────── PLCs / SCADA / OT ───────────────────────────
+- id: siemens_s7_1500
+  vendor: Siemens
+  product: SIMATIC S7-1500
+  category: plc
+  versions: ["FW 3.1", "FW 3.0", "FW 2.9"]
+  os: siemens-fw
+  notes: S7Comm protocol; protocol-aware monitoring strongly recommended.
+
+- id: siemens_s7_1200
+  vendor: Siemens
+  product: SIMATIC S7-1200
+  category: plc
+  versions: ["FW 4.6", "FW 4.5"]
+  os: siemens-fw
+
+- id: siemens_s7_300
+  vendor: Siemens
+  product: SIMATIC S7-300 (legacy)
+  category: plc
+  versions: ["FW 3.x"]
+  os: siemens-fw
+  notes: Largely EOL; many sites still running.
+
+- id: ab_controllogix
+  vendor: Rockwell Automation
+  product: Allen-Bradley ControlLogix 5580
+  category: plc
+  versions: ["FW 36", "FW 35", "FW 34"]
+  os: rockwell-fw
+
+- id: ab_compactlogix
+  vendor: Rockwell Automation
+  product: Allen-Bradley CompactLogix 5380
+  category: plc
+  versions: ["FW 36", "FW 35"]
+  os: rockwell-fw
+
+- id: ab_micrologix
+  vendor: Rockwell Automation
+  product: Allen-Bradley MicroLogix 1400 (legacy)
+  category: plc
+  versions: ["Series B"]
+  os: rockwell-fw
+
+- id: schneider_modicon_m580
+  vendor: Schneider Electric
+  product: Modicon M580
+  category: plc
+  versions: ["v4.x", "v3.x"]
+  os: schneider-fw
+
+- id: schneider_modicon_m340
+  vendor: Schneider Electric
+  product: Modicon M340 (legacy)
+  category: plc
+  versions: ["v3.x"]
+  os: schneider-fw
+
+- id: omron_njseries
+  vendor: Omron
+  product: NJ Series PLC
+  category: plc
+  versions: ["v1.4x", "v1.3x"]
+  os: omron-fw
+
+- id: mitsubishi_iqr
+  vendor: Mitsubishi Electric
+  product: MELSEC iQ-R Series
+  category: plc
+  versions: ["v60", "v55"]
+  os: mitsubishi-fw
+
+- id: ge_pacsystems
+  vendor: GE / Emerson
+  product: PACSystems RX3i / RX7i
+  category: plc
+  versions: ["10.x"]
+  os: ge-fw
+
+- id: aveva_wonderware_intouch
+  vendor: AVEVA
+  product: AVEVA InTouch HMI (Wonderware)
+  category: scada
+  versions: ["2023 R2", "2020 R2"]
+  os: windows
+
+- id: siemens_wincc
+  vendor: Siemens
+  product: SIMATIC WinCC
+  category: scada
+  versions: ["V8.0", "V7.5", "V7.4"]
+  os: windows
+
+- id: rockwell_factorytalk
+  vendor: Rockwell Automation
+  product: FactoryTalk View SE / ME
+  category: scada
+  versions: ["13.x", "12.x"]
+  os: windows
+
+- id: ge_ifix
+  vendor: GE / Emerson
+  product: iFix HMI
+  category: scada
+  versions: ["6.5", "6.1"]
+  os: windows
+
+- id: ge_cimplicity
+  vendor: GE / Emerson
+  product: CIMPLICITY HMI
+  category: scada
+  versions: ["2024", "2023"]
+  os: windows
+
+- id: abb_800xa
+  vendor: ABB
+  product: 800xA System
+  category: scada
+  versions: ["6.2", "6.1"]
+  os: windows
+
+- id: honeywell_experion
+  vendor: Honeywell
+  product: Experion PKS
+  category: scada
+  versions: ["R520", "R510"]
+  os: windows
+
+- id: osisoft_pi
+  vendor: AVEVA
+  product: PI System (OSIsoft)
+  category: scada
+  versions: ["PI Server 2024", "PI Server 2023"]
+  os: windows
+
+- id: aspen_ip21
+  vendor: Aspen Technology
+  product: Aspen InfoPlus.21
+  category: scada
+  versions: ["V14", "V13"]
+  os: windows
+
+- id: schneider_ecostruxure
+  vendor: Schneider Electric
+  product: EcoStruxure Power SCADA Operation
+  category: scada
+  versions: ["2024", "2022"]
+  os: windows
+
+# ──────────────────────────── Industrial protocols ────────────────────────
+- id: modbus_tcp
+  vendor: Modicon (open)
+  product: Modbus TCP
+  category: industrial_protocol
+  versions: ["Standard"]
+  os: protocol
+  notes: No native auth; must run inside segmented OT zone.
+
+- id: modbus_rtu
+  vendor: Modicon (open)
+  product: Modbus RTU (serial)
+  category: industrial_protocol
+  versions: ["Standard"]
+  os: protocol
+
+- id: opc_ua
+  vendor: OPC Foundation
+  product: OPC UA
+  category: industrial_protocol
+  versions: ["1.05", "1.04"]
+  os: protocol
+  notes: Use Sign+Encrypt security profile + cert validation.
+
+- id: opc_da
+  vendor: OPC Foundation
+  product: OPC DA / HDA (legacy)
+  category: industrial_protocol
+  versions: ["3.0"]
+  os: protocol
+
+- id: dnp3
+  vendor: DNP Users Group
+  product: DNP3
+  category: industrial_protocol
+  versions: ["IEEE 1815-2012"]
+  os: protocol
+
+- id: ethernet_ip
+  vendor: ODVA
+  product: EtherNet/IP (CIP)
+  category: industrial_protocol
+  versions: ["CIP Security 1.x"]
+  os: protocol
+
+- id: profinet
+  vendor: PI
+  product: PROFINET
+  category: industrial_protocol
+  versions: ["v2.4"]
+  os: protocol
+
+- id: bacnet
+  vendor: ASHRAE
+  product: BACnet
+  category: industrial_protocol
+  versions: ["Rev 24", "Rev 22"]
+  os: protocol
+
+- id: iec_61850
+  vendor: IEC
+  product: IEC 61850
+  category: industrial_protocol
+  versions: ["Ed 2.1"]
+  os: protocol
+
+- id: iec_60870_5_104
+  vendor: IEC
+  product: IEC 60870-5-104
+  category: industrial_protocol
+  versions: ["Standard"]
+  os: protocol
+
+- id: s7comm
+  vendor: Siemens (proprietary)
+  product: S7Comm / S7CommPlus
+  category: industrial_protocol
+  versions: ["S7CommPlus v3"]
+  os: protocol
+
+# ──────────────────────────── IoT devices ─────────────────────────────────
+- id: hikvision_camera
+  vendor: Hikvision
+  product: IP Camera
+  category: iot_device
+  versions: ["FW 5.7", "FW 5.6"]
+  os: ipcam-fw
+  notes: Multiple historical CVEs; many sites still on EOL firmware.
+
+- id: dahua_camera
+  vendor: Dahua
+  product: IP Camera
+  category: iot_device
+  versions: ["FW 2.8", "FW 2.6"]
+  os: ipcam-fw
+
+- id: axis_camera
+  vendor: Axis Communications
+  product: Axis IP Camera
+  category: iot_device
+  versions: ["AXIS OS 11.x", "10.x"]
+  os: axisos
+
+- id: bosch_camera
+  vendor: Bosch
+  product: Bosch IP Camera
+  category: iot_device
+  versions: ["FW 8.x"]
+  os: ipcam-fw
+
+- id: zigbee_hub
+  vendor: Various
+  product: Zigbee Hub / Coordinator
+  category: iot_device
+  versions: ["Zigbee 3.0", "Zigbee Pro 2017"]
+  os: zigbee
+
+- id: lorawan_gateway
+  vendor: Various
+  product: LoRaWAN Gateway
+  category: iot_device
+  versions: ["LoRaWAN 1.0.4", "1.0.3"]
+  os: lorawan
+
+- id: building_automation_bms
+  vendor: Various
+  product: Building Management System (BMS) controller
+  category: iot_device
+  versions: ["Tridium Niagara 4.13", "4.10"]
+  os: bms-os
+
+- id: smart_thermostat
+  vendor: Various
+  product: Smart thermostat (corp / lab)
+  category: iot_device
+  versions: ["Various"]
+  os: iot
+
+- id: raspberry_pi_5
+  vendor: Raspberry Pi Foundation
+  product: Raspberry Pi 5 (workshop / sensor)
+  category: iot_device
+  versions: ["RPi OS 12 Bookworm"]
+  os: linux
+
+# ──────────────────────────── Generic placeholder ─────────────────────────
+- id: custom_unspecified
+  vendor: Custom
+  product: Unspecified / in-house
+  category: other
+  versions: ["N/A"]
+  os: any
+  description: Catch-all when the user has not chosen a specific product.

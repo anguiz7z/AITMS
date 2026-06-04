@@ -1,0 +1,104 @@
+component_type: training_pipeline
+description: |
+  Pipeline that ingests data, trains a model from scratch, and produces weights. Includes data
+  prep, training framework (PyTorch/TF), distributed compute, model serialization.
+threats:
+  - id: T_TRAIN_001
+    title: Training data poisoning
+    stride_ai: [Tampering]
+    owasp_llm: [LLM04:2025]
+    atlas: [AML.T0019, AML.T0020]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA, NIST_PAI_POISONING_BACKDOOR, NIST_PAI_POISONING_LABEL_FLIP]
+    owasp_ml: [ML02:2023, ML10:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Adversary injects poisoned samples into training data to introduce backdoors, bias, or
+      degrade performance.
+    mitigations:
+      - "Provenance tracking on every training sample"
+      - "Outlier and anomaly detection on data"
+      - "Trusted-source allowlist; require approval for new sources"
+      - "Integrity canaries (known-good + known-bad samples) verified post-train"
+    refs: [AML.M0007, AML.M0008]
+
+  - id: T_TRAIN_002
+    title: ML supply chain compromise (frameworks, libraries, hardware)
+    stride_ai: [Tampering]
+    owasp_llm: [LLM03:2025]
+    atlas: [AML.T0010, AML.T0010.000, AML.T0010.001]
+    nist_ai_100_2: [NIST_PAI_POISONING_MODEL]
+    owasp_ml: [ML06:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01, CSA_AI.DEVELOP.03]
+    likelihood: 2
+    impact: 5
+    description: |
+      Compromised PyTorch/TF release, malicious wheel, or trojanized GPU driver inserts
+      backdoors during training.
+    mitigations:
+      - "Pin frameworks by version + signature; verify SHA256"
+      - "Reproducible builds; isolated build environment"
+      - "SBOM for the training stack"
+    refs: [AML.M0011, AML.M0014, AML.M0024]
+
+  - id: T_TRAIN_003
+    title: Training data exfiltration
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    atlas: [AML.T0024.000]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_INVERSION, NIST_PAI_PRIVACY_MEMBERSHIP]
+    owasp_ml: [ML03:2023, ML04:2023]
+    linddun: [L_001, DD_002, NC_002]
+    csa_singapore: [CSA_AI.DEVELOP.02, CSA_AI.DEVELOP.03]
+    likelihood: 2
+    impact: 5
+    description: |
+      Adversary with access to training cluster exfiltrates raw or labeled training data
+      (often PII or proprietary).
+    mitigations:
+      - "Encrypt training data at rest and in transit"
+      - "Egress controls on training nodes"
+      - "Audit logs of dataset access"
+    refs: [AML.M0012, AML.M0019, AML.M0023]
+
+  - id: T_TRAIN_004
+    title: Repudiation / no provenance on resulting model
+    stride_ai: [Repudiation]
+    owasp_llm: []
+    atlas: []
+    nist_ai_100_2: [NIST_GAI_TRACEABILITY]
+    owasp_ml: [ML06:2023, ML10:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01, CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 3
+    description: |
+      Final model artifact lacks signed provenance — origin, training data hash, hyperparameters,
+      code commit — preventing accountability and integrity verification.
+    mitigations:
+      - "Sign model artifacts (Sigstore, in-toto)"
+      - "Embed model card with full lineage"
+      - "Append-only training run log"
+    refs: [AML.M0013, AML.M0023, AML.M0024]
+
+  - id: T_TRAIN_010
+    title: Training-data skew → biased model that disparately impacts protected classes
+    stride_ai: [Bias_Fairness, Tampering]
+    owasp_llm: [LLM05:2025]
+    owasp_ml: [ML02:2023, ML08:2023]
+    atlas: [AML.T0020, AML.T0044]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA]
+    maestro: [M.L1.05, M.L2.02, M.X.05]
+    csa_singapore: [CSA_AI.DEVELOP.02, CSA_AI.HUMAN.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      Training data over-represents some demographics / regions /
+      languages / contexts, causing the model to perform poorly or make
+      systematically biased decisions for under-represented groups.
+    mitigations:
+      - "Pre-training audit: representational coverage across protected classes documented + signed off"
+      - "Hold-out test set per demographic; reject models with > 5% performance delta"
+      - "Synthetic data augmentation for under-represented classes with provenance"
+      - "Post-deployment SPC charts on per-demographic outcome metrics"
+    refs: [AML.M0015]

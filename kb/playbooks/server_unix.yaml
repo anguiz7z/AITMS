@@ -1,0 +1,103 @@
+component_type: server_unix
+description: |
+  Legacy Unix server — Solaris, AIX, HP-UX, sometimes True64 / IRIX.
+  Typical roles: long-running databases (Oracle on AIX/Solaris),
+  ERP backbones (SAP on HP-UX), mainframe-adjacent middleware. End-
+  of-life or extended-support; security tooling coverage is sparse;
+  staff knowledge is dwindling. Patching cadence is slow.
+threats:
+  - id: T_SRVUNX_001
+    title: End-of-life OS — unsupported kernel and userland CVEs
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1068, T1190]
+    maestro: [M.X.01]
+    likelihood: 4
+    impact: 5
+    description: |
+      Solaris 10 reached EOL; AIX 7.1 EOL Apr 2023; HP-UX 11i v3
+      "Extended Support" only. Publicly known CVEs go unpatched
+      because the vendor no longer issues fixes — or the customer
+      is on extended-support tier with limited patch backports.
+    mitigations:
+      - "Network microsegmentation isolates EOL servers; no internet ingress"
+      - "Compensating controls: host IDS, host firewall, application allowlist"
+      - "Migration / re-platforming roadmap with capital plan"
+      - "Vendor extended-support contract where available; track patch availability"
+    refs: [AML.M0007]
+
+  - id: T_SRVUNX_002
+    title: Insider with shared root / wheel-group access
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    attack_enterprise: [T1078, T1098]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Legacy Unix servers historically use shared root accounts and
+      sudoers wildcards; few sites have invested in PAM-vaulted
+      ephemeral credentials for them. Insider misuse and ex-staff
+      credential persistence are common.
+    mitigations:
+      - "Disable direct root SSH; require named login then sudo"
+      - "PAM-vault integration for ephemeral root credentials where supported"
+      - "Quarterly sudoers + wheel-group review with explicit business justification"
+      - "Session-recording on root sessions (script / ttyrec / vendor tools)"
+    refs: [T1078, AML.M0019]
+
+  - id: T_SRVUNX_003
+    title: Sparse security tooling — no EDR, no centralised logging
+    stride_ai: [Defense_Evasion, Repudiation]
+    attack_enterprise: [T1562, T1070]
+    maestro: [M.L5.05]
+    likelihood: 4
+    impact: 4
+    description: |
+      EDR vendors stopped Unix coverage years ago; SIEM agents (Splunk
+      UF, Sentinel agent) often unsupported or untested. Local
+      `/var/adm/messages` or `syslog` is the only telemetry, with
+      no off-host forwarding by default. Forensics post-incident is
+      severely degraded.
+    mitigations:
+      - "Forward syslog to SIEM via dedicated relay; encrypt the channel"
+      - "Custom auditd / BSM auditing where supported"
+      - "Network-side detection (NDR) as compensating telemetry"
+      - "Periodic offline forensic snapshot of high-value Unix hosts"
+    refs: [T1562, AML.M0019]
+
+  - id: T_SRVUNX_004
+    title: Database export / large-data exfiltration via slow channels
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1567, T1020]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Many Unix servers host Oracle databases or SAP systems that
+      contain the company's most sensitive data. Egress monitoring
+      is often non-existent on legacy network paths (T1 leased line,
+      MPLS); attacker can exfil over many hours without trigger.
+    mitigations:
+      - "Egress bandwidth baselining and anomaly alerting on legacy server VLANs"
+      - "Database activity monitoring (Imperva DAM, Oracle AVDF) on Oracle / DB2"
+      - "Compensating SIEM correlation on outbound flow records"
+      - "Strict outbound proxy / firewall posture for Unix VLAN"
+    refs: [T1041, T1567, AML.M0019]
+
+  - id: T_SRVUNX_005
+    title: Patch / firmware lag enables old worms (Slammer-class) to resurface
+    stride_ai: [Tampering, Denial_of_Service]
+    attack_enterprise: [T1210, T1499]
+    maestro: [M.X.01]
+    likelihood: 3
+    impact: 3
+    description: |
+      Legacy Unix servers retain old service exposures (SunRPC,
+      portmap, finger, RPC.statd, telnet) that haven't been removed.
+      Even mass-market worms from decades past still propagate
+      inside flat legacy networks.
+    mitigations:
+      - "Service inventory + minimise listening services"
+      - "Host firewall / IPF / IPSec rules deny inbound by default"
+      - "Network IPS with virtual-patching signatures for legacy CVEs"
+      - "Phased migration off Unix to a supported platform"
+    refs: [T1210, AML.M0007]

@@ -1,0 +1,108 @@
+component_type: mdm_emm
+description: |
+  Mobile Device Management / Enterprise Mobility Management — central
+  control plane for managed mobile devices and laptops. Examples:
+  Microsoft Intune, Jamf Pro, Workspace ONE, Kandji, MobileIron,
+  Hexnode. Pushes configuration, certificates, apps, compliance
+  policies; can remotely wipe, lock, or reconfigure devices.
+  Crown-jewel for any modern endpoint estate.
+threats:
+  - id: T_MDM_001
+    title: MDM admin compromise enables fleet-wide configuration push
+    stride_ai: [Elevation_of_Privilege, Tampering]
+    attack_enterprise: [T1078.004, T1098.003]
+    attack_cloud: [T1078.004]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      An attacker who compromises an MDM admin account can push a
+      malicious configuration profile, a rogue certificate, or a
+      backdoored app to every enrolled device. Mercenary supply-chain
+      operations targeting MDM admins have been observed (Lapsus$
+      went after Okta admins, comparable threats target Intune /
+      Jamf admins).
+    mitigations:
+      - "FIDO2 / passkey MFA on every MDM admin login"
+      - "Just-in-time admin via PAM vault; no standing admin"
+      - "Two-person approval workflow for fleet-wide config push"
+      - "Real-time audit of admin actions to immutable SIEM"
+    refs: [T1078, AML.M0019]
+
+  - id: T_MDM_002
+    title: Malicious app / config profile pushed via MDM
+    stride_ai: [Tampering]
+    attack_enterprise: [T1195.002]
+    maestro: [M.L7.11]
+    likelihood: 2
+    impact: 5
+    description: |
+      Attacker (insider or compromised admin) pushes a malicious
+      .ipa / .apk or a configuration profile granting attacker
+      access. Devices accept silently as the MDM is a trusted
+      control plane — no user prompt by design.
+    mitigations:
+      - "Code-signing verification + binary scanning before adding to MDM app catalog"
+      - "Staged rollout (canary cohort) for every new app/config push"
+      - "Diff alerting on config-profile changes; mandatory ticket linkage"
+      - "App store vendor SBOM + source-attestation"
+    refs: [AML.M0007, T1195]
+
+  - id: T_MDM_003
+    title: Cert-management abuse to push attacker-controlled root CA
+    stride_ai: [Spoofing, Information_Disclosure]
+    attack_enterprise: [T1553.004, T1556]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      MDM can deliver root or intermediate CAs to devices. Attacker
+      with config-push rights deploys a CA they control — then can
+      MITM any TLS connection the device makes (including to
+      corporate SaaS, OpenAI/Anthropic, banking apps).
+    mitigations:
+      - "Allowlist of cert payloads in MDM; alert on novel CA payload"
+      - "Two-person approval on any cert-payload change"
+      - "Device-side certificate-transparency monitoring where feasible"
+      - "Pinning at app layer for highest-value mobile apps"
+    refs: [T1553, AML.M0019]
+
+  - id: T_MDM_004
+    title: Compliance-policy bypass / spoofed posture attestation
+    stride_ai: [Spoofing, Defense_Evasion]
+    attack_enterprise: [T1078, T1562]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Device posture reported to MDM (OS version, encryption state,
+      jailbreak status) is software-attested without hardware-backed
+      attestation. Attacker who roots the device can spoof "healthy"
+      posture and pass Conditional Access checks.
+    mitigations:
+      - "Hardware attestation via Play Integrity API / DeviceCheck / TPM"
+      - "Independent secondary attestation source cross-checked"
+      - "Anomaly detection on posture-changes (sudden recovery from jailbreak indicates spoof)"
+      - "Conditional Access requires recent successful hardware attestation"
+    refs: [T1562, AML.M0019]
+
+  - id: T_MDM_005
+    title: Remote-wipe abuse causes service outage
+    stride_ai: [Denial_of_Service, Tampering]
+    attack_enterprise: [T1485, T1565]
+    maestro: [M.L4.04]
+    likelihood: 2
+    impact: 4
+    description: |
+      Compromised MDM admin issues a mass remote-wipe to fleet
+      devices. Hundreds / thousands of devices lose all data and
+      go offline simultaneously. Hospital, retail, logistics, and
+      field-service organisations have been hit by this (whether
+      malicious or operator error).
+    mitigations:
+      - "Two-person approval for any wipe targeting > N devices"
+      - "Wipe-throttling: max devices wiped per hour at the API"
+      - "Out-of-band approval channel (Slack + ticket + signed token)"
+      - "Backup / restore plan tested annually for fleet-wide recovery"
+    refs: [T1485, AML.M0019]

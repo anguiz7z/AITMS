@@ -1,0 +1,112 @@
+{% extends "web/base.html" %}
+{% block title %}Methodology{% endblock %}
+{% block content %}
+<style>
+  .methodology-summary {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
+  }
+  .methodology-summary h2 { margin-top: 0; }
+  .prov-table { width: 100%; }
+  .prov-table td.cat { font-family: ui-monospace, monospace; font-weight: 600; width: 22%; }
+  .prov-table td.anchor { color: var(--muted); font-size: 13px; }
+  .frame-pills .pill {
+    display: inline-block; padding: 2px 8px; margin: 2px 4px 2px 0;
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 10px; font-size: 11px;
+  }
+  .frame-pills .pill.stride { background: rgba(46,160,67,0.15); color: #3fb950; border-color: #3fb950; }
+  .frame-pills .pill.atms-ext { background: rgba(187,128,9,0.15); color: #d29922; border-color: #d29922; }
+  .frame-pills .pill.owasp { background: rgba(56,139,253,0.15); color: #58a6ff; }
+  .frame-pills .pill.atlas { background: rgba(248,81,73,0.15); color: #ff7b72; }
+  .frame-pills .pill.attack { background: rgba(248,81,73,0.10); color: #ffa198; }
+  .frame-pills .pill.maestro { background: rgba(187,128,9,0.10); color: #f0b033; }
+  .frame-pills .pill.nist { background: rgba(165,209,255,0.15); color: #a5d1ff; }
+  .frame-pills .pill.linddun { background: rgba(255,123,114,0.10); color: #ffa198; }
+  .frame-pills .pill.csa { background: rgba(46,160,67,0.10); color: #56d364; }
+  .threat-row td { vertical-align: top; }
+  .threat-title { font-weight: 600; }
+  .anchor-link { color: var(--accent); text-decoration: none; }
+  .anchor-link:hover { text-decoration: underline; }
+  .nothreats { color: var(--muted); padding: 24px; text-align: center; }
+</style>
+
+<h1>Methodology &amp; provenance</h1>
+<p style="color: var(--muted); max-width: 880px;">
+This page traces every threat in a saved report back to its published-framework anchor. Use it
+to answer the "where does this threat come from?" question for an auditor, regulator, or
+internal reviewer. STRIDE-for-AI categories are anchored on the <a href="/about#provenance">about page</a>;
+the per-threat anchors below are pulled from each threat's framework tags.
+</p>
+
+{% if threats %}
+<div class="methodology-summary">
+  <h2>Coverage on <code>{{ source }}</code></h2>
+  <p>
+    <strong>{{ threats|length }}</strong> threats ·
+    <strong>{{ pct_with_framework }}%</strong> carry ≥ 1 published-framework citation ·
+    STRIDE breakdown:
+    {% for cat, n in stride_counts %}
+      <span class="pill {% if provenance.get(cat, {}).get('standing') == 'standard' %}stride{% else %}atms-ext{% endif %}">{{ cat }} ({{ n }})</span>
+    {% endfor %}
+  </p>
+</div>
+
+<h2>STRIDE-for-AI category anchors</h2>
+<table class="prov-table">
+  <thead><tr><th>Category</th><th>Anchor</th><th>Standing</th></tr></thead>
+  <tbody>
+    {% for cat, info in provenance_ordered %}
+    <tr>
+      <td class="cat">{{ cat }}</td>
+      <td class="anchor"><a class="anchor-link" href="{{ info.url }}" rel="noopener">{{ info.anchor }}</a></td>
+      <td>{% if info.standing == "standard" %}<span class="pill stride">standard</span>{% else %}<span class="pill atms-ext">ATMS extension</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2 style="margin-top: 20px;">Per-threat provenance</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width: 12%;">ID</th>
+      <th style="width: 28%;">Title</th>
+      <th>Framework citations</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for t in threats %}
+    <tr class="threat-row">
+      <td><code>{{ t.id }}</code></td>
+      <td class="threat-title">{{ t.title }}</td>
+      <td class="frame-pills">
+        {% for s in t.stride_ai or [] %}
+          <span class="pill {% if provenance.get(s, {}).get('standing') == 'standard' %}stride{% else %}atms-ext{% endif %}" title="{{ provenance.get(s, {}).get('anchor', '') }}">{{ s }}</span>
+        {% endfor %}
+        {% for o in t.owasp_llm or [] %}<span class="pill owasp">{{ o }}</span>{% endfor %}
+        {% for o in t.owasp_agentic or [] %}<span class="pill owasp">AGT:{{ o }}</span>{% endfor %}
+        {% for o in t.owasp_api or [] %}<span class="pill owasp">{{ o }}</span>{% endfor %}
+        {% for a in t.atlas_techniques or [] %}<span class="pill atlas">{{ a }}</span>{% endfor %}
+        {% for a in t.attack_cloud or [] %}<span class="pill attack">{{ a }}</span>{% endfor %}
+        {% for a in t.attack_enterprise or [] %}<span class="pill attack">{{ a }}</span>{% endfor %}
+        {% for m in t.maestro_threats or [] %}<span class="pill maestro">{{ m }}</span>{% endfor %}
+        {% for n in t.nist_ai_100_2 or [] %}<span class="pill nist">{{ n }}</span>{% endfor %}
+        {% for n in t.linddun or [] %}<span class="pill linddun">{{ n }}</span>{% endfor %}
+        {% for n in t.csa_singapore or [] %}<span class="pill csa">{{ n }}</span>{% endfor %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+{% else %}
+<div class="methodology-summary nothreats">
+  <p>No threat-model results loaded.</p>
+  <p>This page renders provenance for a previously-analysed system. Pass a
+  saved JSON report's path via the URL: <code>/methodology?path=output/rag_system.json</code>,
+  or upload a YAML via <a href="/analyze">/analyze</a> first.</p>
+</div>
+{% endif %}
+
+{% endblock %}

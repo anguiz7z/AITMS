@@ -1,0 +1,181 @@
+name: Autonomous Coding Agent (CI worker)
+description: |
+  Long-running autonomous coding agent that picks up issues from a project tracker,
+  reads the affected repo, opens a draft PR with a fix, and runs tests in an
+  isolated container before requesting human review. Uses MCP servers for repo
+  read/write, CI control, and a code-search index.
+business_context: |
+  Internal-facing developer-productivity tool. Operates inside the SDLC trust
+  boundary — has commit access (limited to `bot/*` branches), CI invocation,
+  and Slack-DM rights. Failure mode: writes a malicious or low-quality patch,
+  opens it as a PR, and waits for a distracted reviewer to merge. Multiple
+  maintainers tested the v0.1 build at PwC during a hackathon — feedback was
+  positive but flagged "supply-chain blast radius if compromised" as the top risk.
+
+components:
+  - id: tracker
+    name: Linear (issue tracker)
+    type: external_api
+    trust_zone: external_provider
+    description: |
+      Source of work — a Linear webhook fires the agent when an issue is
+      labelled `bot:assign-me`.
+    metadata:
+      vendor: Linear
+      product: linear
+
+  - id: agent
+    name: Coding agent (ReAct loop)
+    type: agent
+    trust_zone: corp_internal
+    description: |
+      Long-running agent (up to 20 minutes per task) with structured planning,
+      file-read, file-write, terminal, and test-run tool capabilities. Uses
+      Claude Sonnet 4.6 as the reasoning model.
+    metadata:
+      tool_count: 8
+      max_iterations: 50
+      multi_tenant: false
+
+  - id: planning_llm
+    name: Claude Sonnet (planning + code edits)
+    type: llm_inference
+    trust_zone: external_provider
+    description: Anthropic-hosted reasoning model.
+    metadata:
+      vendor: Anthropic
+      product: claude-sonnet-4-6
+
+  - id: repo_mcp
+    name: GitHub MCP server (repo read/write)
+    type: mcp_server
+    trust_zone: corp_internal
+    description: |
+      Wraps git clone/branch/commit/push and the GitHub PR API. Restricted to
+      `bot/*` branch namespace + draft-PR creation. Cannot push to `main`.
+    metadata:
+      tool_count: 7
+      vendor: anthropic-modelcontextprotocol
+
+  - id: ci_mcp
+    name: GitHub Actions MCP server
+    type: mcp_server
+    trust_zone: corp_internal
+    description: |
+      Triggers a CI workflow run with the agent's draft branch and reports
+      back pass/fail per job. Uses a workflow-token-only PAT.
+    metadata:
+      tool_count: 3
+
+  - id: search_mcp
+    name: Code-search MCP (Sourcegraph)
+    type: mcp_server
+    trust_zone: corp_internal
+    description: |
+      Indexed code-search tool the agent uses before editing. Read-only, scoped
+      to the org's repos.
+    metadata:
+      vendor: Sourcegraph
+      product: sourcegraph
+      tool_count: 2
+
+  - id: sandbox
+    name: Per-task ephemeral container
+    type: container_runtime
+    trust_zone: prod
+    description: |
+      Each agent run gets a fresh Docker container (network egress allowlisted
+      to package mirrors only) with the cloned repo. The container is destroyed
+      after the run.
+    controls:
+      - network_egress_allowlist
+      - ephemeral
+      - no_persistent_state
+
+  - id: secrets
+    name: Vault (per-job secrets)
+    type: secrets_vault
+    trust_zone: prod
+    description: |
+      AppRole-issued, 15-minute-TTL credentials for GitHub PAT + Sentry token +
+      Sourcegraph API key. Issued per agent run, never persisted.
+    metadata:
+      vendor: HashiCorp
+      product: vault
+    controls:
+      - least_privilege_iam
+      - audit_logging
+
+  - id: artefacts
+    name: Build artefact bucket (pip cache)
+    type: object_storage
+    trust_zone: prod
+    description: |
+      Mirror of the org's package index — agent CAN read but CANNOT write,
+      preventing dependency-confusion / supply-chain injection via the agent
+      pathway.
+    controls:
+      - readonly_for_agent
+
+  - id: review_user
+    name: Human reviewer
+    type: user
+    trust_zone: corp_internal
+    description: |
+      Engineer assigned to the issue. Receives a Slack DM with the draft PR
+      link; must explicitly mark `Ready for review` before merge.
+
+  - id: slack
+    name: Slack (notification + DM)
+    type: external_api
+    trust_zone: external_provider
+    description: Outbound DM to the reviewer when the draft PR is ready.
+
+dataflows:
+  - id: f_issue
+    source: tracker
+    target: agent
+    label: webhook + issue payload
+    crosses_boundary: true
+  - id: f_agent_plan
+    source: agent
+    target: planning_llm
+    label: prompt (issue + context) → tokens
+    crosses_boundary: true
+  - id: f_repo_read
+    source: agent
+    target: repo_mcp
+    label: clone, read files
+  - id: f_search
+    source: agent
+    target: search_mcp
+    label: code-search query
+  - id: f_repo_write
+    source: agent
+    target: repo_mcp
+    label: branch + commit + draft PR
+  - id: f_ci_trigger
+    source: agent
+    target: ci_mcp
+    label: trigger workflow run
+  - id: f_secrets
+    source: agent
+    target: secrets
+    label: per-job credential lease
+  - id: f_artefacts
+    source: sandbox
+    target: artefacts
+    label: pull deps from internal mirror
+  - id: f_run
+    source: agent
+    target: sandbox
+    label: exec test commands
+  - id: f_review_dm
+    source: agent
+    target: slack
+    label: notify reviewer
+    crosses_boundary: true
+  - id: f_review
+    source: review_user
+    target: repo_mcp
+    label: approve + merge

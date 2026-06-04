@@ -1,0 +1,113 @@
+component_type: security_data_lake
+description: |
+  Security data lake — modern security analytics platform decoupling
+  storage from analytics, typically on Snowflake / Databricks / S3 +
+  Athena. Vendor examples: Panther, Hunters, Anvilogic, Snowflake
+  Security Data Cloud, AWS Security Lake (OCSF). Stores raw security
+  telemetry at petabyte scale; powers detections, hunts, and AI/ML-
+  enabled analytics. Compromise = full SOC blindness + entire attack
+  history exposure.
+threats:
+  - id: T_SECDL_001
+    title: Read-access scope creep exposes sensitive telemetry to non-SOC roles
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1213, T1530]
+    attack_cloud: [T1530]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      Security data lake holds firewall flows, DNS queries, email
+      headers, EDR telemetry, IAM events — much of which contains
+      PII (employee names, customer hostnames, IPs). Self-service
+      analytics tools (Snowflake, Databricks notebooks) make it
+      trivial for analysts outside SOC to query and exfiltrate.
+    mitigations:
+      - "Per-table / per-column access control (Snowflake RBAC / Unity Catalog)"
+      - "Dynamic-masking of PII columns for non-investigative roles"
+      - "Query-audit logging with anomaly detection on bulk pulls"
+      - "Quarterly access-recert for every grant on security schemas"
+    refs: [T1213, AML.M0019]
+
+  - id: T_SECDL_002
+    title: Telemetry-ingestion pipeline tampering hides attacker traces
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1562, T1070]
+    maestro: [M.L5.05]
+    likelihood: 2
+    impact: 5
+    description: |
+      Attacker who reaches the ingestion layer (Kafka / Firehose /
+      Fluent Bit collectors) can drop, modify, or replay events
+      before they land in the lake. Detections never fire because
+      the signal is suppressed at the source.
+    mitigations:
+      - "Per-event cryptographic signing at source; verify on ingest"
+      - "Cross-stream reconciliation: count events at producer vs lake"
+      - "Immutable buffer (Kinesis with deletion-protection) between source and lake"
+      - "Continuous integrity-monitoring of ingestion pipeline configs"
+    refs: [T1562, T1070, AML.M0019]
+
+  - id: T_SECDL_003
+    title: SQL / notebook injection in analyst-authored queries
+    stride_ai: [Tampering, Information_Disclosure]
+    attack_enterprise: [T1059, T1190]
+    maestro: [M.L1.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Snowflake / Databricks queries authored by analysts often
+      embed user-controllable parameters from incident-response
+      tickets, threat-intel feeds, or external ML scoring. Crafted
+      input becomes SQL injection in the lake's query engine, or
+      arbitrary-code execution in a notebook context.
+    mitigations:
+      - "Parameterised query builders / bind variables only"
+      - "Notebook-environment sandboxing — separate workspace per investigator"
+      - "Review pre-prod notebooks before sharing; signed-notebook attestation"
+      - "Output-egress monitoring on notebook results"
+    refs: [T1059, AML.M0015]
+
+  - id: T_SECDL_004
+    title: AI/ML-on-security-data hallucinates / introduces false-negative detection
+    stride_ai: [Bias_Fairness, Emergent_Behavior]
+    owasp_llm: [LLM09:2025]
+    atlas_techniques: [AML.T0048, AML.T0034]
+    nist_ai_100_2: [NIST_GAI_INFORMATION_INTEGRITY]
+    maestro: [M.L7.04]
+    likelihood: 3
+    impact: 4
+    description: |
+      Modern security data lakes increasingly host LLM-driven detection
+      copilots ("explain this alert", "auto-tune this detection").
+      LLM hallucinations cause analysts to dismiss real attacks or
+      tune detections away on false reasoning. AI bias in training
+      data underrepresents certain attack vectors.
+    mitigations:
+      - "Human-in-the-loop on every detection tune / suppress action"
+      - "Eval set tracks false-positive vs false-negative rate over time"
+      - "Confidence-score gating: low-confidence LLM outputs surfaced as 'suggestions only'"
+      - "Periodic red-team injection of canary events to detect regressions"
+    refs: [AML.M0020, AML.M0023]
+
+  - id: T_SECDL_005
+    title: Lake storage cost / quota exhaustion causes detection blind spot
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1499, T1498]
+    attack_cloud: [T1499]
+    maestro: [M.L4.04]
+    likelihood: 3
+    impact: 3
+    description: |
+      Adversary or runaway-bug floods telemetry (millions of DNS
+      queries, repeated EDR events) blowing the lake's storage
+      budget. Operator throttles ingestion to control cost — actual
+      attack events drop on the floor. Detection-eng KPI: % of
+      events lost to throttling.
+    mitigations:
+      - "Per-source ingestion quotas with overflow to cold-tier storage"
+      - "Cost alerts at 50% / 75% / 90% of monthly budget"
+      - "Aged-retention policy tested under load (90d hot / 1yr warm / 7yr cold)"
+      - "Anomaly detection on event-rate per source"
+    refs: [T1499, AML.M0019]

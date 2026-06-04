@@ -1,0 +1,1049 @@
+{
+  "version": 1,
+  "total": 121,
+  "groups": [
+    {
+      "name": "AI / ML / agentic primitives",
+      "items": [
+        {
+          "type": "llm_inference",
+          "emoji": "L",
+          "synonyms": [
+            "llm",
+            "model",
+            "model_inference"
+          ]
+        },
+        {
+          "type": "rag_vector_store",
+          "emoji": "R",
+          "synonyms": [
+            "rag",
+            "rag_store",
+            "vector_store",
+            "vectorstore"
+          ]
+        },
+        {
+          "type": "agent",
+          "emoji": "A",
+          "synonyms": [
+            "agent_loop",
+            "ai_agent"
+          ]
+        },
+        {
+          "type": "tool",
+          "emoji": "T",
+          "synonyms": []
+        },
+        {
+          "type": "mcp_server",
+          "emoji": "M",
+          "synonyms": []
+        },
+        {
+          "type": "training_pipeline",
+          "emoji": "Tr",
+          "synonyms": []
+        },
+        {
+          "type": "fine_tuning_pipeline",
+          "emoji": "Ft",
+          "synonyms": []
+        },
+        {
+          "type": "embedding_service",
+          "emoji": "E",
+          "synonyms": []
+        },
+        {
+          "type": "prompt_template_store",
+          "emoji": "P",
+          "synonyms": []
+        },
+        {
+          "type": "model_registry",
+          "emoji": "Mr",
+          "synonyms": []
+        },
+        {
+          "type": "guardrails",
+          "emoji": "G",
+          "synonyms": [
+            "guardrail"
+          ]
+        },
+        {
+          "type": "output_filter",
+          "emoji": "O",
+          "synonyms": [
+            "filter"
+          ]
+        },
+        {
+          "type": "ml_feature_store",
+          "emoji": "Mf",
+          "synonyms": [
+            "feature_store",
+            "sagemaker_feature_store",
+            "vertex_feature_store"
+          ]
+        },
+        {
+          "type": "ml_pipeline_orchestrator",
+          "emoji": "Mp",
+          "synonyms": [
+            "aml_pipelines",
+            "sagemaker_pipelines",
+            "vertex_pipelines"
+          ]
+        },
+        {
+          "type": "ml_data_labeling",
+          "emoji": "Ml",
+          "synonyms": [
+            "ground_truth"
+          ]
+        },
+        {
+          "type": "ml_experiment_tracker",
+          "emoji": "Mt",
+          "synonyms": [
+            "comet",
+            "mlflow",
+            "wandb"
+          ]
+        },
+        {
+          "type": "ml_inference_endpoint",
+          "emoji": "Me",
+          "synonyms": [
+            "azure_ml_endpoint",
+            "sagemaker_endpoint",
+            "vertex_endpoint"
+          ]
+        },
+        {
+          "type": "vision_pipeline",
+          "emoji": "Vi",
+          "synonyms": [
+            "vision"
+          ]
+        },
+        {
+          "type": "speech_pipeline",
+          "emoji": "Sp",
+          "synonyms": [
+            "stt",
+            "tts",
+            "voice_agent"
+          ]
+        },
+        {
+          "type": "content_safety_classifier",
+          "emoji": "Cs",
+          "synonyms": [
+            "azure_content_safety",
+            "bedrock_guardrails",
+            "perspective"
+          ]
+        },
+        {
+          "type": "data_source",
+          "emoji": "Ds",
+          "synonyms": []
+        },
+        {
+          "type": "external_api",
+          "emoji": "Ea",
+          "synonyms": [
+            "external",
+            "third_party_api"
+          ]
+        },
+        {
+          "type": "user",
+          "emoji": "U",
+          "synonyms": [
+            "human",
+            "person"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cloud compute + serverless + container",
+      "items": [
+        {
+          "type": "cloud_compute",
+          "emoji": "Cc",
+          "synonyms": [
+            "azure_vm",
+            "compute_engine",
+            "ec2",
+            "gce",
+            "oci_compute",
+            "vm"
+          ]
+        },
+        {
+          "type": "serverless_function",
+          "emoji": "Sf",
+          "synonyms": [
+            "function",
+            "lambda"
+          ]
+        },
+        {
+          "type": "container_runtime",
+          "emoji": "Cr",
+          "synonyms": [
+            "container",
+            "k8s",
+            "kubernetes"
+          ]
+        },
+        {
+          "type": "container_orchestrator",
+          "emoji": "Co",
+          "synonyms": [
+            "aks",
+            "ecs",
+            "eks",
+            "gke",
+            "openshift"
+          ]
+        },
+        {
+          "type": "container_registry",
+          "emoji": "Cg",
+          "synonyms": [
+            "acr",
+            "ecr",
+            "gar"
+          ]
+        },
+        {
+          "type": "edge_compute",
+          "emoji": "Ec",
+          "synonyms": [
+            "cloudflare_workers",
+            "lambda_at_edge"
+          ]
+        },
+        {
+          "type": "batch_compute",
+          "emoji": "Bc",
+          "synonyms": []
+        },
+        {
+          "type": "high_performance_compute",
+          "emoji": "Hp",
+          "synonyms": []
+        }
+      ]
+    },
+    {
+      "name": "Cloud storage families",
+      "items": [
+        {
+          "type": "object_storage",
+          "emoji": "Os",
+          "synonyms": [
+            "blob",
+            "bucket",
+            "s3"
+          ]
+        },
+        {
+          "type": "block_storage",
+          "emoji": "Bs",
+          "synonyms": [
+            "ebs",
+            "managed_disk",
+            "persistent_disk"
+          ]
+        },
+        {
+          "type": "file_storage",
+          "emoji": "Fs",
+          "synonyms": [
+            "azure_files",
+            "efs",
+            "filestore"
+          ]
+        },
+        {
+          "type": "data_lake",
+          "emoji": "Dl",
+          "synonyms": [
+            "adls",
+            "data_lake_storage",
+            "lake_formation"
+          ]
+        },
+        {
+          "type": "data_warehouse",
+          "emoji": "Dw",
+          "synonyms": [
+            "bigquery",
+            "redshift",
+            "snowflake",
+            "synapse"
+          ]
+        },
+        {
+          "type": "cache_store",
+          "emoji": "Ca",
+          "synonyms": [
+            "elasticache",
+            "memcached",
+            "memorystore",
+            "redis"
+          ]
+        },
+        {
+          "type": "backup_service",
+          "emoji": "Bk",
+          "synonyms": []
+        }
+      ]
+    },
+    {
+      "name": "Databases + streaming + ETL",
+      "items": [
+        {
+          "type": "database",
+          "emoji": "Db",
+          "synonyms": []
+        },
+        {
+          "type": "nosql_database",
+          "emoji": "Nd",
+          "synonyms": [
+            "cosmos_db",
+            "cosmosdb",
+            "documentdb",
+            "dynamodb",
+            "firestore",
+            "mongodb"
+          ]
+        },
+        {
+          "type": "graph_database",
+          "emoji": "Gd",
+          "synonyms": [
+            "neo4j",
+            "neptune",
+            "spanner_graph"
+          ]
+        },
+        {
+          "type": "time_series_database",
+          "emoji": "Td",
+          "synonyms": [
+            "influxdb",
+            "timestream"
+          ]
+        },
+        {
+          "type": "message_queue",
+          "emoji": "Mq",
+          "synonyms": [
+            "kafka",
+            "queue",
+            "rabbitmq"
+          ]
+        },
+        {
+          "type": "stream_processor",
+          "emoji": "St",
+          "synonyms": [
+            "dataflow",
+            "event_hubs",
+            "flink",
+            "kinesis"
+          ]
+        },
+        {
+          "type": "etl_orchestrator",
+          "emoji": "Et",
+          "synonyms": [
+            "adf",
+            "data_factory",
+            "glue"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cloud network + delivery + edge",
+      "items": [
+        {
+          "type": "load_balancer",
+          "emoji": "Lb",
+          "synonyms": [
+            "lb"
+          ]
+        },
+        {
+          "type": "cdn",
+          "emoji": "Cd",
+          "synonyms": [
+            "akamai",
+            "cloudflare",
+            "cloudfront",
+            "fastly",
+            "front_door"
+          ]
+        },
+        {
+          "type": "api_gateway",
+          "emoji": "Ag",
+          "synonyms": []
+        },
+        {
+          "type": "service_mesh",
+          "emoji": "Sm",
+          "synonyms": [
+            "app_mesh",
+            "consul",
+            "istio",
+            "linkerd"
+          ]
+        },
+        {
+          "type": "private_link",
+          "emoji": "Pl",
+          "synonyms": [
+            "private_endpoint",
+            "privatelink",
+            "psc"
+          ]
+        },
+        {
+          "type": "network_segment",
+          "emoji": "Ns",
+          "synonyms": []
+        },
+        {
+          "type": "transit_gateway",
+          "emoji": "Tg",
+          "synonyms": [
+            "transit_gw",
+            "vwan"
+          ]
+        },
+        {
+          "type": "dns_service",
+          "emoji": "Dn",
+          "synonyms": [
+            "azure_dns",
+            "cloud_dns",
+            "route_53"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Identity / secrets / key management",
+      "items": [
+        {
+          "type": "iam_principal",
+          "emoji": "Id",
+          "synonyms": [
+            "iam",
+            "role"
+          ]
+        },
+        {
+          "type": "directory_service",
+          "emoji": "Dr",
+          "synonyms": [
+            "active_directory",
+            "ad",
+            "ldap",
+            "okta"
+          ]
+        },
+        {
+          "type": "identity_provider",
+          "emoji": "Ip",
+          "synonyms": [
+            "auth0",
+            "cognito",
+            "entra_external_id"
+          ]
+        },
+        {
+          "type": "mfa_service",
+          "emoji": "Mu",
+          "synonyms": [
+            "mfa"
+          ]
+        },
+        {
+          "type": "sso_service",
+          "emoji": "So",
+          "synonyms": [
+            "azure_sso",
+            "iam_identity_center",
+            "onelogin",
+            "ping"
+          ]
+        },
+        {
+          "type": "ciam_platform",
+          "emoji": "Ci",
+          "synonyms": [
+            "b2c"
+          ]
+        },
+        {
+          "type": "secrets_vault",
+          "emoji": "Sv",
+          "synonyms": [
+            "secret_store",
+            "vault"
+          ]
+        },
+        {
+          "type": "kms_key",
+          "emoji": "Kk",
+          "synonyms": [
+            "key_management",
+            "kms"
+          ]
+        },
+        {
+          "type": "certificate_manager",
+          "emoji": "Cm",
+          "synonyms": [
+            "acm",
+            "key_vault_certs"
+          ]
+        },
+        {
+          "type": "hsm",
+          "emoji": "Hs",
+          "synonyms": [
+            "azure_dedicated_hsm",
+            "cloudhsm"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Security tooling",
+      "items": [
+        {
+          "type": "siem",
+          "emoji": "Si",
+          "synonyms": [
+            "chronicle",
+            "qradar",
+            "sentinel",
+            "splunk",
+            "sumo_logic"
+          ]
+        },
+        {
+          "type": "soar",
+          "emoji": "Sx",
+          "synonyms": [
+            "tines",
+            "torq",
+            "xsoar"
+          ]
+        },
+        {
+          "type": "edr_agent",
+          "emoji": "Ed",
+          "synonyms": [
+            "crowdstrike",
+            "defender_endpoint",
+            "sentinelone"
+          ]
+        },
+        {
+          "type": "vulnerability_scanner",
+          "emoji": "Vs",
+          "synonyms": [
+            "inspector",
+            "nessus",
+            "qualys"
+          ]
+        },
+        {
+          "type": "casb",
+          "emoji": "Cb",
+          "synonyms": [
+            "defender_cloud_apps"
+          ]
+        },
+        {
+          "type": "dlp",
+          "emoji": "Dp",
+          "synonyms": [
+            "purview",
+            "symantec_dlp"
+          ]
+        },
+        {
+          "type": "cspm",
+          "emoji": "Cp",
+          "synonyms": [
+            "defender_cloud",
+            "prisma",
+            "wiz"
+          ]
+        },
+        {
+          "type": "container_security",
+          "emoji": "Ks",
+          "synonyms": [
+            "aqua",
+            "sysdig",
+            "twistlock"
+          ]
+        },
+        {
+          "type": "security_data_lake",
+          "emoji": "Sd",
+          "synonyms": []
+        }
+      ]
+    },
+    {
+      "name": "Observability",
+      "items": [
+        {
+          "type": "observability_stack",
+          "emoji": "Ob",
+          "synonyms": [
+            "datadog",
+            "logs",
+            "metrics"
+          ]
+        },
+        {
+          "type": "log_aggregator",
+          "emoji": "La",
+          "synonyms": [
+            "cloudwatch_logs",
+            "elk",
+            "log_analytics",
+            "splunk_logs"
+          ]
+        },
+        {
+          "type": "metrics_platform",
+          "emoji": "Mx",
+          "synonyms": [
+            "azure_monitor_metrics",
+            "datadog_metrics",
+            "prometheus"
+          ]
+        },
+        {
+          "type": "tracing_platform",
+          "emoji": "Tp",
+          "synonyms": [
+            "app_insights",
+            "honeycomb",
+            "tempo",
+            "x_ray"
+          ]
+        },
+        {
+          "type": "alerting_platform",
+          "emoji": "Ap",
+          "synonyms": [
+            "opsgenie",
+            "pagerduty",
+            "victorops"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Endpoints + servers",
+      "items": [
+        {
+          "type": "endpoint",
+          "emoji": "Ep",
+          "synonyms": []
+        },
+        {
+          "type": "server_windows",
+          "emoji": "Sw1",
+          "synonyms": [
+            "windows_server"
+          ]
+        },
+        {
+          "type": "server_linux",
+          "emoji": "Sl",
+          "synonyms": [
+            "linux_server"
+          ]
+        },
+        {
+          "type": "server_unix",
+          "emoji": "Su",
+          "synonyms": [
+            "aix",
+            "hpux",
+            "solaris"
+          ]
+        },
+        {
+          "type": "mainframe",
+          "emoji": "Mn",
+          "synonyms": [
+            "as400",
+            "ibm_z",
+            "zos"
+          ]
+        },
+        {
+          "type": "legacy_mainframe",
+          "emoji": "Lg",
+          "synonyms": []
+        },
+        {
+          "type": "virtual_desktop",
+          "emoji": "Vd",
+          "synonyms": [
+            "avd",
+            "horizon",
+            "workspaces"
+          ]
+        },
+        {
+          "type": "mobile_device",
+          "emoji": "Mb",
+          "synonyms": [
+            "android",
+            "ios"
+          ]
+        },
+        {
+          "type": "mdm_emm",
+          "emoji": "Mm",
+          "synonyms": [
+            "intune",
+            "jamf",
+            "kandji",
+            "workspace_one"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "OT / SCADA / industrial / IoT",
+      "items": [
+        {
+          "type": "plc",
+          "emoji": "Pc",
+          "synonyms": [
+            "controller"
+          ]
+        },
+        {
+          "type": "rtu",
+          "emoji": "Ru",
+          "synonyms": [
+            "remote_terminal_unit"
+          ]
+        },
+        {
+          "type": "ied",
+          "emoji": "Ie",
+          "synonyms": [
+            "intelligent_electronic_device"
+          ]
+        },
+        {
+          "type": "hmi",
+          "emoji": "Hm",
+          "synonyms": [
+            "human_machine_interface"
+          ]
+        },
+        {
+          "type": "scada",
+          "emoji": "Sc",
+          "synonyms": [
+            "ot"
+          ]
+        },
+        {
+          "type": "dcs",
+          "emoji": "Dc",
+          "synonyms": [
+            "distributed_control_system"
+          ]
+        },
+        {
+          "type": "sis",
+          "emoji": "Ss",
+          "synonyms": [
+            "safety_instrumented_system",
+            "triconex"
+          ]
+        },
+        {
+          "type": "industrial_protocol",
+          "emoji": "Ix",
+          "synonyms": []
+        },
+        {
+          "type": "iot_device",
+          "emoji": "Io",
+          "synonyms": [
+            "device",
+            "iot",
+            "sensor"
+          ]
+        },
+        {
+          "type": "iot_gateway",
+          "emoji": "Ig",
+          "synonyms": [
+            "greengrass",
+            "iot_edge"
+          ]
+        },
+        {
+          "type": "ot_jumphost",
+          "emoji": "Oj",
+          "synonyms": [
+            "engineering_workstation"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Fallback",
+      "items": [
+        {
+          "type": "other",
+          "emoji": "Ot",
+          "synonyms": []
+        }
+      ]
+    },
+    {
+      "name": "Network appliances (on",
+      "items": [
+        {
+          "type": "firewall",
+          "emoji": "Fw",
+          "synonyms": [
+            "fw"
+          ]
+        },
+        {
+          "type": "waf",
+          "emoji": "Wf",
+          "synonyms": [
+            "aws_waf",
+            "azure_waf",
+            "cloud_armor",
+            "f5_asm",
+            "imperva"
+          ]
+        },
+        {
+          "type": "ids_ips",
+          "emoji": "Ii",
+          "synonyms": [
+            "firepower",
+            "ids",
+            "ips",
+            "snort",
+            "suricata"
+          ]
+        },
+        {
+          "type": "ddos_mitigation",
+          "emoji": "Dd",
+          "synonyms": [
+            "azure_ddos",
+            "ddos",
+            "shield_advanced"
+          ]
+        },
+        {
+          "type": "web_proxy",
+          "emoji": "Wp",
+          "synonyms": [
+            "netskope",
+            "squid",
+            "zscaler"
+          ]
+        },
+        {
+          "type": "reverse_proxy",
+          "emoji": "Rp",
+          "synonyms": [
+            "envoy",
+            "haproxy",
+            "nginx_proxy",
+            "traefik"
+          ]
+        },
+        {
+          "type": "vpn_gateway",
+          "emoji": "Vp",
+          "synonyms": [
+            "vpn"
+          ]
+        },
+        {
+          "type": "router",
+          "emoji": "Rt",
+          "synonyms": [
+            "cisco",
+            "juniper",
+            "mikrotik"
+          ]
+        },
+        {
+          "type": "network_switch",
+          "emoji": "Sw",
+          "synonyms": [
+            "switch"
+          ]
+        },
+        {
+          "type": "switch_l3",
+          "emoji": "S3",
+          "synonyms": []
+        },
+        {
+          "type": "sdwan_edge",
+          "emoji": "Se",
+          "synonyms": [
+            "silver_peak",
+            "velocloud",
+            "viptela"
+          ]
+        },
+        {
+          "type": "network_access_control",
+          "emoji": "Nc",
+          "synonyms": [
+            "clearpass",
+            "forescout",
+            "ise"
+          ]
+        },
+        {
+          "type": "bastion_host",
+          "emoji": "Bh",
+          "synonyms": [
+            "bastion",
+            "iap",
+            "jumpbox",
+            "ssm_session_manager",
+            "teleport"
+          ]
+        },
+        {
+          "type": "pam_vault",
+          "emoji": "Pv",
+          "synonyms": [
+            "beyondtrust",
+            "cyberark",
+            "delinea"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Application",
+      "items": [
+        {
+          "type": "web_application",
+          "emoji": "Wa",
+          "synonyms": []
+        },
+        {
+          "type": "email_server",
+          "emoji": "Em",
+          "synonyms": [
+            "mail",
+            "smtp"
+          ]
+        },
+        {
+          "type": "file_transfer_service",
+          "emoji": "Fx",
+          "synonyms": [
+            "managed_ftp",
+            "sftp",
+            "transfer_family"
+          ]
+        },
+        {
+          "type": "code_repository",
+          "emoji": "Cx",
+          "synonyms": [
+            "bitbucket",
+            "codecommit",
+            "github",
+            "gitlab"
+          ]
+        },
+        {
+          "type": "ci_cd_pipeline",
+          "emoji": "Pi",
+          "synonyms": [
+            "cloud_build",
+            "codepipeline",
+            "github_actions",
+            "gitlab_ci",
+            "jenkins"
+          ]
+        },
+        {
+          "type": "artifact_registry",
+          "emoji": "Ar",
+          "synonyms": [
+            "artifactory",
+            "github_packages",
+            "nexus"
+          ]
+        },
+        {
+          "type": "build_runner",
+          "emoji": "Br",
+          "synonyms": []
+        },
+        {
+          "type": "feature_flag_service",
+          "emoji": "Ff",
+          "synonyms": [
+            "flagsmith",
+            "growthbook",
+            "launchdarkly",
+            "split"
+          ]
+        },
+        {
+          "type": "iac_template_registry",
+          "emoji": "It",
+          "synonyms": [
+            "arm",
+            "bicep",
+            "cloudformation",
+            "terraform_module"
+          ]
+        }
+      ]
+    }
+  ]
+}

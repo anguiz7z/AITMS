@@ -1,0 +1,30 @@
+# Core (no LLM required)
+pydantic>=2.7
+pyyaml>=6.0
+jinja2>=3.1
+click>=8.1
+networkx>=3.2
+rich>=13.0
+
+# Web UI
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9
+aiofiles>=23.0
+
+# Security hardening
+defusedxml>=0.7
+bleach>=6.1
+
+# Visio (.vsdx) ingestion
+vsdx>=0.6
+
+# Optional - vision via Anthropic Claude
+# anthropic>=0.40
+
+# Optional - PDF rendering (WeasyPrint requires GTK on Windows)
+# weasyprint>=62
+
+# Dev
+pytest>=8.0
+ruff>=0.5

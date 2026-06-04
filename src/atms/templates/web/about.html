@@ -1,0 +1,49 @@
+{% extends "web/base.html" %}
+{% block title %}About{% endblock %}
+{% block content %}
+<h1>About ATMS</h1>
+<p>AI Threat Modeling Studio is a workflow tool for threat-modeling AI/ML/LLM/agentic systems against:</p>
+<ul>
+  <li><strong>OWASP LLM Top 10 (2025)</strong> — the canonical risk list for LLM applications.</li>
+  <li><strong>OWASP Agentic AI — Threats and Mitigations (OWASP ASI, 2025)</strong> — 15 canonical threats (T1–T15) specific to agentic AI, plus 2 ATMS extensions,, including memory poisoning, tool misuse, intent breaking, rogue agents, and inter-agent protocol abuse. <a href="/agentic">Browse →</a></li>
+  <li><strong>CSA MAESTRO (2025)</strong> — the 7-layer agentic-AI threat-modeling reference architecture (Foundation Models / Data Operations / Agent Frameworks / Deployment & Infrastructure / Evaluation & Observability / Security & Compliance / Agent Ecosystem). <a href="/maestro">Browse →</a></li>
+  <li><strong>MITRE ATLAS</strong> — adversarial tactics, techniques, and case studies for ML/AI systems.</li>
+  <li><strong>NIST AI RMF (AI 600-1) GenAI Profile</strong> — risk-management framework for GenAI.</li>
+  <li><strong>STRIDE for AI</strong> — Microsoft's <a href="https://learn.microsoft.com/en-us/security/engineering/threat-modeling-aiml" rel="noopener">STRIDE</a> applied to AI/ML primitives. AI-specific subcategories live in <code>kb/stride_ai_matrix.yaml</code>; this is our extension of STRIDE, not a peer-reviewed standalone methodology.</li>
+  <li><strong>Likelihood × Impact (DREAD-derived)</strong> — risk score on a 0–100 scale, computed from a 1–5 likelihood and 1–5 impact with weighting borrowed from Microsoft's deprecated <a href="https://en.wikipedia.org/wiki/DREAD_(risk_assessment_model)" rel="noopener">DREAD</a> model. Earlier ATMS versions called this "DREAD-AI"; that was misleading — there is no published "DREAD-AI" standard.</li>
+  <li><strong>Singapore CSA Guidelines on Securing AI Systems (2024)</strong> — cross-walked into per-component playbooks for regional regulatory alignment.</li>
+</ul>
+
+<h2>What ATMS is — and isn't</h2>
+<p><strong>It is</strong> an AI-induced-risk evaluator: it considers the full architecture an AI sits in (firewalls, databases, network switches, OT, mainframes — everything) but only emits threats that exist <em>because of</em> the AI integration. A banking ATM with no LLM produces zero threats; the same ATM with an LLM-based fraud-detection sidecar produces threats specific to that integration, with provenance pointing at the AI component that creates each risk.</p>
+<p><strong>It isn't</strong> a general-purpose threat modeler. A system with zero AI components is rejected at load time with a clear message. For pure-IT systems use OWASP Threat Dragon, Microsoft Threat Modeling Tool, or IriusRisk.</p>
+
+<h2>Threat-category provenance</h2>
+<p>ATMS tags every threat with one or more "STRIDE for AI" categories. Six come straight from Microsoft's 1999 STRIDE; three are ATMS extensions anchored to other published frameworks (MITRE ATT&CK, NIST AI RMF, MITRE ATLAS). The table below documents the lineage so reviewers can verify the methodology against the source.</p>
+<table style="margin-top: 8px;">
+  <thead><tr><th>Category</th><th>Published anchor</th><th>Standing</th></tr></thead>
+  <tbody>
+  {% for cat, info in methodology_provenance %}
+    <tr>
+      <td><code>{{ cat }}</code></td>
+      <td><a href="{{ info.url }}" rel="noopener" style="color: var(--accent);">{{ info.anchor }}</a></td>
+      <td>{% if info.standing == "standard" %}<span class="pill" style="background: rgba(46,160,67,0.2); color:#3fb950;">standard</span>{% else %}<span class="pill" style="background: rgba(187,128,9,0.2); color:#d29922;">ATMS extension</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p style="margin-top: 8px; color: var(--muted); font-size: 13px;">"Standard" = directly drawn from Microsoft's STRIDE / STRIDE-for-AI publications. "ATMS extension" = a real, published threat vector (with the cited anchor) that ATMS surfaces in the STRIDE column because classic STRIDE has no separate row for it.</p>
+
+<h2>Design choices</h2>
+<ul>
+  <li><strong>Deterministic core.</strong> No LLM call is required to run an analysis. Threats come from curated per-component playbooks. Mappings to ATLAS and OWASP are explicit, not inferred.</li>
+  <li><strong>Optional vision.</strong> If you set <code>ANTHROPIC_API_KEY</code>, ATMS can parse architecture-diagram images via Claude vision and emit a draft system YAML. With no key, you describe systems in YAML manually.</li>
+  <li><strong>Workflow-first.</strong> CLI and minimal web UI. No multi-tenant auth, no DB, no cloud dependency. Run it on your laptop.</li>
+  <li><strong>Open framework data.</strong> All KB entries cite their source. You can fork the playbooks to fit your environment.</li>
+</ul>
+
+<h2>Disclaimer</h2>
+<p>ATMS is decision support — its output is a starting point for a threat model, not an authoritative security assessment. Have a security professional review the report before treating any finding as actionable.</p>
+
+<p>Apache-2.0 licensed. Source: <a href="https://github.com/anguiz7z/AITMS">github.com/anguiz7z/AITMS</a>.</p>
+{% endblock %}

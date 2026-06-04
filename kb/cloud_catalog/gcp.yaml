@@ -1,0 +1,1102 @@
+# ATMS Cloud Service Catalog — Google Cloud
+# Maps canonical GCP service IDs to ATMS ComponentType so users can declare
+# metadata: {vendor: GCP, product: <id>} and inherit threats + classification.
+# Matching is case-insensitive on both vendor and product.
+
+# ---------------------------------------------------------------------------
+# Compute
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: compute_engine
+  display_name: Google Compute Engine
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_GCP_GCE_001
+  references:
+    - https://cloud.google.com/compute
+  ai_context: |
+    Hosts self-managed LLM inference (vLLM, TGI) and agent runtimes on
+    GPUs/TPUs. Default service account on the VM + metadata server SSRF =
+    canonical token-theft path for prompt-injected agentic URL fetchers.
+
+- vendor: GCP
+  product: gke
+  display_name: Google Kubernetes Engine
+  component_type: container_orchestrator
+  service_category: compute
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/kubernetes-engine
+  ai_context: |
+    Hosts multi-tenant LLM platforms. Workload Identity mis-binding and
+    weak NetworkPolicy enable pod-to-pod lateral movement and cross-
+    namespace prompt/embedding theft.
+
+- vendor: GCP
+  product: gke_autopilot
+  display_name: GKE Autopilot
+  component_type: container_orchestrator
+  service_category: compute
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/kubernetes-engine/docs/concepts/autopilot-overview
+  ai_context: |
+    Managed-node GKE; hardened defaults but Workload Identity still
+    governs how agent pods touch BigQuery/GCS.
+
+- vendor: GCP
+  product: cloud_run
+  display_name: Cloud Run
+  component_type: serverless_function
+  service_category: compute
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/run
+  ai_context: |
+    Serverless container runtime — popular for agent + tool services.
+    Service-account permissions become the agent's effective authority;
+    per-service identities are the must-have control.
+
+- vendor: GCP
+  product: cloud_functions
+  display_name: Cloud Functions
+  component_type: serverless_function
+  service_category: compute
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/functions
+  ai_context: |
+    GCP equivalent of Lambda for agent tools; over-scoped runtime SA is
+    the dominant confused-deputy source.
+
+- vendor: GCP
+  product: cloud_build
+  display_name: Cloud Build
+  component_type: build_runner
+  service_category: compute
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/build
+  ai_context: |
+    Builds container images for model servers; supply-chain attacks here
+    inject backdoors that ship straight to inference pods.
+
+- vendor: GCP
+  product: anthos
+  display_name: Anthos
+  component_type: container_orchestrator
+  service_category: compute
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/anthos
+  ai_context: |
+    Hybrid/multi-cloud Kubernetes; relevant when LLM workloads must run
+    on-prem for data-residency reasons.
+
+# ---------------------------------------------------------------------------
+# Storage
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: cloud_storage
+  display_name: Cloud Storage
+  component_type: object_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_GCP_GCS_001
+  references:
+    - https://cloud.google.com/storage
+  ai_context: |
+    The default RAG corpus, training-dataset, and Vertex model artifact
+    store. allUsers/allAuthenticatedUsers ACLs + adversarial PDFs =
+    indirect prompt injection at corpus scale. Signed URLs in tool
+    outputs are a common exfil channel.
+
+- vendor: GCP
+  product: persistent_disk
+  display_name: Persistent Disk
+  component_type: block_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/persistent-disk
+  ai_context: |
+    Block volumes attached to GCE/TPU nodes; unencrypted snapshots shared
+    cross-project leak proprietary weights.
+
+- vendor: GCP
+  product: filestore
+  display_name: Filestore
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/filestore
+  ai_context: |
+    NFS for ML training jobs; weak share-level controls let unrelated
+    training pods read the same dataset volume.
+
+- vendor: GCP
+  product: backup_and_dr
+  display_name: Backup and DR
+  component_type: backup_service
+  service_category: storage
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/backup-disaster-recovery
+  ai_context: |
+    Centralized backup; vault-immutability misconfig means an agent with
+    delete IAM can erase retention.
+
+# ---------------------------------------------------------------------------
+# Database
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: cloud_sql
+  display_name: Cloud SQL
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/sql
+  ai_context: |
+    MySQL/Postgres/SQL Server managed; common backend for agent SQL tools.
+    LLM-generated SELECT *  + over-broad DB user = wholesale table read.
+
+- vendor: GCP
+  product: alloydb
+  display_name: AlloyDB
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/alloydb
+  ai_context: |
+    Postgres-compatible with pgvector + ScaNN; doubles as RAG vector store
+    so SQL injection and embedding poisoning overlap on the same surface.
+
+- vendor: GCP
+  product: cloud_spanner
+  display_name: Cloud Spanner
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/spanner
+  ai_context: |
+    Globally-distributed relational DB; multi-region replication means
+    EU/SG data-residency requires careful instance-config selection.
+
+- vendor: GCP
+  product: firestore
+  display_name: Firestore
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/firestore
+  ai_context: |
+    Mobile/web doc DB; common store for chat history. Security-rules
+    misconfig lets the client read sibling-user transcripts directly.
+
+- vendor: GCP
+  product: bigtable
+  display_name: Bigtable
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/bigtable
+  ai_context: |
+    Wide-column store; common backend for embedding indexes and agent
+    memory at scale. Row-key design is the practical tenant boundary.
+
+- vendor: GCP
+  product: memorystore_redis
+  display_name: Memorystore for Redis
+  component_type: cache_store
+  service_category: database
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/memorystore/docs/redis
+  ai_context: |
+    Prompt/response cache + session memory. AUTH disabled + shared
+    keyspace = cross-tenant prompt leakage.
+
+- vendor: GCP
+  product: memorystore_memcached
+  display_name: Memorystore for Memcached
+  component_type: cache_store
+  service_category: database
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/memorystore/docs/memcached
+  ai_context: |
+    Stateless cache; rarely directly AI-bearing.
+
+- vendor: GCP
+  product: bigquery
+  display_name: BigQuery
+  component_type: data_warehouse
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_GCP_BQ_001
+  references:
+    - https://cloud.google.com/bigquery
+  ai_context: |
+    The canonical text-to-SQL target for Gemini-powered analytics agents.
+    Over-broad bigquery.dataViewer grants let an injected NL query exfil
+    the whole dataset; BigQuery ML adds a model-inference surface.
+
+# ---------------------------------------------------------------------------
+# Network
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: vpc
+  display_name: VPC
+  component_type: network_segment
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/vpc
+  ai_context: |
+    Hosts the LLM platform; firewall-rule sprawl enables lateral movement
+    between inference, vector store, and tool runtimes.
+
+- vendor: GCP
+  product: cloud_load_balancing
+  display_name: Cloud Load Balancing
+  component_type: load_balancer
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/load-balancing
+  ai_context: |
+    L4/L7 LB in front of inference endpoints; missing rate-limit makes
+    prompt-cost DoS trivial.
+
+- vendor: GCP
+  product: cloud_cdn
+  display_name: Cloud CDN
+  component_type: cdn
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/cdn
+  ai_context: |
+    CDN in front of chatbot UIs; cache poisoning can serve attacker
+    prompts to all users.
+
+- vendor: GCP
+  product: cloud_dns
+  display_name: Cloud DNS
+  component_type: dns_service
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/dns
+  ai_context: |
+    Public/private DNS; dangling records can be hijacked to spoof tool
+    backends an agent trusts.
+
+- vendor: GCP
+  product: network_connectivity_center
+  display_name: Network Connectivity Center
+  component_type: transit_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/network-connectivity-center
+  ai_context: |
+    Hub for VPC + on-prem; mis-routed inspection bypasses let Vertex
+    egress skip DLP.
+
+- vendor: GCP
+  product: vpc_service_controls
+  display_name: VPC Service Controls
+  component_type: private_link
+  service_category: network
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/vpc-service-controls
+  ai_context: |
+    Service perimeter; the single most important control to prevent
+    Vertex/BigQuery data exfil to an attacker-controlled project.
+
+- vendor: GCP
+  product: private_service_connect
+  display_name: Private Service Connect
+  component_type: private_link
+  service_category: network
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/vpc/docs/private-service-connect
+  ai_context: |
+    Keeps Vertex/Gemini/BigQuery traffic off the internet; absence of PSC
+    is a top finding for regulated LLM workloads.
+
+# ---------------------------------------------------------------------------
+# Security / Identity
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: iam
+  display_name: Google Cloud IAM
+  component_type: iam_principal
+  service_category: identity
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_GCP_IAM_001
+  references:
+    - https://cloud.google.com/iam
+  ai_context: |
+    Every agent tool resolves to a service account. Primitive roles
+    (Owner/Editor) on the runtime SA = effectively god-mode for any
+    prompt-injected tool.
+
+- vendor: GCP
+  product: cloud_identity
+  display_name: Cloud Identity
+  component_type: directory_service
+  service_category: identity
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/identity
+  ai_context: |
+    Workspace user directory; group membership drives access to Vertex
+    consoles — stale groups mean ex-employees retain model access.
+
+- vendor: GCP
+  product: identity_platform
+  display_name: Identity Platform
+  component_type: ciam_platform
+  service_category: identity
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/identity-platform
+  ai_context: |
+    End-user auth for chatbot apps; mis-scoped Firebase rules let the
+    browser hit Gemini API directly with billing on the project owner.
+
+- vendor: GCP
+  product: identity_aware_proxy
+  display_name: Identity-Aware Proxy
+  component_type: reverse_proxy
+  service_category: identity
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/iap
+  ai_context: |
+    Context-aware access in front of internal LLM tools; the right answer
+    instead of public load balancer + JWT validation logic.
+
+- vendor: GCP
+  product: kms
+  display_name: Cloud KMS
+  component_type: kms_key
+  service_category: security
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/kms
+  ai_context: |
+    Encrypts GCS RAG buckets, Vertex artifacts, BigQuery datasets. Key-
+    ring IAM mistakes are the #1 way fine-tuned weights leak.
+
+- vendor: GCP
+  product: cloud_hsm
+  display_name: Cloud HSM
+  component_type: hsm
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/kms/docs/hsm
+  ai_context: |
+    FIPS-140-2 L3 HSM; required for customer-managed keys on regulated
+    fine-tuned model artifacts.
+
+- vendor: GCP
+  product: secret_manager
+  display_name: Secret Manager
+  component_type: secrets_vault
+  service_category: security
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/secret-manager
+  ai_context: |
+    Stores third-party LLM API keys (OpenAI, Anthropic, HF). Tool SAs with
+    secretmanager.versions.access trivially exfil keys via prompt
+    injection.
+
+- vendor: GCP
+  product: certificate_manager
+  display_name: Certificate Manager
+  component_type: certificate_manager
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/certificate-manager
+  ai_context: |
+    TLS certs for LLM endpoints; not directly prompt-bearing.
+
+- vendor: GCP
+  product: cloud_armor
+  display_name: Cloud Armor
+  component_type: waf
+  service_category: security
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/armor
+  ai_context: |
+    WAF/DDoS in front of LLM APIs; rate-limit + payload inspection
+    mitigate prompt-cost DoS and obvious exfil patterns.
+
+- vendor: GCP
+  product: recaptcha_enterprise
+  display_name: reCAPTCHA Enterprise
+  component_type: waf
+  service_category: security
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/recaptcha-enterprise
+  ai_context: |
+    Bot defense; the first-line control against automated prompt-cost
+    abuse of public chatbots.
+
+- vendor: GCP
+  product: web_risk
+  display_name: Web Risk
+  component_type: ids_ips
+  service_category: security
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/web-risk
+  ai_context: |
+    URL reputation API; useful as a tool-output validator to catch
+    LLM-emitted phishing links.
+
+- vendor: GCP
+  product: security_command_center
+  display_name: Security Command Center
+  component_type: cspm
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/security-command-center
+  ai_context: |
+    CSPM/CWPP; useful only if AI-specific posture checks (Vertex private
+    endpoint, BigQuery CMEK) are codified.
+
+- vendor: GCP
+  product: chronicle
+  display_name: Google Security Operations (Chronicle)
+  component_type: siem
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/chronicle
+  ai_context: |
+    SIEM; needs Vertex/Gemini audit-log parsers to detect anomalous
+    InvokeModel patterns.
+
+- vendor: GCP
+  product: mandiant
+  display_name: Mandiant Advantage
+  component_type: siem
+  service_category: security
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/security/mandiant
+  ai_context: |
+    Threat intel + IR; relevant for AI-targeted threat actor tracking.
+
+# ---------------------------------------------------------------------------
+# Monitoring
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: cloud_monitoring
+  display_name: Cloud Monitoring
+  component_type: metrics_platform
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/monitoring
+  ai_context: |
+    Metrics on Vertex latency/token cost; useful for prompt-cost DoS
+    detection but not itself prompt-bearing.
+
+- vendor: GCP
+  product: cloud_logging
+  display_name: Cloud Logging
+  component_type: log_aggregator
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/logging
+  ai_context: |
+    Sink for Vertex/Gemini logs; raw prompts/responses often appear in
+    request logs unless explicitly redacted.
+
+- vendor: GCP
+  product: cloud_trace
+  display_name: Cloud Trace
+  component_type: tracing_platform
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/trace
+  ai_context: |
+    Distributed traces across agent + tools; span attributes often
+    contain prompt text — same leak class as logs.
+
+- vendor: GCP
+  product: cloud_profiler
+  display_name: Cloud Profiler
+  component_type: observability_stack
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/profiler
+  ai_context: |
+    CPU/memory profiling; not prompt-bearing.
+
+- vendor: GCP
+  product: error_reporting
+  display_name: Error Reporting
+  component_type: alerting_platform
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/error-reporting
+  ai_context: |
+    Crash aggregation; stack traces from failed Vertex calls sometimes
+    include payload snippets.
+
+- vendor: GCP
+  product: service_mesh
+  display_name: Cloud Service Mesh
+  component_type: service_mesh
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/service-mesh
+  ai_context: |
+    Managed Istio; mTLS gaps inside a multi-tenant LLM platform enable
+    replay/spoofing of internal inference calls.
+
+# ---------------------------------------------------------------------------
+# DevOps
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: source_repositories
+  display_name: Cloud Source Repositories
+  component_type: code_repository
+  service_category: devops
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/source-repositories
+  ai_context: |
+    Git for prompt templates + agent code; leaked secrets here are
+    indistinguishable from any other prompt-template leak.
+
+- vendor: GCP
+  product: artifact_registry
+  display_name: Artifact Registry
+  component_type: artifact_registry
+  service_category: devops
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/artifact-registry
+  ai_context: |
+    Stores container + Python/npm artifacts. Dep-confusion here poisons
+    the transformers/langchain pin used by Vertex training jobs.
+
+- vendor: GCP
+  product: container_registry
+  display_name: Container Registry
+  component_type: container_registry
+  service_category: devops
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/container-registry
+  ai_context: |
+    Legacy registry (superseded by Artifact Registry); mutable tags
+    enable image-swap attacks on model servers.
+
+- vendor: GCP
+  product: cloud_deploy
+  display_name: Cloud Deploy
+  component_type: ci_cd_pipeline
+  service_category: devops
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/deploy
+  ai_context: |
+    Managed CD; missing approval/eval gates between train -> deploy let
+    unsafe models reach prod.
+
+# ---------------------------------------------------------------------------
+# Messaging / Integration
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: pubsub
+  display_name: Pub/Sub
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/pubsub
+  ai_context: |
+    Async backbone for agent workflows; messages routinely carry full
+    prompts + user context — topic-level IAM is the tenant boundary.
+
+- vendor: GCP
+  product: pubsub_lite
+  display_name: Pub/Sub Lite
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/pubsub/lite/docs
+  ai_context: |
+    Lower-cost variant; same prompt-carrying risk profile as Pub/Sub.
+
+- vendor: GCP
+  product: cloud_tasks
+  display_name: Cloud Tasks
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/tasks
+  ai_context: |
+    Async HTTP target queue; commonly used to fan-out tool invocations —
+    target SA scoping defines blast radius.
+
+- vendor: GCP
+  product: workflows
+  display_name: Workflows
+  component_type: etl_orchestrator
+  service_category: messaging
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/workflows
+  ai_context: |
+    Serverless orchestrator; agentic flows composed here inherit the
+    workflow SA's authority over Vertex/BigQuery/GCS.
+
+- vendor: GCP
+  product: apigee
+  display_name: Apigee
+  component_type: api_gateway
+  service_category: messaging
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/apigee
+  ai_context: |
+    Full API gateway; quotas + payload filtering in front of Gemini/
+    Vertex prevent prompt-cost DoS and obvious exfil patterns.
+
+# ---------------------------------------------------------------------------
+# Data / Analytics
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: dataflow
+  display_name: Dataflow
+  component_type: stream_processor
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/dataflow
+  ai_context: |
+    Managed Beam; the pipeline that turns raw GCS docs into RAG chunks
+    and embeddings. Compromise here = silent corpus poisoning at scale.
+
+- vendor: GCP
+  product: dataproc
+  display_name: Dataproc
+  component_type: ml_pipeline_orchestrator
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/dataproc
+  ai_context: |
+    Managed Spark/Hadoop; large-scale embedding generation runs here —
+    cluster-SA over-scope leaks raw corpora.
+
+- vendor: GCP
+  product: dataform
+  display_name: Dataform
+  component_type: etl_orchestrator
+  service_category: data
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/dataform
+  ai_context: |
+    BigQuery SQL transformations; not directly AI-bearing but feeds
+    BigQuery datasets that text-to-SQL agents query.
+
+- vendor: GCP
+  product: looker
+  display_name: Looker
+  component_type: web_application
+  service_category: data
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/looker
+  ai_context: |
+    BI + Looker Modeler GenAI features; LookML model permissions become
+    the effective filter on what a NL2SQL agent can see.
+
+# ---------------------------------------------------------------------------
+# AI / ML
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: vertex_ai
+  display_name: Vertex AI
+  component_type: ml_pipeline_orchestrator
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_GCP_VERTEX_001
+  references:
+    - https://cloud.google.com/vertex-ai
+  ai_context: |
+    Unified ML platform; cross-cutting risk across workbench, training,
+    endpoints, feature store, pipelines, model registry.
+
+- vendor: GCP
+  product: vertex_workbench
+  display_name: Vertex AI Workbench
+  component_type: ml_pipeline_orchestrator
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/vertex-ai/docs/workbench/introduction
+  ai_context: |
+    Managed JupyterLab for data scientists; notebooks routinely contain
+    plaintext HF/OpenAI tokens and raw training data — the canonical
+    shadow-AI source.
+
+- vendor: GCP
+  product: vertex_training
+  display_name: Vertex AI Training
+  component_type: training_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/vertex-ai/docs/training/overview
+  ai_context: |
+    Managed training; pulling untrusted HF code + GCS data = supply-chain
+    surface for backdoored model code and poisoned datasets.
+
+- vendor: GCP
+  product: vertex_endpoint
+  display_name: Vertex AI Endpoint
+  component_type: ml_inference_endpoint
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/vertex-ai/docs/predictions/overview
+  ai_context: |
+    Serves custom models; missing PSC + auth = open inference, enabling
+    model-extraction and prompt-cost DoS.
+
+- vendor: GCP
+  product: vertex_feature_store
+  display_name: Vertex AI Feature Store
+  component_type: ml_feature_store
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/vertex-ai/docs/featurestore/overview
+  ai_context: |
+    Online + offline features; serving-time tampering = poisoned
+    predictions; offline-store IAM gaps = training-data leakage.
+
+- vendor: GCP
+  product: vertex_pipelines
+  display_name: Vertex AI Pipelines
+  component_type: ml_pipeline_orchestrator
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/vertex-ai/docs/pipelines/introduction
+  ai_context: |
+    Kubeflow-on-Vertex CI/CD; missing approval gates between train ->
+    register -> deploy let unsafe models reach prod without eval gates.
+
+- vendor: GCP
+  product: vertex_agent_builder
+  display_name: Vertex AI Agent Builder
+  component_type: agent
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/products/agent-builder
+  ai_context: |
+    Managed agent platform; tool/connector SA scoping is the single
+    biggest control — connectors over-permissioned to Drive/BigQuery
+    enable cross-tenant data exposure.
+
+- vendor: GCP
+  product: vertex_automl
+  display_name: Vertex AI AutoML
+  component_type: training_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/vertex-ai/docs/training-overview
+  ai_context: |
+    No-code training for business users; shadow-AI risk if analysts
+    point AutoML at raw BigQuery PII without DLP.
+
+- vendor: GCP
+  product: vertex_model_garden
+  display_name: Vertex AI Model Garden
+  component_type: model_registry
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/model-garden
+  ai_context: |
+    Curated public model catalog; pulling untrusted HF/community weights
+    is a fast path to malicious-pickle execution.
+
+- vendor: GCP
+  product: gemini_api
+  display_name: Gemini API
+  component_type: llm_inference
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  threats_specific:
+    - T_GCP_GEMINI_001
+  references:
+    - https://cloud.google.com/vertex-ai/generative-ai/docs
+  ai_context: |
+    Foundation-model API. Audit-log payload-logging is OFF by default —
+    without it, no IR forensics. Cross-region calls expand data-residency
+    surface unexpectedly.
+
+- vendor: GCP
+  product: vertex_safety_filters
+  display_name: Vertex AI Safety Filters
+  component_type: guardrails
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/configure-safety-attributes
+  ai_context: |
+    Content filters on Gemini responses; thresholds set too permissively
+    let policy-violating outputs through.
+
+- vendor: GCP
+  product: document_ai
+  display_name: Document AI
+  component_type: vision_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/document-ai
+  ai_context: |
+    OCR + form parsing; PDFs with embedded prompt-injection text survive
+    OCR and propagate into RAG indices unchanged.
+
+- vendor: GCP
+  product: speech_to_text
+  display_name: Speech-to-Text
+  component_type: speech_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/speech-to-text
+  ai_context: |
+    STT; call-center transcripts often contain PCI/PII that downstream
+    Gemini calls then ingest — DLP must run between STT and LLM.
+
+- vendor: GCP
+  product: text_to_speech
+  display_name: Text-to-Speech
+  component_type: speech_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/text-to-speech
+  ai_context: |
+    TTS; custom voices = deepfake risk if voice-sample consent isn't
+    enforced.
+
+- vendor: GCP
+  product: translation
+  display_name: Cloud Translation
+  component_type: external_api
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/translate
+  ai_context: |
+    NMT; cross-lingual prompt injection bypasses guardrails written only
+    in English.
+
+- vendor: GCP
+  product: vision_ai
+  display_name: Vision AI
+  component_type: vision_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/vision
+  ai_context: |
+    Image analysis; face detection + crowd analytics raise EU AI Act
+    risk-classification questions.
+
+- vendor: GCP
+  product: video_intelligence
+  display_name: Video Intelligence API
+  component_type: vision_pipeline
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/video-intelligence
+  ai_context: |
+    Video labeling + face detection; same biometric-PII concerns as
+    Vision AI plus stream-scale data residency.
+
+- vendor: GCP
+  product: dialogflow
+  display_name: Dialogflow
+  component_type: agent
+  service_category: ai_ml
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/dialogflow
+  ai_context: |
+    Conversational bot platform; intent parameters become webhook
+    arguments — classic confused-deputy / slot-injection vector.
+
+# ---------------------------------------------------------------------------
+# IoT
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: iot_core
+  display_name: Cloud IoT Core
+  component_type: iot_gateway
+  service_category: iot
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/iot-core
+  ai_context: |
+    MQTT broker for devices; deprecated Aug 2023 but legacy stacks still
+    feed Pub/Sub -> ML pipelines and inherit spoofed-telemetry risk.
+
+# ---------------------------------------------------------------------------
+# Additional services
+# ---------------------------------------------------------------------------
+- vendor: GCP
+  product: cloud_dlp
+  display_name: Sensitive Data Protection (Cloud DLP)
+  component_type: dlp
+  service_category: security
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/sensitive-data-protection
+  ai_context: |
+    PII inspection/redaction; the recommended pre-filter on any prompt
+    or RAG-corpus before it hits Gemini.
+
+- vendor: GCP
+  product: access_context_manager
+  display_name: Access Context Manager
+  component_type: network_access_control
+  service_category: identity
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/access-context-manager
+  ai_context: |
+    Context-aware access policies; gates who can call Vertex/Gemini based
+    on device posture, IP, time — critical for regulated LLM access.
+
+- vendor: GCP
+  product: binary_authorization
+  display_name: Binary Authorization
+  component_type: container_security
+  service_category: security
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/binary-authorization
+  ai_context: |
+    Signature-required deployment for GKE/Cloud Run; the gate that keeps
+    unsigned model-server images out of inference clusters.
+
+- vendor: GCP
+  product: cloud_audit_logs
+  display_name: Cloud Audit Logs
+  component_type: log_aggregator
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/logging/docs/audit
+  ai_context: |
+    Admin/Data Access logs; the audit trail for every aiplatform.* and
+    bigquery.* call — cornerstone of AI incident response.
+
+- vendor: GCP
+  product: resource_manager
+  display_name: Cloud Resource Manager
+  component_type: directory_service
+  service_category: identity
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/resource-manager
+  ai_context: |
+    Project/folder/org hierarchy; the unit at which Vertex quotas and IAM
+    inheritance are scoped.
+
+- vendor: GCP
+  product: deployment_manager
+  display_name: Cloud Deployment Manager
+  component_type: iac_template_registry
+  service_category: devops
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/deployment-manager
+  ai_context: |
+    IaC for GCP resources; templated LLM stack deployment to avoid shadow
+    Vertex usage.
+
+- vendor: GCP
+  product: cloud_endpoints
+  display_name: Cloud Endpoints
+  component_type: api_gateway
+  service_category: messaging
+  applies_to_ai_workflows: true
+  references:
+    - https://cloud.google.com/endpoints
+  ai_context: |
+    API management for gRPC/OpenAPI services; can front Vertex endpoints
+    with auth + quota.
+
+- vendor: GCP
+  product: cloud_scheduler
+  display_name: Cloud Scheduler
+  component_type: ci_cd_pipeline
+  service_category: messaging
+  applies_to_ai_workflows: false
+  references:
+    - https://cloud.google.com/scheduler
+  ai_context: |
+    Cron service; triggers training/retraining jobs and RAG-refresh
+    pipelines — target SA scoping defines blast radius.
+
+- vendor: GCP
+  product: firebase
+  display_name: Firebase
+  component_type: ciam_platform
+  service_category: end_user
+  applies_to_ai_workflows: true
+  references:
+    - https://firebase.google.com/
+  ai_context: |
+    Mobile/web SDK suite; Gemini-in-Firebase ships LLM access to the
+    client — security rules + App Check are the only barriers to abuse.

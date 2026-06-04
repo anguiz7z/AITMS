@@ -1,0 +1,25 @@
+{% extends "web/base.html" %}
+{% block title %}Samples{% endblock %}
+{% block content %}
+<h1>Sample AI systems</h1>
+<p class="muted">Click any sample to load it into the analyzer. Each sample is also runnable from the CLI: <code>atms analyze samples/&lt;name&gt;.yaml</code>.</p>
+
+{% if samples %}
+<table>
+  <thead><tr><th>Name</th><th>File</th><th>Components</th><th>Description</th><th></th></tr></thead>
+  <tbody>
+    {% for s in samples %}
+    <tr>
+      <td><strong>{{ s.name }}</strong></td>
+      <td><code>{{ s.file }}</code></td>
+      <td>{{ s.component_count }}</td>
+      <td>{{ s.description[:140] }}{% if s.description|length > 140 %}…{% endif %}</td>
+      <td><a class="btn" href="/?sample={{ s.file }}">Load</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty">No samples found in <code>samples/</code>.</div>
+{% endif %}
+{% endblock %}

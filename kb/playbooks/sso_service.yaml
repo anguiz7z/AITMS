@@ -1,0 +1,70 @@
+component_type: sso_service
+description: |
+  Single Sign-On service — AWS IAM Identity Center, Entra ID SSO, Okta,
+  OneLogin, Ping. Issues federated tokens that grant access to AI platforms
+  (Bedrock console, Azure ML studio, internal admin UIs).
+threats:
+  - id: T_SSO_001
+    title: SSO permission-set proliferation grants standing access to AI consoles
+    stride_ai: [Elevation_of_Privilege]
+    owasp_llm: [LLM06:2025]
+    owasp_api: [API5:2023]
+    atlas: []
+    attack_cloud: [T1078.004]
+    maestro: [M.L7.03]
+    likelihood: 4
+    impact: 4
+    description: |
+      Permission sets / federated roles accumulate over time. AI-admin permission
+      sets that should be just-in-time end up as standing access. Compromised
+      SSO user can reach Bedrock model deployment, SageMaker training jobs,
+      Azure OpenAI quota config without challenge.
+    mitigations:
+      - "Just-in-time access: AI-admin permission sets require ticket-linked check-out"
+      - "Quarterly permission-set audit; remove unused entitlements"
+      - "Conditional access on AI-admin permission sets: managed device + compliant + MFA"
+    refs: [AML.M0019]
+
+  - id: T_SSO_002
+    title: SAML/OIDC token replay across federated workloads
+    stride_ai: [Spoofing, Defense_Evasion]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API2:2023]
+    attack_cloud: [T1550.001]
+    maestro: [M.L7.03]
+    likelihood: 3
+    impact: 4
+    description: |
+      Long-lived SAML / OIDC tokens grant access to multiple cloud accounts.
+      Token theft (via stolen browser session, phishing, malicious endpoint
+      extension) gives attacker standing access to AI infrastructure
+      until session expiry.
+    mitigations:
+      - "Short session lifetimes (1-4 hours) + force re-auth for sensitive AI actions"
+      - "Workload-identity federation (no static API keys) for AI service-to-service"
+      - "Continuous-access-evaluation (CAE) revokes tokens on risk signals"
+    refs: [AML.M0019]
+
+  - id: T_SSO_003
+    title: SSO IdP compromise → blanket access to every AI workload
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    owasp_llm: [LLM06:2025]
+    owasp_api: [API2:2023, API5:2023]
+    atlas: []
+    attack_cloud: [T1078.004, T1556.007]
+    attack_enterprise: [T1078, T1199, T1556]
+    maestro: [M.L7.03, M.L4.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      Compromise of the IdP itself (Okta-class breach, Entra ID conditional-
+      access bypass, SAML signing-key theft) lets the attacker forge tokens
+      for any federated account. Every downstream AI workload that trusts
+      the SSO assertion is owned at once. Mid-tier breaches in 2023-2024
+      (Okta support-system, Microsoft Entra) showed this is not theoretical.
+    mitigations:
+      - "Independent monitoring of IdP-issued assertions: alert on unexpected token issuance patterns"
+      - "Phishing-resistant MFA (FIDO2 / passkeys) on every privileged IdP login"
+      - "Token-binding to device posture + IP allow-list for AI-admin permission sets"
+      - "Tabletop: practice IdP-breach response (revoke trust, rotate signing keys, force re-auth)"
+    refs: [T1078, T1199, T1556]

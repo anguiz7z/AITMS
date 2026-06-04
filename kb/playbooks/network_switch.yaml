@@ -1,0 +1,55 @@
+component_type: network_switch
+description: |
+  Network switch — Cisco Catalyst, Arista, Juniper EX, HPE Aruba.
+  Layer-2 / Layer-3 forwarding. Often the silent foundation that nobody
+  threat-models.
+threats:
+  - id: T_SW_001
+    title: Default / weak management credentials
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    attack_enterprise: [T1078, T1133]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Switches commissioned years ago often retain default `admin/cisco`,
+      `admin/admin`, or weak shared passwords. Management interface
+      (Telnet/SSH) often reachable from corporate VLANs.
+    mitigations:
+      - "TACACS+/RADIUS for switch admin; centralised credential rotation"
+      - "Management interface in dedicated OOB VLAN"
+      - "MFA where supported (Cisco ISE, Aruba ClearPass)"
+    refs: [T1078, T1133]
+
+  - id: T_SW_002
+    title: VLAN hopping / dynamic-trunking abuse
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1557, T1499]
+    maestro: [M.X.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      Default-on Dynamic Trunking Protocol (DTP) on Cisco lets a host
+      negotiate a trunk and access multiple VLANs from one port.
+    mitigations:
+      - "Disable DTP on access ports (`switchport mode access`)"
+      - "Native VLAN ≠ user VLAN; tag native traffic"
+      - "Port security: limit MAC addresses per port"
+    refs: [T1557, T1499]
+
+  - id: T_SW_003
+    title: ARP spoofing / DHCP starvation in VLAN
+    stride_ai: [Spoofing, Tampering, Information_Disclosure]
+    attack_enterprise: [T1557, T1499]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 3
+    description: |
+      Attacker with a foothold on the user VLAN poisons ARP / runs rogue
+      DHCP to MITM legit traffic. Sees credentials, plants malicious
+      DNS resolutions.
+    mitigations:
+      - "DHCP snooping enabled on user VLANs"
+      - "Dynamic ARP Inspection bound to DHCP-snooping table"
+      - "802.1X port-based authentication"
+    refs: [T1557]

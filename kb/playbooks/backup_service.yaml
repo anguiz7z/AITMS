@@ -1,0 +1,93 @@
+component_type: backup_service
+description: |
+  Managed backup orchestration — AWS Backup (with Vault Lock), Azure
+  Backup (Recovery Services Vault + immutable vault), GCP Backup and
+  DR Service. Holds the recovery copies of every AI asset that matters
+  — model registries, training checkpoints, vector databases, feature
+  stores, fine-tuning corpora, audit logs. Often the last line of
+  defense against ransomware and the first target an attacker tries
+  to neutralise before encrypting production.
+threats:
+  - id: T_BACKUP_001
+    title: Backup vault deleted / disabled before ransomware impact
+    stride_ai: [Tampering, Denial_of_Service]
+    owasp_api: [API5:2023, API8:2023]
+    atlas: [AML.T0015]
+    attack_cloud: [T1485, T1486, T1490, T1562.001]
+    attack_enterprise: [T1490, T1562.001]
+    maestro: [M.X.04]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 5
+    description: |
+      The Conti / LockBit / Royal playbook: pivot to backup IAM,
+      delete the vault, then encrypt production. AWS Backup `DeleteBackupVault`
+      with stored recovery points containing model artefacts and
+      training checkpoints — gone. Azure Backup soft-delete window
+      bypassed via `Microsoft.RecoveryServices/Vaults/backupFabrics/protectionContainers/protectedItems/delete`
+      with `permanent` flag. For AI workloads this destroys not just
+      production data but every version of every trained model — even
+      "just retrain" is a multi-week recovery.
+    mitigations:
+      - "AWS Backup Vault Lock in compliance mode — even root account cannot disable for the retention window"
+      - "Azure Backup immutable vault + multi-user authorization (MUA) requiring approval from a separate Resource Guard tenant"
+      - "GCP Backup and DR with org-policy locking the backup project; SoD between backup-admin and prod-admin"
+      - "Separate AWS account / Azure tenant for backup; trust-boundary isolation from prod IAM"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_BACKUP_002
+    title: Backup contents (model + training data) exfiltrated via cross-account share
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM10:2025]
+    owasp_api: [API1:2023, API8:2023]
+    atlas: [AML.T0024, AML.T0044]
+    attack_cloud: [T1530, T1537]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      A backup vault often aggregates assets that have different
+      sensitivity — model weights, training corpora, prompt logs,
+      feature-store snapshots — under a single vault IAM policy. An
+      attacker with `backup:CopyRecoveryPoint` or Azure Backup
+      `copyBackup` permission ships the recovery point to an
+      attacker-controlled account and restores it there, sidestepping
+      the rich access controls on the original sources. Effectively a
+      governance-blind data egress path.
+    mitigations:
+      - "Backup vault encryption key (CMK) cannot be shared cross-account; key policy denies external principals"
+      - "Vault resource policy explicitly denies `backup:CopyRecoveryPoint` to any external account"
+      - "Alert on every cross-region / cross-account copy job — page on-call"
+      - "Per-asset-class backup vault (model-vault separate from data-vault separate from logs-vault) with different IAM trust boundaries"
+    refs: [AML.M0019]
+
+  - id: T_BACKUP_003
+    title: Restored model / training dataset poisoned in flight
+    stride_ai: [Tampering]
+    owasp_llm: [LLM04:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0019, AML.T0020, AML.T0010]
+    attack_cloud: [T1565.001]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA, NIST_PAI_POISONING_BACKDOOR]
+    owasp_ml: [ML02:2023]
+    maestro: [M.L2.01, M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01, CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      Disaster-recovery scenario: production model artefact corrupted
+      and the team restores the prior week's recovery point. Attacker
+      who had compromised the registry the prior week had already
+      poisoned that backup. Restore brings the backdoored model
+      online, validation drift goes unnoticed because evaluation
+      datasets were also "restored." Backup integrity is rarely tested
+      against a current threat model — restore drills usually verify
+      functionality, not adversarial soundness.
+    mitigations:
+      - "Sign every model artefact at training time (Sigstore / in-toto attestation); restore validates signature, not just SHA"
+      - "Pre-restore scan of model weights for backdoor patterns (NeuralCleanse, STRIP, or vendor tooling)"
+      - "Restore drill quarterly with a deliberate corrupted-backup canary that the restore pipeline must reject"
+      - "Two-person rule for promoting a restored model to production"
+    refs: [AML.M0007, AML.M0023]

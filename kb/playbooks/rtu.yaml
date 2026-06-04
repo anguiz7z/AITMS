@@ -1,0 +1,111 @@
+component_type: rtu
+description: |
+  Remote Terminal Unit — field device that collects analog/digital
+  signals from sensors and actuators at remote substations, pipelines,
+  pump stations, or wellheads and forwards them to a SCADA master via
+  long-haul telemetry (DNP3, IEC 60870-5-101/104, Modbus, often over
+  cellular / radio / serial-over-IP). Distributed-geography asset with
+  unattended physical access risk; common in utility / oil & gas /
+  water sectors.
+threats:
+  - id: T_RTU_001
+    title: Spoofed DNP3 / IEC 60870-5-104 control commands to RTU
+    stride_ai: [Spoofing, Tampering]
+    attack_enterprise: [T1557, T1565]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Legacy SCADA protocols (DNP3 without Secure Authentication v5,
+      IEC-104 without IEC-62351) carry control commands in cleartext
+      with no per-message integrity. Attacker on the telemetry path
+      (microwave hop intercept, compromised cellular APN, mid-span
+      fibre tap) injects spoofed commands that the RTU executes as if
+      they came from the SCADA master.
+    mitigations:
+      - "Enable DNP3 Secure Authentication v5 / IEC-62351-5 cryptographic auth"
+      - "Site-to-master VPN tunnels with mutual TLS (where bandwidth allows)"
+      - "RTU configured to accept commands only from the SCADA master IP/cert"
+      - "DNP3-aware IDS at the SCADA master end (Snort / Suricata ICS rules)"
+    refs: [T0830, T0855, T0859, AML.M0019]
+
+  - id: T_RTU_002
+    title: Physical compromise of remote unattended RTU enclosure
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1200, T1078]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      RTU sits in a cabinet at a remote substation / pump station with
+      a padlock and no live monitoring. Attacker (insider, vandal,
+      sophisticated actor) breaches the cabinet, attaches a serial
+      console or laptop, and changes setpoints, downloads configuration,
+      or implants a back-channel modem.
+    mitigations:
+      - "Tamper-evident cabinet with door-open contact wired to SCADA telemetry"
+      - "Console port disabled or password-protected; remove default account"
+      - "CCTV with motion-triggered upload at high-value sites"
+      - "Annual physical-security audit cycle for all remote sites"
+    refs: [T0847, T0883, AML.M0019]
+
+  - id: T_RTU_003
+    title: Cellular / radio telemetry intercept and replay
+    stride_ai: [Information_Disclosure, Tampering]
+    attack_enterprise: [T1040, T1557.003]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 3
+    description: |
+      Telemetry over public cellular (LTE-M / NB-IoT) or unlicensed
+      radio (900 MHz / mesh) is interceptable from a few hundred
+      metres with COTS SDR. Even with operator APN isolation,
+      replay of a previously captured "valve-open" frame succeeds
+      against an RTU that doesn't validate freshness.
+    mitigations:
+      - "End-to-end IPsec / TLS over the telemetry path, terminated at RTU and SCADA master"
+      - "Private APN with operator firewalling and source-IP enforcement"
+      - "Nonce / sequence-number validation in the SCADA-protocol layer"
+      - "Periodic SDR-survey at sensitive sites to detect rogue receivers"
+    refs: [T0830, T0855, AML.M0019]
+
+  - id: T_RTU_004
+    title: RTU firmware-update process abused for malicious payload
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1542, T1601]
+    maestro: [M.X.01]
+    likelihood: 2
+    impact: 4
+    description: |
+      RTU vendors often distribute firmware via plain HTTP / FTP
+      download tools; the field engineer downloads the file once,
+      then flashes potentially dozens of RTUs from a laptop. A
+      compromise of the laptop (or a typo'd HTTP URL) injects a
+      backdoored firmware that ships to every remote site.
+    mitigations:
+      - "Vendor-signed firmware; RTU refuses unsigned images"
+      - "Firmware staging server inside corp, fetches over TLS from vendor with verification"
+      - "Field-engineer laptop hardened (EDR + application allowlist)"
+      - "Post-flash firmware-hash attestation reported back to the SCADA master"
+    refs: [T0857, T0839, AML.M0007]
+
+  - id: T_RTU_005
+    title: SCADA-side enumeration of RTU site list / map leaks critical-infrastructure footprint
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1083, T1518]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 3
+    description: |
+      RTU site list — geocoordinates, telemetry IDs, asset criticality —
+      is held in the SCADA master and historian. Insider with
+      read-only SCADA access (engineering contractor, ex-staff with
+      stale account) exfiltrates the site map. For a utility this is
+      a "where to attack the grid" target list with public-safety
+      consequences.
+    mitigations:
+      - "Site list classified at the same level as facility blueprints; access by job role only"
+      - "DLP egress rules on SCADA workstations; alert on bulk site exports"
+      - "Quarterly access review of all SCADA read-only accounts"
+      - "Watermark exported maps with the user's identity"
+    refs: [T0859, AML.M0019]

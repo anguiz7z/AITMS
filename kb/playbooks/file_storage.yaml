@@ -1,0 +1,90 @@
+component_type: file_storage
+description: |
+  Managed NFS / SMB file-share service — AWS EFS, Azure Files, GCP
+  Filestore. Mounts as POSIX / SMB into multiple training nodes and
+  inference workers concurrently. Holds shared training datasets, model
+  checkpoint directories, RAG document corpora, and Jupyter notebook
+  workspaces. The "shared mount" semantic is what makes it dangerous:
+  one compromised reader-pod exposes everything every writer has put there.
+threats:
+  - id: T_FILESTOR_001
+    title: Mount-target exposed to broad VPC / VNet — cross-tenant pivot
+    stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+    owasp_llm: [LLM02:2025, LLM10:2025]
+    owasp_api: [API1:2023, API5:2023]
+    atlas: [AML.T0024, AML.T0044]
+    attack_cloud: [T1078.004, T1213, T1530]
+    attack_enterprise: [T1080]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01, CSA_AI.DEPLOY.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      EFS mount-target / Azure Files private endpoint / Filestore VPC
+      attachment is reachable from every subnet in the VPC instead of
+      only the AI training subnet. A compromised non-AI workload
+      (CI runner, dev VM) mounts the share read-only and exfils
+      multi-TB of training corpora or model checkpoints. With Azure
+      Files, AAD authentication is often disabled in favour of
+      storage-account-key auth — a single rotated key compromises every
+      mount. The "Compute on shared NFS" SageMaker / Vertex Workbench
+      pattern multiplies this.
+    mitigations:
+      - "Mount-target security group / NSG / VPC firewall: allow only the specific AI subnet CIDR or service-principal"
+      - "Azure Files: enforce AAD-Kerberos auth + RBAC; disable storage-account-key access at the storage-account level"
+      - "EFS access points with POSIX UID/GID enforcement per tenant directory"
+      - "Encrypt-in-transit (EFS TLS, Azure Files SMB 3.x, Filestore IPsec) required at mount"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_FILESTOR_002
+    title: Notebook / scratch directory poisoning of shared training data
+    stride_ai: [Tampering]
+    owasp_llm: [LLM04:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0019, AML.T0020, AML.T0059]
+    attack_cloud: [T1565.001]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA, NIST_PAI_POISONING_BACKDOOR]
+    owasp_ml: [ML02:2023]
+    maestro: [M.L2.01]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Shared-mount AI workspaces (SageMaker Studio EFS, Azure ML File
+      Share, Vertex Workbench Filestore) let any data scientist write
+      to the dataset directories. A malicious-insider or compromised-
+      notebook attacker subtly tampers with training-data files (label
+      flips on the long tail, backdoor trigger patches injected into
+      images, instruction-tuning records with poisoned outputs). Daily
+      fine-tunes ingest the poisoned data with no integrity check.
+    mitigations:
+      - "Training datasets live on object storage with versioning + Object Lock; file-share is a read-through cache only"
+      - "POSIX permissions: dataset directories owned by a service account; notebooks run as a separate UID with read-only mount"
+      - "Per-file SHA256 manifest signed by the data-pipeline service; trainer verifies before consuming"
+      - "Append-only audit log on every file write to dataset directories (AWS EFS server-access logs, Azure Files diagnostic logs)"
+    refs: [AML.M0007, AML.M0008]
+
+  - id: T_FILESTOR_003
+    title: Cross-AZ replication failure leaving training mid-run inconsistent
+    stride_ai: [Denial_of_Service, Tampering]
+    owasp_api: [API4:2023]
+    attack_cloud: [T1485, T1499]
+    maestro: [M.L4.04, M.X.04]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 3
+    description: |
+      EFS regional → One Zone tier mistakenly applied to a multi-AZ
+      training cluster. A single AZ outage stalls all training nodes.
+      For Azure Files LRS (locally-redundant) holding model checkpoints,
+      a zonal incident loses the checkpoint mid-fine-tune; the next
+      job restart resumes from a state-zero checkpoint with hours of
+      compute wasted. Not malicious — but the failure mode an
+      attacker can amplify by selectively crashing one AZ's instances.
+    mitigations:
+      - "EFS Regional (multi-AZ) for any AI training workload; reject One Zone in IaC review"
+      - "Azure Files ZRS/GZRS for checkpoint shares; LRS only for ephemeral scratch"
+      - "Checkpoint commit-confirmation pattern: trainer writes to local SSD, then atomic move to shared mount, then ACK"
+      - "Periodic backup snapshot to a separate storage tier (AWS Backup, Azure Backup)"
+    refs: [AML.M0023]

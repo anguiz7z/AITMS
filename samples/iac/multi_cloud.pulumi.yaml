@@ -1,0 +1,78 @@
+# Canonical Pulumi YAML sample — multi-cloud webapp.
+# Demonstrates Pulumi YAML support across AWS / Azure / GCP.
+# Use:  atms scan samples/iac/multi_cloud.pulumi.yaml
+name: multi-cloud-demo
+runtime: yaml
+description: ATMS canonical sample - cross-provider Pulumi stack.
+
+resources:
+  # ─── AWS edge ───────────────────────────────────────────────
+  vpc:
+    type: aws:ec2:Vpc
+    properties:
+      cidrBlock: 10.0.0.0/16
+
+  appSg:
+    type: aws:ec2:SecurityGroup
+    properties:
+      vpcId: ${vpc.id}
+      description: "app tier"
+
+  appBucket:
+    type: aws:s3:BucketV2
+    properties:
+      acl: private
+
+  appLambda:
+    type: aws:lambda:Function
+    properties:
+      role: ${lambdaRole.arn}
+      environment:
+        variables:
+          BUCKET: ${appBucket.id}
+
+  lambdaRole:
+    type: aws:iam:Role
+
+  apiGw:
+    type: aws:apigatewayv2:Api
+    properties:
+      protocolType: HTTP
+
+  rds:
+    type: aws:rds:Instance
+    properties:
+      kmsKeyId: ${rdsKms.arn}
+
+  rdsKms:
+    type: aws:kms:Key
+
+  waf:
+    type: aws:wafv2:WebAcl
+    properties:
+      scope: REGIONAL
+
+  appSecrets:
+    type: aws:secretsmanager:Secret
+
+  appLogs:
+    type: aws:cloudwatch:LogGroup
+
+  # ─── Azure side (cross-cloud RAG component) ─────────────────
+  aoai:
+    type: azure-native:cognitiveservices:Account
+    properties:
+      sku: { name: S0 }
+      kind: OpenAI
+
+  kv:
+    type: azure-native:keyvault:Vault
+
+  # ─── GCP side (BigQuery for analytics warehouse) ────────────
+  bq:
+    type: gcp:bigquery:Dataset
+    properties:
+      datasetId: analytics
+
+  gcpKms:
+    type: gcp:kms:CryptoKey

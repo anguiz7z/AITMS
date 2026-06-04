@@ -1,0 +1,82 @@
+component_type: mfa_service
+description: |
+  Multi-factor authentication service — Duo, Okta Verify, Microsoft
+  Authenticator, Yubikey, RSA SecurID. Sits on the critical path for
+  every login; its compromise or fatigue defeats almost every other
+  identity control.
+threats:
+  - id: T_MFA_001
+    title: MFA fatigue / push-bombing
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    attack_enterprise: [T1621, T1078]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Attacker has the password (from infostealer, phish, breach
+      replay) and spams MFA push notifications until the user
+      taps "Approve" out of frustration or confusion. Used in
+      Uber 2022, Cisco 2022, and countless mid-tier breaches.
+    mitigations:
+      - "Number-matching MFA (user types the code shown on the login screen)"
+      - "Cap push attempts per hour; lock account on threshold"
+      - "Risk-based / phishing-resistant authenticators (FIDO2 / passkeys)"
+      - "User-visible context (location, application, browser) on every prompt"
+    refs: [T1621, T1078]
+
+  - id: T_MFA_002
+    title: SIM-swap / SMS OTP interception
+    stride_ai: [Spoofing, Information_Disclosure]
+    attack_enterprise: [T1111, T1556.006]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      SMS OTP is the weakest second factor: telcos still hand over
+      numbers via social engineering, and SS7 / signalling attacks
+      intercept codes silently. Privileged accounts on SMS MFA
+      are effectively single-factor.
+    mitigations:
+      - "Phase out SMS OTP for any privileged / admin role"
+      - "FIDO2 hardware tokens or platform passkeys for admins"
+      - "Number-port lock with carrier where supported"
+      - "Detect impossible-travel / new-device after fresh number activation"
+    refs: [T1111, T1556.006]
+
+  - id: T_MFA_003
+    title: Help-desk social engineering bypassing MFA
+    stride_ai: [Spoofing]
+    attack_enterprise: [T1556, T1078]
+    maestro: [M.L1.07]
+    likelihood: 3
+    impact: 5
+    description: |
+      Attacker calls the help desk pretending to be a locked-out
+      VIP and convinces the agent to reset the MFA enrollment.
+      Used in MGM Resorts 2023, Caesars 2023, Twilio 2022.
+      Often pre-staged with personal info from LinkedIn / breaches.
+    mitigations:
+      - "MFA-reset workflow requires video verification or in-person ID"
+      - "Manager approval gate for VIP / privileged MFA resets"
+      - "Out-of-band callback to a number already on file (not the caller's)"
+      - "Audit + alert on every MFA-reset event"
+    refs: [T1556, T1078]
+
+  - id: T_MFA_004
+    title: Authenticator-app token theft from compromised endpoint
+    stride_ai: [Spoofing, Information_Disclosure]
+    attack_enterprise: [T1539, T1555]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Modern infostealers (RedLine, Lumma, Atomic) extract
+      session cookies + TOTP seeds from desktop authenticator
+      apps and stolen browser profiles. The attacker replays
+      a valid session, never triggering the MFA prompt at all.
+    mitigations:
+      - "Conditional Access requiring compliant device for sensitive apps"
+      - "Short access-token + sliding-window refresh; bind to device"
+      - "Continuous Access Evaluation (CAE) to revoke on risk signals"
+      - "EDR + browser-profile encryption to slow stealers"
+    refs: [T1539, T1555]

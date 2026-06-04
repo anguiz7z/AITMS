@@ -1,0 +1,103 @@
+component_type: serverless_function
+description: |
+  Serverless / FaaS compute — AWS Lambda, Azure Functions, GCP Cloud Functions /
+  Cloud Run jobs. Often the glue between API Gateway / event sources and the
+  AI inference / agent layer.
+threats:
+  - id: T_FN_001
+    title: Function role over-permissive
+    stride_ai: [Elevation_of_Privilege]
+    owasp_llm: [LLM06:2025]
+    owasp_agentic: [AGT03]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0050]
+    attack_cloud: [T1078.004, T1098.003]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Function execution role granted excessive privileges (e.g. `s3:*` on every
+      bucket). RCE inside the function (vulnerable dep, prompt-injection-driven
+      tool call, hostile event payload) becomes account-wide compromise.
+    mitigations:
+      - "Per-function least-privilege role; explicit Resource ARNs"
+      - "Permission Boundaries cap maximum effective privileges"
+      - "IAM Access Analyzer / Azure Policy on role definitions"
+      - "Periodic review of role usage vs declared allowlist"
+    refs: [AML.M0019]
+
+  - id: T_FN_002
+    title: Vulnerable dependency in function package
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM03:2025]
+    owasp_api: [API8:2023, API10:2023]
+    attack_cloud: [T1190, T1059]
+    maestro: [M.L3.04, M.X.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Function bundles a Python wheel / npm module / Java jar with a known CVE.
+      Unlike a long-running service, serverless deploys are often "last
+      deployed: 8 months ago" — patching cadence is poor.
+    mitigations:
+      - "SBOM per deploy + automated CVE scan (Snyk, Trivy, GitHub Dependabot)"
+      - "Mandatory rebuild on dependency-CVE alert"
+      - "Pin dependency versions; lock files in source control"
+    refs: [AML.M0011, AML.M0014, AML.M0024]
+
+  - id: T_FN_003
+    title: Cold-start logging leaks secret env vars
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API8:2023]
+    attack_cloud: [T1552, T1530]
+    maestro: [M.L5.05]
+    likelihood: 3
+    impact: 4
+    description: |
+      Function panics during cold start; the framework prints the full
+      environment (including injected secret env vars) into the cloud logs.
+      Logs are widely accessible.
+    mitigations:
+      - "Never store secrets as env vars; fetch from Secrets Manager at runtime"
+      - "Crash-handler scrubs env / stack before emitting"
+      - "Log-level discipline: stack traces only at DEBUG, not in production"
+    refs: [AML.M0012, AML.M0023]
+
+  - id: T_FN_004
+    title: Function timeout / concurrency abused for resource hijacking
+    stride_ai: [Denial_of_Service]
+    owasp_llm: [LLM10:2025]
+    owasp_api: [API4:2023]
+    attack_cloud: [T1496, T1499]
+    maestro: [M.L4.05, M.X.05]
+    likelihood: 3
+    impact: 3
+    description: |
+      Adversary triggers high-concurrency invocations (e.g. flood the queue
+      that triggers the function); operator pays per-invocation. May exhaust
+      account-wide concurrency, denying service.
+    mitigations:
+      - "Reserved concurrency + per-source rate limit"
+      - "Account-level concurrency cap (avoid surprise quota exhaustion)"
+      - "Cost-monitoring with alarms"
+    refs: [AML.M0004, AML.M0023]
+
+  - id: T_FN_005
+    title: SSRF via tool-call URL fetcher in the function
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM05:2025]
+    owasp_api: [API7:2023]
+    atlas: [AML.T0049]
+    attack_cloud: [T1552.005]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Function executes URL-fetcher tool whose input the LLM controls.
+      Tool fetches `http://169.254.169.254/...` and returns IAM session
+      credentials — full role compromise.
+    mitigations:
+      - "IMDSv2 enforced; legacy IMDSv1 disabled at function level"
+      - "Egress allowlist; deny link-local / RFC1918"
+      - "Tool-input validation: reject IP literals, internal hostnames"
+    refs: [AML.M0015]

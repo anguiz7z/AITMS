@@ -1,0 +1,59 @@
+component_type: plc
+description: |
+  Programmable Logic Controller — Siemens S7, Allen-Bradley ControlLogix,
+  Schneider Modicon, Rockwell. The compute element of OT / industrial
+  control systems. Reads sensors, drives actuators, often ladder-logic or IEC 61131-3.
+threats:
+  - id: T_PLC_001
+    title: Logic-tampering via engineering protocol (Modbus / S7 / PROFINET)
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1098]
+    maestro: []
+    likelihood: 3
+    impact: 5
+    description: |
+      Engineering protocols (Modbus TCP, S7Comm, PROFINET) traditionally have
+      no authentication. Attacker with network reach can write to PLC memory,
+      change ladder logic, alter setpoints. Well-known examples: Stuxnet,
+      INDUSTROYER, TRITON.
+    mitigations:
+      - "Network segmentation: OT VLAN with Purdue-model boundary firewall"
+      - "Engineering-protocol authentication where supported (S7-1500 with TLS)"
+      - "Read-only access for monitoring; write only from authorised EWS"
+      - "Detection: anomalous Modbus writes, unauthorised function codes"
+    refs: [T0836, T0843, T0831]
+
+  - id: T_PLC_002
+    title: Outdated firmware / known CVE
+    stride_ai: [Tampering]
+    attack_enterprise: [T1190, T1203]
+    maestro: [M.X.01]
+    likelihood: 4
+    impact: 5
+    description: |
+      PLC firmware is rarely updated due to operational risk. Known CVEs
+      (e.g. Siemens BadAlloc, Rockwell Logix Controller bypass) remain
+      exploitable for years.
+    mitigations:
+      - "Asset inventory + firmware version tracking"
+      - "Vendor advisory monitoring; planned-downtime patch windows"
+      - "Compensating controls: NIDS rules for known exploits"
+    refs: [T0857, T1190]
+
+  - id: T_PLC_003
+    title: Direct internet exposure (Shodan-discoverable)
+    stride_ai: [Spoofing, Tampering, Information_Disclosure]
+    owasp_api: [API8:2023]
+    attack_enterprise: [T1190, T1133]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      PLC web HMI or engineering port reachable from the public internet
+      (via misconfigured port-forward, cellular modem, or remote-access vendor).
+      Shodan indexes these continuously.
+    mitigations:
+      - "Strict outbound-only: PLC has NO public route"
+      - "Remote engineering access via jump-host + MFA only"
+      - "External attack-surface monitoring (Shodan / Censys subscription)"
+    refs: [T0883, T0860, T1133]

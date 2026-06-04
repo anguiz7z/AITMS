@@ -1,0 +1,89 @@
+component_type: metrics_platform
+description: |
+  Metrics collection + storage — Prometheus / Cortex / Mimir, Azure
+  Monitor Metrics, AWS CloudWatch Metrics, GCP Cloud Monitoring,
+  Datadog Metrics, New Relic, Grafana Cloud. Stores AI-workload SLI:
+  inference latency, model error rate, prompt-token volume, guardrail
+  block rate, GPU utilisation, token cost. Most teams treat metrics
+  as "non-sensitive" — but the metric series itself can carry sensitive
+  signal.
+threats:
+  - id: T_METRIC_001
+    title: High-cardinality label injection from user-controlled metadata
+    stride_ai: [Denial_of_Service]
+    owasp_api: [API4:2023]
+    atlas: []
+    attack_cloud: [T1499.004]
+    attack_enterprise: [T1499.004]
+    maestro: [M.L4.04]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 4
+    impact: 3
+    description: |
+      Engineer adds `prompt_id` or `customer_email` as a Prometheus
+      label "to slice metrics by user." Prometheus / Cortex / Mimir
+      explode at high cardinality — RAM blows up, ingestion lag
+      grows, alerting on the metric series fails silently. Attacker
+      with the ability to control any metric label value (an
+      LLM-product user creating thousands of unique "session_id" or
+      "agent_run" labels) deliberately worsens this. The observability
+      stack stops being observable.
+    mitigations:
+      - "Cardinality budget per metric: enforce in CI (`max_cardinality: 1000`); reject metrics with user-controlled or high-cardinality labels"
+      - "Prometheus / Cortex tenant-level series limit (Cortex `ingester.max-series-per-user`); alert on 80% threshold"
+      - "Relabel-config pipeline drops user-supplied labels at ingest; only platform-team-approved label keys retained"
+      - "Pre-deploy metrics review: PR review includes cardinality projection"
+    refs: [AML.M0023]
+
+  - id: T_METRIC_002
+    title: Token-volume / cost metrics expose business-sensitive AI usage
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM10:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    attack_cloud: [T1530]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_MEMBERSHIP]
+    maestro: [M.L5.05]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 3
+    impact: 3
+    description: |
+      Per-tenant metrics (`tokens_consumed_by_tenant{tenant_id=acme}`)
+      reveal what each customer's AI usage looks like — load patterns,
+      product-launch correlation, peak times. Competitors with access
+      to a shared Grafana org (acquired-org integration, partner
+      dashboard) infer competitive intelligence. The Grafana
+      `Datasource` permissions are often the only gate — a single
+      misclick exposes the multi-tenant metric set.
+    mitigations:
+      - "Per-tenant metric isolation: separate Prometheus tenant (Cortex / Mimir multitenancy), separate Azure Monitor Workspace, separate CloudWatch namespace"
+      - "Grafana data-source ACL aligns with tenant boundaries; folder + dashboard permissions enforce least-privilege"
+      - "Aggregate metrics with k-anonymity (drop per-tenant series, keep tenant-bucket aggregates) before exposing to shared dashboards"
+      - "Audit Grafana shared-dashboard / public-snapshot feature; disable public snapshots org-wide"
+    refs: [AML.M0019]
+
+  - id: T_METRIC_003
+    title: Inference-latency metric exposes prompt-content signal
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024.001]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_INVERSION, NIST_PAI_PRIVACY_MEMBERSHIP]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 2
+    impact: 3
+    description: |
+      Token-by-token latency distribution exposes prompt characteristics
+      — long prompts vs short, completion token count, model "thinking
+      time" before a refusal. With access to the metric stream, an
+      attacker can fingerprint conversations and infer rough content
+      class (refused = likely a sensitive query). The 2024
+      timing-side-channel-on-LLMs research (Pittsburgh et al, Berkeley
+      et al) demonstrates this is exploitable in practice.
+    mitigations:
+      - "Bucket latency into coarse histograms (10ms buckets, max bound) instead of high-precision percentiles"
+      - "Don't emit per-request metrics with prompt-length labels; aggregate before exposure"
+      - "Constant-time response wrapper for sensitive endpoints (pad to nearest N ms; pad output token count)"
+      - "Restrict metric read access by sensitivity classification, even within engineering"
+    refs: [AML.M0019]

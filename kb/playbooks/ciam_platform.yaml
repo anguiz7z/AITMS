@@ -1,0 +1,117 @@
+component_type: ciam_platform
+description: |
+  Customer Identity and Access Management platform — handles
+  registration, login, MFA, social-login, and account-recovery for
+  end-customers (not employees). Examples: AWS Cognito User Pool,
+  Azure AD B2C, Auth0 customer-IAM tenants, ForgeRock Identity Cloud,
+  Okta CIC (Customer Identity Cloud), Ping Customer Identity. Holds
+  customer PII, password hashes, MFA secrets; outage = full
+  customer-facing app down.
+threats:
+  - id: T_CIAM_001
+    title: Credential stuffing / large-scale ATO against customer login
+    stride_ai: [Spoofing]
+    attack_enterprise: [T1110.004, T1078]
+    attack_cloud: [T1110]
+    owasp_api: [API1:2023, API2:2023]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 5
+    impact: 4
+    description: |
+      Adversary tries millions of leaked-credential pairs against
+      the customer login endpoint. Customers reuse passwords across
+      sites; even 0.1% success rate on a 10M-credential dump yields
+      10k account takeovers. Standard pattern for retail, banking,
+      gaming, streaming — anywhere with consumer-facing logins.
+    mitigations:
+      - "WAF + dedicated bot-management (Cloudflare Bot Manager, Akamai Bot Manager, Datadome)"
+      - "Strong password breach detection (HIBP integration) on registration + login"
+      - "Adaptive MFA on novel-device / novel-location sign-in"
+      - "CAPTCHA / device-fingerprint on suspected-bot traffic"
+    refs: [T1110, AML.M0019]
+
+  - id: T_CIAM_002
+    title: Account-recovery / password-reset abuse takes over accounts
+    stride_ai: [Spoofing, Information_Disclosure]
+    attack_enterprise: [T1078, T1556]
+    owasp_api: [API2:2023, API7:2023]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Password-reset flow uses email + DOB / SSN-last-4 / mother's
+      maiden name. All of those leaked in the latest breach dump.
+      Attacker resets the password, takes over the account. Helper
+      automation exploits flows like SMS-OTP fallback on a SIM-swapped
+      number.
+    mitigations:
+      - "Phishing-resistant MFA (passkeys) for high-value account types"
+      - "Account-recovery requires multiple proofs incl. live device"
+      - "SIM-swap detection signals (carrier APIs, age-of-line)"
+      - "Adverse-action delay (24h reset) for high-risk accounts; alert customer out-of-band"
+    refs: [T1078, AML.M0019]
+
+  - id: T_CIAM_003
+    title: PII / password-hash bulk exfiltration from CIAM datastore
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1213, T1530]
+    attack_cloud: [T1530]
+    owasp_api: [API3:2023]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      Direct compromise of the CIAM backend (database injection,
+      cloud-misconfig, admin compromise) extracts millions of
+      customer records — PII, password hashes, MFA seeds. Recent
+      examples: Okta 2022 customer-support tenant data, T-Mobile
+      2023 API leak, 23andMe 2023 credential-stuffing-derived bulk
+      export.
+    mitigations:
+      - "Strong password hashing (Argon2id / scrypt) — slows offline cracking"
+      - "Bulk-export rate-limit + admin-action approval workflow"
+      - "Field-level encryption for PII at rest"
+      - "Continuous anomaly detection on admin / API export endpoints"
+    refs: [T1213, AML.M0019]
+
+  - id: T_CIAM_004
+    title: Federation misconfiguration — IdP-initiated SSO trust abuse
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    attack_enterprise: [T1078, T1556.007]
+    owasp_api: [API2:2023]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Customers can social-login via Google / Apple / Facebook /
+      Sign-in-with-LinkedIn. A misconfigured trust (audience mismatch,
+      wildcard-acceptable issuer) lets the attacker present a token
+      from a different tenant that the CIAM accepts. Inverse of the
+      "customer Authentication" expected.
+    mitigations:
+      - "Strict audience + issuer validation on every federated token"
+      - "Per-IdP allowlist with exact issuer / audience pinning"
+      - "Pen-test federation paths annually"
+      - "Anomaly monitoring on federated-login source distribution"
+    refs: [T1078, AML.M0019]
+
+  - id: T_CIAM_005
+    title: CIAM availability outage takes down customer-facing app
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1499, T1498]
+    attack_cloud: [T1499]
+    maestro: [M.L4.04]
+    likelihood: 3
+    impact: 4
+    description: |
+      CIAM outage (cloud-region failure, certificate expiry,
+      runaway-bot-traffic) takes down login for every customer.
+      App is unreachable end-to-end even if backend services are up.
+      Auth0 / Okta have had multi-hour customer-facing outages.
+    mitigations:
+      - "Multi-region CIAM deployment with active-active or active-passive failover"
+      - "Edge-cached session validation to weather brief CIAM outages"
+      - "Bot-traffic throttling at the CDN tier before reaching CIAM"
+      - "DR-rehearsal annually with measured RTO"
+    refs: [T1499, AML.M0019]

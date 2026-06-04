@@ -1,0 +1,237 @@
+name: fintech-payment-ledger
+description: |
+  Real-time payment ledger with fraud-detection ML, HSM-backed key
+  custody, and a PCI-DSS scoped cardholder-data environment.
+  Exercises ATMS coverage of fintech regulation: PCI DSS v4.0,
+  DORA (EU operational resilience), SOC 2, NIST 800-53.
+business_context: |
+  Mid-market neobank, US + EU; ~5M monthly active customers;
+  $1.2B annual transaction volume.
+industry: fintech
+deployment_stage: production
+revenue_bucket: 500m_to_5b
+
+components:
+  - id: customer
+    name: Customer (mobile + web)
+    type: user
+    trust_zone: external
+  - id: edge_waf
+    name: Cloudflare WAF
+    type: waf
+    trust_zone: perimeter
+  - id: cdn
+    name: Cloudflare CDN
+    type: cdn
+    trust_zone: perimeter
+  - id: bot_protect
+    name: Bot Defender
+    type: ddos_mitigation
+    trust_zone: perimeter
+  - id: api_gw
+    name: API Gateway (REST + GraphQL)
+    type: api_gateway
+    trust_zone: edge
+  - id: idp
+    name: Auth0 (CIAM)
+    type: ciam_platform
+    trust_zone: identity
+    controls: [mfa_required]
+  - id: mfa
+    name: WebAuthn / FIDO2
+    type: mfa_service
+    trust_zone: identity
+  # App tier
+  - id: payment_api
+    name: Payment Service
+    type: web_application
+    trust_zone: app
+  - id: ledger
+    name: Double-entry Ledger
+    type: database
+    trust_zone: cde
+    controls: [encryption_at_rest, backup_immutable]
+    description: Cardholder data environment (PCI DSS scope).
+  - id: card_vault
+    name: Tokenization Vault
+    type: secrets_vault
+    trust_zone: cde
+    controls: [encryption_at_rest]
+  - id: hsm
+    name: CloudHSM
+    type: hsm
+    trust_zone: cde
+    description: FIPS 140-3 Level 3; signing keys for ACH + SWIFT.
+  - id: kms
+    name: KMS
+    type: kms_key
+    trust_zone: cde
+  - id: bkp
+    name: AWS Backup (immutable vault)
+    type: backup_service
+    trust_zone: cde
+  # Fraud-detection ML
+  - id: dlp
+    name: PAN/PII DLP (Privitar)
+    type: dlp
+    trust_zone: app
+  - id: fraud_ml
+    name: Fraud Risk Model
+    type: ml_inference_endpoint
+    trust_zone: app
+    description: Gradient-boosted model + LightGBM features; daily retrain.
+  - id: feature_store
+    name: Feature Store
+    type: ml_feature_store
+    trust_zone: app
+  - id: model_reg
+    name: SageMaker Model Registry
+    type: model_registry
+    trust_zone: app
+    controls: [sigstore_signed, slsa_provenance, model_card_published]
+  # External rails
+  - id: card_network
+    name: Card Network (Visa / Mastercard)
+    type: external_api
+    trust_zone: external
+  - id: ach_network
+    name: ACH (Nacha)
+    type: external_api
+    trust_zone: external
+  - id: kyc_provider
+    name: KYC Provider (Onfido)
+    type: external_api
+    trust_zone: external
+  # Observability + security
+  - id: siem
+    name: Splunk ES (SIEM)
+    type: siem
+    trust_zone: observability
+  - id: soar
+    name: Splunk SOAR
+    type: soar
+    trust_zone: observability
+  - id: ids
+    name: AWS Network Firewall (IPS)
+    type: ids_ips
+    trust_zone: perimeter
+  - id: edr
+    name: SentinelOne
+    type: edr_agent
+    trust_zone: observability
+  # Build / supply chain
+  - id: repo
+    name: GitHub Enterprise
+    type: code_repository
+    trust_zone: build
+  - id: ci
+    name: GitHub Actions
+    type: ci_cd_pipeline
+    trust_zone: build
+  - id: registry
+    name: ECR (signed images)
+    type: container_registry
+    trust_zone: build
+    controls: [sigstore_signed]
+
+dataflows:
+  - source: customer
+    target: cdn
+    label: HTTPS app
+    crosses_boundary: true
+  - source: cdn
+    target: bot_protect
+    label: TLS
+  - source: bot_protect
+    target: edge_waf
+    label: TLS forward
+  - source: edge_waf
+    target: api_gw
+    label: TLS + JWT bearer
+    crosses_boundary: true
+  - source: api_gw
+    target: idp
+    label: OAuth2 token exchange
+  - source: idp
+    target: mfa
+    label: WebAuthn challenge
+  - source: api_gw
+    target: payment_api
+    label: TLS + propagated JWT
+  - source: payment_api
+    target: dlp
+    label: tokenise PAN
+  - source: dlp
+    target: ledger
+    label: TLS SQL (tokens only)
+    data_classification: restricted
+    crosses_boundary: true
+  - source: payment_api
+    target: card_vault
+    label: get-token (mTLS)
+  - source: card_vault
+    target: hsm
+    label: sign (PKCS#11)
+  - source: card_vault
+    target: kms
+    label: envelope encryption
+  - source: ledger
+    target: bkp
+    label: encrypted snapshot
+  - source: payment_api
+    target: fraud_ml
+    label: score request (mTLS)
+  - source: fraud_ml
+    target: feature_store
+    label: feature lookup
+  - source: fraud_ml
+    target: model_reg
+    label: signed model artefact
+  - source: payment_api
+    target: card_network
+    label: ISO8583 over TLS
+    crosses_boundary: true
+  - source: payment_api
+    target: ach_network
+    label: NACHA file via SFTP+PGP
+    crosses_boundary: true
+  - source: payment_api
+    target: kyc_provider
+    label: TLS API (PII redaction at boundary)
+    crosses_boundary: true
+  - source: payment_api
+    target: siem
+    label: structured audit log
+  - source: ids
+    target: siem
+    label: alerts
+  - source: edr
+    target: siem
+    label: alerts
+  - source: siem
+    target: soar
+    label: case open / playbook trigger
+  - source: ci
+    target: registry
+    label: signed push
+  - source: registry
+    target: payment_api
+    label: pull at deploy
+
+trust_boundaries:
+  - id: external
+    type: network
+    components_inside: [customer, card_network, ach_network, kyc_provider]
+  - id: cde
+    type: data_classification
+    components_inside: [ledger, card_vault, hsm, kms, bkp]
+    description: PCI-DSS cardholder-data environment.
+  - id: app_tier
+    type: network
+    components_inside: [payment_api, dlp, fraud_ml, feature_store, model_reg]
+  - id: build
+    type: network
+    components_inside: [repo, ci, registry]
+  - id: observability
+    type: network
+    components_inside: [siem, soar, edr]

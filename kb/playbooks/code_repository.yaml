@@ -1,0 +1,78 @@
+component_type: code_repository
+description: |
+  Source-code repository (GitHub, GitLab, Bitbucket, Azure Repos, CodeCommit).
+  Hosts AI workload code, prompt templates, fine-tuning data manifests,
+  model-training scripts, CI/CD definitions. Compromise = arbitrary changes
+  to deployed AI behaviour.
+threats:
+  - id: T_REPO_001
+    title: Prompt template / system prompt committed in plaintext + readable
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM07:2025]
+    owasp_agentic: [AGT08]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0019]
+    maestro: [M.L1.04, M.L1.07]
+    likelihood: 5
+    impact: 3
+    description: |
+      System prompts containing jailbreak guardrails / business-sensitive
+      instructions / proprietary trade-craft are committed in plaintext in
+      the repo. Anyone with read access (large internal repo, public open-
+      source mirror, CI cache leak) extracts them and crafts targeted
+      jailbreak prompts.
+    mitigations:
+      - "Prompt templates stored in a per-environment secrets vault, fetched at runtime"
+      - "Repo-level secret scanning includes prompt-pattern detectors"
+      - "Repository visibility audit: AI repos default to least-broad team scope"
+      - "Production prompts versioned in a private registry with signature on each release"
+    refs: [AML.M0023]
+
+  - id: T_REPO_002
+    title: Dependency confusion / typosquatted ML library
+    stride_ai: [Tampering]
+    owasp_llm: [LLM03:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0010, AML.T0011]
+    attack_cloud: [T1195.002]
+    attack_enterprise: [T1195.002]
+    maestro: [M.L7.11]
+    likelihood: 3
+    impact: 5
+    description: |
+      Attacker publishes `langchain-utls`, `tensoflow`, `troch` to public PyPI;
+      a typo in the AI workload's requirements.txt or pip's resolution order
+      pulls the malicious package. Package exfiltrates training data / model
+      weights / API keys during install.
+    mitigations:
+      - "Internal package mirror with allow-list; pip refuses public-PyPI by default"
+      - "Pinned hash-verified requirements (pip-tools / poetry.lock)"
+      - "Dependabot / Renovate alerts on package name typos"
+      - "SCA: Snyk / GitHub Advanced Security flags dependency-confusion patterns"
+    refs: [AML.M0023]
+
+  - id: T_REPO_003
+    title: Hardcoded API key / model credential committed and pushed
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM06:2025]
+    owasp_api: [API2:2023, API8:2023]
+    atlas: [AML.T0019, AML.T0040]
+    attack_cloud: [T1552.001, T1078.004]
+    attack_enterprise: [T1552.001]
+    maestro: [M.L7.03, M.L1.04]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 5
+    impact: 5
+    description: |
+      Developer commits OPENAI_API_KEY, ANTHROPIC_API_KEY, HF_TOKEN, or
+      AWS access keys with Bedrock permissions directly in source code,
+      notebooks, or .env files that aren't gitignored. Public repos
+      mirror to GitHub search index within seconds. Bots scrape and
+      abuse the key the same day — incurring cloud bills and exfiltrating
+      model output / prompts.
+    mitigations:
+      - "Pre-commit hooks running gitleaks / trufflehog block secrets before push"
+      - "GitHub / GitLab native secret scanning + push protection enabled"
+      - "Auto-rotate any leaked credentials on detection (Bedrock / OpenAI / Anthropic webhook)"
+      - "All API keys delivered via secrets manager + short-lived OIDC token federation; static keys forbidden"
+    refs: [T1552.001, API2:2023, AML.M0019]

@@ -1,0 +1,129 @@
+component_type: dcs
+description: |
+  Distributed Control System — DeltaV, Honeywell Experion, ABB 800xA,
+  Yokogawa Centum VP. Controls process-industry plants (refineries,
+  chemicals, power, pharma) via redundant controllers and a proprietary
+  control network. High-availability, real-time, life-safety critical;
+  ATMS treats it as a top-impact Level 1/2 OT asset whose compromise can
+  cause physical harm.
+threats:
+  - id: T_DCS_001
+    title: Unauthorized engineering write to DCS controller (set-point / logic change)
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1565, T1078]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Engineering workstation (with DCS configuration software) is used
+      to push an unsanctioned logic change or set-point write to a
+      controller — e.g. a furnace temperature limit raised, a high-high
+      alarm bypassed, an interlock disabled. The change is functionally
+      indistinguishable from a normal engineering action; the DCS does
+      not validate intent, only that the user is authenticated.
+    mitigations:
+      - "Engineering-mode key-switch on controllers; physical authorization for writes"
+      - "Approved-change ticket required before any logic download; correlate at the historian"
+      - "Two-person rule on critical loop changes; cryptographic signing of the project file"
+      - "Real-time diff alerting between running configuration and gold-master baseline"
+    refs: [AML.M0019, T0836, T0858]
+
+  - id: T_DCS_002
+    title: DCS controller firmware downgrade / malicious firmware load
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1542, T1601]
+    maestro: [M.X.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      Adversary with engineering access loads attacker-supplied or
+      downgraded firmware onto a DCS controller to introduce a
+      vulnerability the patched firmware closed, or to embed a payload
+      that triggers on a specific process condition (cf. Stuxnet, Triton).
+    mitigations:
+      - "Signed firmware only; controllers refuse unsigned images"
+      - "Firmware allowlist with hash pinning; SIEM alert on any firmware-change op"
+      - "Vendor-issued advisory subscription with formal patch SLA"
+      - "Out-of-band firmware integrity attestation during commissioning windows"
+    refs: [T0857, T0839, AML.M0007]
+
+  - id: T_DCS_003
+    title: DCS historian / OPC server data tampering hides plant state from operators
+    stride_ai: [Tampering, Repudiation]
+    attack_enterprise: [T1565.001, T1070]
+    maestro: [M.L5.05]
+    likelihood: 3
+    impact: 4
+    description: |
+      Attacker injects falsified tag values into the historian or OPC
+      server (the "system of record" for plant state) so HMIs and
+      operators see a nominal plant while the underlying process is
+      drifting toward an unsafe condition. The Triton/Trisis playbook
+      and the Ukraine 2016 blackout both used variants of this pattern.
+    mitigations:
+      - "Read-only historian replicas exposed to corporate / HMI tier; writes only from controllers"
+      - "Time-series anomaly detection on tag values vs physics-based baselines"
+      - "Cryptographic provenance on historian writes (per-source signed)"
+      - "Independent secondary instrumentation cross-checks for safety-critical loops"
+    refs: [T0832, T0856]
+
+  - id: T_DCS_004
+    title: Loss of view / loss of control via DCS network DoS
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1498, T1499]
+    maestro: [M.L4.04]
+    likelihood: 3
+    impact: 4
+    description: |
+      Attacker floods the proprietary control network (or its IT-side
+      gateway) with broadcast traffic, malformed OPC packets, or
+      scan traffic. DCS controllers stay running but operators lose
+      view of the process and the ability to issue commands — forcing
+      a manual shutdown of revenue-generating production.
+    mitigations:
+      - "Strict whitelisting at the Purdue Level 3/3.5 boundary; block all non-essential protocols"
+      - "Redundant control network with automatic failover"
+      - "Network IDS tuned for ICS protocols (OPC-UA, ProfiNet, EtherNet/IP)"
+      - "Drill loss-of-view scenario in tabletop exercises annually"
+    refs: [T0814, T0815, T0814]
+
+  - id: T_DCS_005
+    title: Default / shared engineering credentials on DCS workstations
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    attack_enterprise: [T1078.001, T1110]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      DCS engineering workstations frequently share a single privileged
+      account ("operator", "engineer") because shift-handover and 24/7
+      coverage make per-user accounts inconvenient. The shared password
+      is often documented in the SOP. Any compromise of the workstation
+      or insider with the SOP can perform privileged DCS actions
+      indistinguishably from a legitimate engineer.
+    mitigations:
+      - "Per-individual named accounts with shift-aware login automation"
+      - "Smart-card / hardware-token MFA at the engineering workstation"
+      - "Session recording on every engineering-mode session"
+      - "Quarterly access-review of all DCS engineering accounts"
+    refs: [T0859, T0822, AML.M0019]
+
+  - id: T_DCS_006
+    title: Outdated / unpatched DCS workstation OS (Windows XP/7 still in service)
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1203, T1068]
+    maestro: [M.X.01]
+    likelihood: 4
+    impact: 3
+    description: |
+      DCS workstations are frequently locked to a vendor-validated
+      OS version (e.g. Windows 7 for legacy DeltaV builds) which is
+      out of mainstream support. Public CVEs go unpatched for years
+      because the vendor only validates patches lazily.
+    mitigations:
+      - "Compensating controls: application allowlist (AppLocker), USB disable, network segmentation"
+      - "Vendor escalation to validate critical CVE patches on a 90-day max SLA"
+      - "Network IPS in front of legacy workstations with virtual-patching signatures"
+      - "Replacement roadmap with capital plan for end-of-life workstations"
+    refs: [AML.M0007, T0859]

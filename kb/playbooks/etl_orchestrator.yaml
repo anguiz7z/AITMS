@@ -1,0 +1,124 @@
+component_type: etl_orchestrator
+description: |
+  Managed ETL / ELT pipeline orchestrator — AWS Glue, Azure Data
+  Factory, GCP Dataflow / Cloud Composer, OCI Data Integration,
+  Databricks Jobs / Workflows. The transformation layer between source
+  systems and AI training data, feature stores, and RAG corpora. Holds
+  broad data-source credentials, executes arbitrary Spark / Python
+  code, and is the natural "lateral movement target" between data
+  lakes and ML feature pipelines.
+threats:
+  - id: T_ETL_001
+    title: Job code injection via parameterised notebook / Spark args
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM03:2025, LLM05:2025]
+    owasp_api: [API8:2023, API10:2023]
+    atlas: [AML.T0010, AML.T0011, AML.T0019]
+    attack_cloud: [T1059, T1525]
+    attack_enterprise: [T1059]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA, NIST_PAI_POISONING_BACKDOOR]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Glue / Data Factory / Dataflow jobs take parameters at trigger
+      time. An attacker with the right to invoke the pipeline (a
+      partner SFTP that delivers a "config" file, a webhook from a
+      legitimate-looking source) injects a parameter that becomes a
+      Spark `spark.jars` reference, a Python `--init-script` URL, or a
+      Glue `--extra-py-files` value. The job loads attacker-controlled
+      code with the IAM role of the ETL service — full read of the
+      data lake plus write to the curated zone and the feature store.
+      Closes a supply-chain compromise of the AI training pipeline.
+    mitigations:
+      - "Parameterise only data values; code references (jar URIs, Python files, init scripts) must be hard-coded in the job definition, not parameterised"
+      - "Job IAM role scoped to specific source/sink buckets; deny `s3:GetObject` on bucket containing init scripts"
+      - "Network egress restricted to vetted endpoints (VPC endpoint for S3 only, no internet); blocks pulling external jars"
+      - "Signed-and-hashed job-definition: change to a job requires PR + signed approval; runtime verifies hash"
+    refs: [AML.M0007, AML.M0023]
+
+  - id: T_ETL_002
+    title: Pipeline service account over-permissive across data domains
+    stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+    owasp_api: [API5:2023, API1:2023]
+    atlas: [AML.T0044]
+    attack_cloud: [T1078.004, T1213]
+    attack_enterprise: [T1078]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      A single ETL service role gets `s3:GetObject *`, `glue:GetTable *`,
+      `secretsmanager:GetSecretValue *` so any job can "do anything."
+      Once a job is compromised (T_ETL_001) the attacker inherits a
+      universal lateral-movement role spanning every data source the
+      org has ever wired to Glue. The "Glue/ADF as IAM swiss-army-knife"
+      anti-pattern. Especially damaging for AI workloads because
+      compromised feature engineering jobs poison every downstream
+      model.
+    mitigations:
+      - "Per-job IAM role (or per-domain), not per-account; scope by source/sink prefixes"
+      - "Glue resource-based policies and Lake Formation grants enforce per-job table access — IAM alone is not enough"
+      - "Just-in-time secret retrieval: jobs fetch sink credentials at runtime from a short-lived issuer, not via a baked role"
+      - "Annual review: enumerate all IAM principals with `glue:StartJobRun`; revoke any not actively used in past 90 days"
+    refs: [AML.M0019]
+
+  - id: T_ETL_003
+    title: Silent column drop / type-coerce drift corrupts training data
+    stride_ai: [Tampering, Repudiation]
+    owasp_llm: [LLM04:2025]
+    owasp_api: []
+    atlas: [AML.T0019, AML.T0020]
+    attack_cloud: []
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA]
+    owasp_ml: [ML02:2023, ML08:2023]
+    maestro: [M.L2.01]
+    csa_singapore: [CSA_AI.DEVELOP.01, CSA_AI.OPERATE.01]
+    likelihood: 4
+    impact: 3
+    description: |
+      Pipeline schema changes silently — an upstream source rename
+      causes Glue to fail-soft (Glue `--enable-glue-datacatalog` evolves
+      the table), Data Factory `--dropMissingColumns true` quietly
+      drops columns, or Spark `spark.sql.adaptive.coalescePartitions`
+      collapses partitions. The ML feature pipeline keeps running but
+      with a different feature distribution. The next training run
+      produces a degraded model that nobody connected back to the
+      schema change. Not an adversarial attack — but the failure-mode
+      a deliberate attacker can engineer with read-only access to
+      change upstream data shapes.
+    mitigations:
+      - "Schema contracts: every job declares input + output schema; runtime hard-fails on mismatch (Great Expectations, Pydantic, Deequ)"
+      - "Schema-registry (Glue Schema Registry, Confluent Schema Registry) with backward-compat enforcement"
+      - "Distribution drift alerts on every feature column (Evidently, WhyLabs, ADF `Data Flow` data drift)"
+      - "Lineage tracking from source → feature → model, so a column change visibly impacts downstream model owners"
+    refs: [AML.M0007, AML.M0008]
+
+  - id: T_ETL_004
+    title: PII column copied to curated zone without masking
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    attack_cloud: [T1530]
+    linddun: [DD_003, I_001]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      Data scientist authors a Glue / ADF job that wildcard-selects
+      every column from `raw.users` into `curated.users_features`. The
+      DPO never reviewed it — there's no "PII Code Review" gate. SSN,
+      DoB, full address propagate into the ML feature store, into
+      embeddings, and ultimately into model outputs. The GDPR / PDPA
+      / HIPAA exposure shows up at audit time, months later.
+    mitigations:
+      - "Column-level classification tags propagated from raw to curated; jobs requesting `pii=true` columns trigger DPO review"
+      - "Pre-deployment scan of pipeline DDL for forbidden column patterns (`*_ssn`, `*_dob`, free-text fields)"
+      - "Default-to-mask: PII columns get hashed/tokenised at the transformation layer unless an explicit business-justified exemption exists"
+      - "Quarterly DPO sample audit of curated/feature data for PII leakage"
+    refs: [AML.M0012, AML.M0019]

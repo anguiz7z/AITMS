@@ -1,0 +1,206 @@
+name: ot-water-treatment
+description: |
+  Municipal water treatment plant — OT/SCADA control of dosing,
+  filtration, and reservoir levels, with an AI-based anomaly
+  detector watching sensor streams. NIS2 critical-infrastructure
+  scope (EU); Purdue Model levels modelled as trust boundaries.
+  Reference attack: Oldsmar 2021-style HMI takeover via remote-
+  access path.
+business_context: |
+  Public utility, ~250k residential customers; designated essential
+  entity under NIS2 (Annex I sector: drinking water).
+industry: critical_infrastructure
+deployment_stage: production
+revenue_bucket: 50m_to_500m
+is_high_risk_under_eu_ai_act: false
+
+components:
+  # IT enterprise (Purdue Level 4-5)
+  - id: corp_user
+    name: Plant Operator (corporate laptop)
+    type: user
+    trust_zone: corporate
+  - id: vendor_user
+    name: Vendor Engineer
+    type: user
+    trust_zone: external
+  - id: vpn
+    name: Vendor VPN
+    type: vpn_gateway
+    trust_zone: perimeter
+    controls: [mfa_required]
+  - id: jumphost
+    name: OT Jump Host
+    type: ot_jumphost
+    trust_zone: dmz
+    description: Whitelisted protocol broker; session recording.
+  - id: pam
+    name: PAM Vault
+    type: pam_vault
+    trust_zone: corporate
+  - id: idp
+    name: Corp IdP (Entra ID)
+    type: identity_provider
+    trust_zone: identity
+    controls: [mfa_required]
+  - id: edr
+    name: Defender for Endpoint
+    type: edr_agent
+    trust_zone: corporate
+  # OT DMZ (Purdue Level 3.5)
+  - id: scada_hist
+    name: SCADA Historian (PI)
+    type: scada
+    trust_zone: ot_dmz
+    description: Time-series store; bidirectional gateway to IT.
+  - id: anomaly_ai
+    name: Sensor Anomaly Detector
+    type: ml_inference_endpoint
+    trust_zone: ot_dmz
+    description: LSTM autoencoder over historian streams; alerts on drift.
+  - id: ot_siem
+    name: OT SIEM (Claroty)
+    type: siem
+    trust_zone: ot_dmz
+  - id: ids_ot
+    name: OT IDS (Nozomi)
+    type: ids_ips
+    trust_zone: ot_dmz
+  # Process control (Purdue Level 2)
+  - id: hmi
+    name: Operator HMI
+    type: hmi
+    trust_zone: process_control
+  - id: scada_server
+    name: SCADA Server (Wonderware)
+    type: scada
+    trust_zone: process_control
+  - id: dcs
+    name: DCS (Honeywell Experion)
+    type: dcs
+    trust_zone: process_control
+  # Plant floor (Purdue Level 1-0)
+  - id: plc_dosing
+    name: PLC — Chlorine Dosing
+    type: plc
+    trust_zone: plant_floor
+  - id: plc_filter
+    name: PLC — Filtration
+    type: plc
+    trust_zone: plant_floor
+  - id: rtu_reservoir
+    name: RTU — Reservoir Level
+    type: rtu
+    trust_zone: plant_floor
+  - id: ied
+    name: Protection Relay (IED)
+    type: ied
+    trust_zone: plant_floor
+  - id: industrial_proto
+    name: Modbus/DNP3 Bus
+    type: industrial_protocol
+    trust_zone: plant_floor
+  # Backup
+  - id: backup
+    name: Air-gapped Backup
+    type: backup_service
+    trust_zone: corporate
+  # Logging
+  - id: log_agg
+    name: Log Aggregator
+    type: log_aggregator
+    trust_zone: ot_dmz
+
+dataflows:
+  # Vendor remote access — the canonical OT attack path
+  - source: vendor_user
+    target: vpn
+    label: TLS (MFA enforced)
+    crosses_boundary: true
+  - source: vpn
+    target: pam
+    label: session checkout + recording
+  - source: pam
+    target: jumphost
+    label: brokered SSH (whitelisted commands)
+    crosses_boundary: true
+  - source: jumphost
+    target: hmi
+    label: RDP (recorded)
+    crosses_boundary: true
+  # Operator path
+  - source: corp_user
+    target: idp
+    label: corp SSO (MFA)
+  - source: corp_user
+    target: jumphost
+    label: brokered RDP
+    crosses_boundary: true
+  # IT/OT bridge through the historian
+  - source: scada_server
+    target: scada_hist
+    label: OPC UA (TLS)
+    crosses_boundary: true
+  - source: scada_hist
+    target: anomaly_ai
+    label: time-series stream
+  - source: anomaly_ai
+    target: ot_siem
+    label: anomaly alert
+  - source: ids_ot
+    target: ot_siem
+    label: detection alerts
+  # Process control
+  - source: hmi
+    target: scada_server
+    label: HMI commands
+  - source: scada_server
+    target: dcs
+    label: setpoint updates
+  - source: dcs
+    target: industrial_proto
+    label: Modbus/DNP3 reads + writes
+    crosses_boundary: true
+  - source: industrial_proto
+    target: plc_dosing
+    label: dosing setpoint
+  - source: industrial_proto
+    target: plc_filter
+    label: filter cycle command
+  - source: industrial_proto
+    target: rtu_reservoir
+    label: level poll
+  - source: industrial_proto
+    target: ied
+    label: trip / alarm
+  # Operations
+  - source: ot_siem
+    target: log_agg
+    label: log forward
+  - source: scada_hist
+    target: backup
+    label: encrypted snapshot
+
+trust_boundaries:
+  - id: corporate
+    type: network
+    components_inside: [corp_user, edr, pam, backup, idp]
+    description: Purdue Level 4-5 corporate IT.
+  - id: perimeter
+    type: network
+    components_inside: [vpn]
+  - id: dmz
+    type: network
+    components_inside: [jumphost]
+    description: Purdue Level 3.5 OT DMZ.
+  - id: ot_dmz
+    type: network
+    components_inside: [scada_hist, anomaly_ai, ot_siem, ids_ot, log_agg]
+  - id: process_control
+    type: network
+    components_inside: [hmi, scada_server, dcs]
+    description: Purdue Level 2-3 process control.
+  - id: plant_floor
+    type: network
+    components_inside: [plc_dosing, plc_filter, rtu_reservoir, ied, industrial_proto]
+    description: Purdue Level 0-1 physical process.

@@ -1,0 +1,96 @@
+component_type: feature_flag_service
+description: |
+  Feature-flag and progressive-delivery service — LaunchDarkly, Split,
+  GrowthBook, Statsig, Optimizely, AWS AppConfig, Azure App Configuration
+  Feature Manager. Controls runtime toggling of AI features: model
+  versions, prompt-template variants, guardrail enable/disable, RAG
+  source allow-lists, agent tool grants. Effectively a real-time
+  control plane for the AI system without going through deployment —
+  which is exactly why it's a high-value target.
+threats:
+  - id: T_FFLAG_001
+    title: Flag toggle disabling guardrail / safety filter in production
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM01:2025, LLM05:2025, LLM06:2025]
+    owasp_agentic: [AGT01, AGT04, AGT12]
+    owasp_api: [API5:2023, API8:2023]
+    atlas: [AML.T0043, AML.T0044]
+    attack_cloud: [T1562, T1078.004]
+    attack_enterprise: [T1562]
+    nist_ai_100_2: [NIST_GAI_ADVERSARIAL_MISUSE]
+    maestro: [M.L4.06, M.L7.11]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 4
+    impact: 5
+    description: |
+      Engineer (or compromised engineer account, or over-permissive
+      service token) flips `enable_content_safety=false` or
+      `agent_tool_admin_writes=true` in LaunchDarkly. The change takes
+      effect within seconds without any deployment review. Bedrock /
+      Azure Content Safety bypassed; the agent now has write access to
+      previously-read-only tools. Detection-after-the-fact requires
+      stitching flag-change logs with prompt-log correlation — by
+      then the misuse already happened. Real example: 2024 outage at
+      a major AI vendor traced to a flag toggle disabling a safety
+      classifier.
+    mitigations:
+      - "Two-person approval workflow for safety-critical flags (LaunchDarkly Approvals, Split Workflow); the flag's `prerequisites` block change if approver not different from author"
+      - "Tag flags as `tier=safety-critical`; per-tag IAM enforces stricter approvers + audit"
+      - "Flag-change events streamed to SIEM in real-time with paging on safety-critical changes"
+      - "Out-of-band kill switch: an independent guardrail layer (Bedrock Guardrails, Azure Content Safety) that flags cannot disable"
+    refs: [AML.M0007, AML.M0023]
+
+  - id: T_FFLAG_002
+    title: Targeting rule poisoning — attacker-controlled segment receives backdoored model
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM03:2025, LLM04:2025]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0019, AML.T0044]
+    attack_cloud: [T1078.004]
+    nist_ai_100_2: [NIST_PAI_POISONING_BACKDOOR]
+    owasp_ml: [ML06:2023]
+    maestro: [M.L2.01, M.L7.11]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Targeting rules ("show variant X to users in country Y") are
+      flexible — by design. Attacker with flag-write rights creates a
+      rule pointing a specific segment (their attacker-controlled
+      user IDs, or a specific phone-number prefix) to a poisoned
+      model variant or to a "test" prompt template that exfils data.
+      Other users see normal behaviour. Drift detection that compares
+      aggregate metrics misses it because the affected segment is
+      small.
+    mitigations:
+      - "Restrict who can author targeting rules — separate role from `flag toggle`; require approvals for targeting changes"
+      - "Per-variant model artefact must be signed (Sigstore); the model registry rejects unsigned variants regardless of flag rule"
+      - "Audit per-segment behavioural drift, not just aggregate; alert if any user segment shows anomalous prompt patterns"
+      - "Quarterly review of all targeting rules; auto-expire rules with no owner or > 6 months inactivity"
+    refs: [AML.M0007, AML.M0023]
+
+  - id: T_FFLAG_003
+    title: Flag-evaluation SDK compromise exposing user data via in-context evaluation
+    stride_ai: [Information_Disclosure, Tampering]
+    owasp_api: [API3:2023, API8:2023]
+    atlas: []
+    attack_cloud: [T1195.001]
+    attack_enterprise: [T1195.001, T1195.002]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 2
+    impact: 4
+    description: |
+      LaunchDarkly / Split SDK evaluates flags in-process — passing
+      user context (user ID, attributes, sometimes PII like email)
+      to the SDK for targeting decisions. A compromised SDK version
+      (npm typosquat, pinned to a malicious tag in the registry) gets
+      the entire user-attribute payload of every request. CVE-2018-16487
+      (lodash) and CVE-2021-23362 (hosted-git-info) demonstrate the
+      pattern — a small package taking everything.
+    mitigations:
+      - "Pin SDK version + integrity hash (npm `--save-exact` + `sha512-...`)"
+      - "Server-side flag evaluation when user context contains PII; client gets only the resolved variant, not the eval API"
+      - "SBOM + supply-chain scanning (Wiz Code, Snyk, Sonatype) for the feature-flag SDK"
+      - "Minimise user-attributes passed to flag eval; rely on coarse buckets (region, tier) not raw PII"
+    refs: [AML.M0007, AML.M0023]

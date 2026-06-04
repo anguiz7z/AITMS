@@ -1,0 +1,54 @@
+component_type: external_api
+description: |
+  Third-party API the AI system depends on (model provider, payment, search, weather, etc.).
+threats:
+  - id: T_EXT_001
+    title: External API compromise (supply chain)
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM03:2025]
+    atlas: [AML.T0010]
+    owasp_ml: [ML06:2023]
+    linddun: [DD_001, NC_001]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 2
+    impact: 4
+    description: |
+      The third-party API is compromised, returns malicious responses, or is replaced with
+      a typo-squatted impostor.
+    mitigations:
+      - "TLS pinning where feasible; verify cert chain"
+      - "Output validation on third-party responses"
+      - "Vendor risk review; SLA + breach-notification clauses"
+    refs: [AML.M0014]
+
+  - id: T_EXT_002
+    title: API credential leakage
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM07:2025]
+    atlas: [AML.T0055]
+    csa_singapore: [CSA_AI.DEVELOP.03]
+    likelihood: 3
+    impact: 4
+    description: |
+      API keys for the external provider leak via prompt injection, logs, or compromised
+      configuration.
+    mitigations:
+      - "Vault-managed credentials; per-request scoped tokens"
+      - "Rotate and revoke; alert on key reuse from new locations"
+      - "Egress-side credential redaction in logs"
+    refs: [AML.M0012]
+
+  - id: T_EXT_003
+    title: External API outage / dependency failure
+    stride_ai: [Denial_of_Service]
+    owasp_llm: [LLM10:2025]
+    atlas: [AML.T0029]
+    likelihood: 3
+    impact: 3
+    description: |
+      Dependency goes down or rate-limits the AI system, causing user-facing outage.
+    mitigations:
+      - "Circuit breakers, fallback paths, cached responses"
+      - "Multi-provider redundancy where viable"
+      - "SLO monitoring per dependency"
+    refs: []

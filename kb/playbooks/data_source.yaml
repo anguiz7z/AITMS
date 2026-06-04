@@ -1,0 +1,65 @@
+component_type: data_source
+description: |
+  Source of data ingested by the AI system: documents, databases, web feeds, user uploads,
+  third-party APIs.
+threats:
+  - id: T_DS_001
+    title: Source compromise (injected adversarial content)
+    stride_ai: [Tampering]
+    owasp_llm: [LLM04:2025, LLM01:2025]
+    atlas: [AML.T0019, AML.T0051.001]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA, NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    owasp_ml: [ML02:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Upstream data source is compromised or accepts user content; adversarial documents enter
+      the pipeline.
+    mitigations:
+      - "Source allowlist + per-source ingestion review"
+      - "Provenance metadata on every ingested item"
+      - "Anomaly detection on content distributions"
+    refs: [AML.M0007]
+
+  - id: T_DS_002
+    title: PII / sensitive data inadvertently ingested
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    atlas: [AML.T0057]
+    linddun: [DD_002, NC_002, NC_003, L_001]
+    csa_singapore: [CSA_AI.PLAN.02, CSA_AI.DEVELOP.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      Source contains PII or confidential content; system ingests, embeds, and possibly
+      surfaces it to other users.
+    mitigations:
+      - "PII detection at ingest; reject or redact before storage"
+      - "Data classification metadata on each item"
+      - "Per-class access controls downstream"
+    refs: [AML.M0019]
+
+  - id: T_DS_003
+    title: Source authentication / integrity gap → spoofed feed accepted as legitimate
+    stride_ai: [Spoofing, Tampering]
+    owasp_llm: [LLM03:2025, LLM04:2025]
+    owasp_api: [API2:2023, API8:2023]
+    atlas: [AML.T0019, AML.T0020]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA]
+    owasp_ml: [ML02:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Data feed ingested over plain HTTP, FTP, or unauthenticated S3 / GCS
+      bucket. Attacker who intercepts the network path or owns the namespace
+      can substitute the feed content. AI training / RAG pipeline trusts
+      whatever arrives. Common gap: third-party data vendor doesn't sign or
+      hash deliveries; ATMS ingests blindly.
+    mitigations:
+      - "Require mutual TLS or signed payloads (PGP, JWS) on every external data feed"
+      - "Per-source manifest with SHA-256 hash; reject any delivery whose hash doesn't match"
+      - "Vendor contractual SLA for tamper-evident delivery + breach notification"
+      - "Periodic re-validation: re-hash known historical batches; alert on drift"
+    refs: [T1565, AML.M0007, ML02:2023]

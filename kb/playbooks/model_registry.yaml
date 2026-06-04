@@ -1,0 +1,57 @@
+component_type: model_registry
+description: |
+  Repository of model artifacts (weights, configs, tokenizers). Includes MLflow, Hugging Face
+  Hub, S3-based registries, custom registries.
+threats:
+  - id: T_MR_001
+    title: Tampered or backdoored model artifact
+    stride_ai: [Tampering]
+    owasp_llm: [LLM03:2025]
+    atlas: [AML.T0010, AML.T0010.003, AML.T0018]
+    nist_ai_100_2: [NIST_GAI_BACKDOOR, NIST_PAI_POISONING_BACKDOOR]
+    owasp_ml: [ML06:2023, ML10:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01, CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      Attacker with write access (or via supply-chain compromise) replaces a model with a
+      backdoored version.
+    mitigations:
+      - "Sign model artifacts (Sigstore, in-toto); verify on load"
+      - "RBAC on registry write; require code-review for promotions"
+      - "Reproducible model builds; SHA256 of weights vs build manifest"
+    refs: [AML.M0013, AML.M0014, AML.M0017]
+
+  - id: T_MR_002
+    title: Model exfiltration
+    stride_ai: [Information_Disclosure]
+    owasp_llm: []
+    atlas: [AML.T0044]
+    owasp_ml: [ML05:2023]
+    csa_singapore: [CSA_AI.DEVELOP.02, CSA_AI.OPERATE.03]
+    likelihood: 2
+    impact: 5
+    description: |
+      Adversary downloads proprietary model weights from a misconfigured registry.
+    mitigations:
+      - "Encrypt at rest; require auth on every download"
+      - "Audit logs of downloads; rate-limit large pulls"
+      - "Per-tenant ACLs"
+    refs: [AML.M0001, AML.M0012, AML.M0019]
+
+  - id: T_MR_003
+    title: Insecure default access (publicly listed)
+    stride_ai: [Information_Disclosure]
+    owasp_llm: []
+    atlas: [AML.T0000]
+    owasp_ml: [ML05:2023]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 3
+    description: |
+      Registry permissions are too permissive — model cards, dataset descriptions, or weights
+      are publicly listed.
+    mitigations:
+      - "Default-private; explicit allowlist for public artifacts"
+      - "Periodic permission audit"
+    refs: [AML.M0000, AML.M0001]

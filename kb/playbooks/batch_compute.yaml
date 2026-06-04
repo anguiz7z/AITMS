@@ -1,0 +1,111 @@
+component_type: batch_compute
+description: |
+  Managed batch compute service — schedules and runs container /
+  job workloads on managed compute. Examples: AWS Batch, Azure
+  Batch, GCP Batch, OCI Batch, IBM Spectrum LSF on cloud. Used for
+  high-volume ETL, ML training pre-processing, genomics, simulation,
+  financial-risk Monte Carlo. The job queue + scheduler often holds
+  broad IAM scope across many tenants/teams.
+threats:
+  - id: T_BATCH_001
+    title: Job-definition tampering injects malicious step into shared queue
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1565, T1078.004]
+    attack_cloud: [T1078.004, T1525]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Job definitions stored as cloud resources include image, IAM
+      role, S3 mounts, environment vars. Attacker with batch:RegisterJobDefinition
+      replaces an image reference with a malicious container that
+      exfiltrates data when scheduled — leveraging the legitimate
+      job's broad IAM role.
+    mitigations:
+      - "Per-team IAM partition; team can only register definitions in their queue"
+      - "Job-definition signing and verification at scheduler-side"
+      - "Allowlist of approved container images (ECR repo + tag pinning)"
+      - "Anomaly alert on novel image / IAM role in a job definition"
+    refs: [T1525, AML.M0019]
+
+  - id: T_BATCH_002
+    title: Container escape from batch job to host (and to other tenants' jobs)
+    stride_ai: [Elevation_of_Privilege]
+    attack_enterprise: [T1611, T1068]
+    attack_cloud: [T1611]
+    maestro: [M.X.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      AWS Batch / Azure Batch on shared hosts may co-locate
+      different tenants' jobs. Container escape (Dirty Pipe,
+      runc CVEs) grants the malicious job access to neighbouring
+      jobs' data and credentials on the same node.
+    mitigations:
+      - "Sandboxed runtime (gVisor / Kata / Firecracker / Fargate)"
+      - "Per-tenant dedicated compute environment for sensitive workloads"
+      - "Kernel patching SLA aligned with critical CVE timelines"
+      - "Read-only root filesystem + minimal capabilities for all jobs"
+    refs: [T1611, AML.M0007]
+
+  - id: T_BATCH_003
+    title: Cost / capacity bomb via runaway job loop
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1499, T1496]
+    attack_cloud: [T1499]
+    maestro: [M.L4.04]
+    likelihood: 4
+    impact: 3
+    description: |
+      Malicious or buggy job auto-resubmits itself on completion,
+      or a parameterised parent fans out 100k child jobs. Cost
+      escalates rapidly; legitimate workloads queued behind.
+      Cryptominer payloads target managed-batch for their elastic
+      free-tier characteristics.
+    mitigations:
+      - "Per-job time-out + max-attempts at scheduler level"
+      - "Per-queue concurrency cap"
+      - "Cost-anomaly alerts with auto-pause on threshold"
+      - "Egress-block to known crypto-mining destinations"
+    refs: [T1499, AML.M0019]
+
+  - id: T_BATCH_004
+    title: Job-result data leakage via shared S3 prefix
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1530, T1083]
+    attack_cloud: [T1530]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Many batch teams share a single result-bucket with prefix-
+      based separation. Misconfigured per-prefix policy or a
+      bucket-policy bug grants cross-team read. Sensitive ML
+      training data or financial-risk outputs leak across teams.
+    mitigations:
+      - "Per-team bucket (not prefix) for sensitive output"
+      - "Access-Analyzer / Storage Insights review on shared buckets"
+      - "Bucket policy CI gate — block 'Authenticated Users' grants"
+      - "Object-level encryption per team / per job"
+    refs: [T1530, AML.M0019]
+
+  - id: T_BATCH_005
+    title: Scheduler IAM role grants excess privileges to every job
+    stride_ai: [Elevation_of_Privilege]
+    attack_enterprise: [T1078.004]
+    attack_cloud: [T1078.004]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Convenience batch job role gets union-of-everything for
+      "any job in the queue" — full data-lake R/W, KMS, Secrets
+      Manager. A single compromised job inherits all of it.
+      Mirrors the ml_pipeline_orchestrator's union-IAM pattern.
+    mitigations:
+      - "Per-job-definition IAM role; never share role across job classes"
+      - "IAM Access Analyzer review quarterly"
+      - "Permission boundaries cap maximum effective permissions"
+      - "Tag-based ABAC restricting access to per-team prefixes"
+    refs: [T1078, AML.M0019]

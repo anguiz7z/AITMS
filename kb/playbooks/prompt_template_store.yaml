@@ -1,0 +1,55 @@
+component_type: prompt_template_store
+description: |
+  Storage for system prompts, prompt templates, few-shot examples used by the LLM. Often a
+  database, file, or config service.
+threats:
+  - id: T_PTS_001
+    title: Tampering of prompt templates (privilege escalation)
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM01:2025]
+    atlas: [AML.T0018, AML.T0061]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_DIRECT]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      Attacker with write access to the template store modifies system prompts to introduce
+      backdoors, leak data, or change agent behavior across all users.
+    mitigations:
+      - "Version control all prompt templates; signed releases"
+      - "RBAC on the template store; audit logs"
+      - "Diff review on every prompt change; CI behavioral tests"
+    refs: [AML.M0013, AML.M0019, AML.M0023]
+
+  - id: T_PTS_002
+    title: Secrets embedded in prompts
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM07:2025]
+    atlas: [AML.T0055, AML.T0056]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    csa_singapore: [CSA_AI.DEVELOP.02, CSA_AI.DEVELOP.03]
+    likelihood: 3
+    impact: 4
+    description: |
+      Templates contain API keys, DB credentials, or internal business rules that leak via
+      prompt injection or extraction.
+    mitigations:
+      - "Pre-deploy secret scanning on template store"
+      - "Externalize secrets to vault; parameterize at runtime"
+    refs: [AML.M0012, AML.M0019]
+
+  - id: T_PTS_003
+    title: Prompt template extraction
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM07:2025]
+    atlas: [AML.T0056, AML.T0061]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 4
+    impact: 2
+    description: |
+      Adversary extracts template content (often valuable IP) via probing or output analysis.
+    mitigations:
+      - "Treat templates as semi-public; do not embed competitive secrets"
+      - "Detect extraction probing patterns"
+    refs: [AML.M0015]

@@ -1,0 +1,67 @@
+# Pre-commit hooks — run locally on `git commit` to catch the same
+# issues CI would catch, but before the push round-trip.
+#
+# Install once per checkout:
+#     pip install pre-commit
+#     pre-commit install
+#
+# Run on demand:
+#     pre-commit run --all-files
+#
+# Updating hook versions:
+#     pre-commit autoupdate
+#
+# v0.18.66 Phase R — hook set matches what GitHub Actions runs, so
+# you cannot push something that will fail CI but pass locally.
+
+repos:
+  # ─── File-shape hygiene ────────────────────────────────────────────
+  # Generic checks — strip trailing whitespace, fix end-of-file, catch
+  # common YAML / JSON / TOML syntax errors before they reach a branch.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        # Allow Jinja-like templates if any slip in (e.g. j2 yaml).
+        args: ["--unsafe"]
+      - id: check-json
+        # docs/system.schema.json is generated; leave it alone.
+        exclude: ^docs/system\.schema\.json$
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=500"]  # samples/corpus/* are ~5-20 KB; allow up to 500.
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+        # Don't touch Windows-specific files.
+        exclude: ^.*\.(bat|cmd|ps1)$
+
+  # ─── Python lint (matches CI's ruff step) ──────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.0
+    hooks:
+      - id: ruff
+        # `--fix` makes the hook auto-apply safe fixes. Files that
+        # change get re-staged automatically by pre-commit.
+        args: ["--fix"]
+
+  # ─── ATMS-specific drift guards ────────────────────────────────────
+  # If you edit ComponentType, models.System, or any engine module,
+  # these hooks catch the case where you forgot to re-run the
+  # corresponding generator script.
+  - repo: local
+    hooks:
+      - id: palette-drift
+        name: palette drift guard (gen_palette.py --check)
+        entry: python scripts/gen_palette.py --check
+        language: system
+        files: ^src/atms/(models\.py|yaml_autocorrect\.py)$|^kb/palette_meta\.yaml$
+        pass_filenames: false
+      - id: schema-drift
+        name: JSON Schema drift guard (gen_schema.py --check)
+        entry: python scripts/gen_schema.py --check
+        language: system
+        files: ^src/atms/models\.py$
+        pass_filenames: false

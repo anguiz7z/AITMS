@@ -1,0 +1,57 @@
+component_type: guardrails
+description: |
+  Input/output filters that block prohibited content, prompt injection, sensitive data, or
+  policy violations. Includes Llama Guard, NeMo Guardrails, custom regex filters, classifier-
+  based moderators.
+threats:
+  - id: T_GR_001
+    title: Guardrail evasion
+    stride_ai: [Defense_Evasion, Tampering]
+    owasp_llm: [LLM01:2025]
+    atlas: [AML.T0015, AML.T0054]
+    nist_ai_100_2: [NIST_PAI_EVASION, NIST_GAI_ADVERSARIAL_MISUSE]
+    owasp_ml: [ML01:2023]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 5
+    impact: 4
+    description: |
+      Adversary crafts inputs (encoding, obfuscation, multi-step) that evade the guardrail
+      classifier and reach the LLM unfiltered.
+    mitigations:
+      - "Defense in depth: multiple guardrails (input, mid, output)"
+      - "Continuous evaluation against adversarial corpora"
+      - "Update guardrail models with new attack patterns"
+    refs: [AML.M0015, AML.M0006, AML.M0022]
+
+  - id: T_GR_002
+    title: False positives degrading user experience
+    stride_ai: [Denial_of_Service, Repudiation]
+    owasp_llm: []
+    atlas: []
+    likelihood: 4
+    impact: 2
+    description: |
+      Overly aggressive guardrails block legitimate queries; users abandon or work around the
+      system, eroding trust.
+    mitigations:
+      - "Calibrate thresholds with real traffic"
+      - "Human-review queue for borderline blocks"
+      - "Tiered response: warn, log, block"
+    refs: [AML.M0023]
+
+  - id: T_GR_003
+    title: Guardrail bypass via tampering of guardrail config
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: []
+    atlas: [AML.T0018]
+    csa_singapore: [CSA_AI.DEPLOY.02, CSA_AI.OPERATE.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      Attacker modifies guardrail config or model to disable specific blocks, opening the
+      attack surface.
+    mitigations:
+      - "Sign and version guardrail configs; verify integrity on load"
+      - "Separate admin plane from data plane"
+      - "Alerting on guardrail config changes"
+    refs: [AML.M0013, AML.M0019, AML.M0023]

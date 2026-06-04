@@ -1,0 +1,73 @@
+component_type: edr_agent
+description: |
+  Endpoint Detection & Response agent (CrowdStrike, SentinelOne, Defender for
+  Endpoint, Carbon Black). Hosts on developer + ops + AI-training workstations
+  + inference servers. Detects + responds to malicious process / network
+  behavior. AI angle: detects exfil of model weights, prompt-template stores,
+  fine-tuning datasets, training secrets.
+threats:
+  - id: T_EDR_001
+    title: EDR agent disabled / tampered on AI training host
+    stride_ai: [Defense_Evasion]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0040]
+    attack_enterprise: [T1562.001]
+    maestro: [M.L4.07]
+    likelihood: 3
+    impact: 5
+    description: |
+      Local-admin on the training workstation (or an over-privileged AI dev
+      service account) unloads the EDR driver, blocks its update channel,
+      or sets exclusions covering the training data + model output directories.
+      Attacker exfiltrates model weights or training secrets undetected.
+    mitigations:
+      - "Tamper protection enabled with admin-only override + cloud-managed policy"
+      - "EDR heartbeat monitoring; alert on agent-offline > 30 min"
+      - "Network DLP egress monitor flags large outbound transfers from training subnet"
+    refs: [AML.M0019]
+
+  - id: T_EDR_002
+    title: AI-specific exfiltration patterns missing from detection
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0040, AML.T0024]
+    attack_cloud: [T1041]
+    attack_enterprise: [T1041]
+    maestro: [M.L7.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      EDR has generic anti-malware + behavioural rules but no AI-specific ones:
+      large outbound transfers from `pytorch/.cache`, repeated calls to OpenAI /
+      Anthropic / Bedrock from an unusual user, prompt exfil via clipboard
+      capture, weight-file egress via cloud sync clients.
+    mitigations:
+      - "Custom EDR rules for model-extraction patterns (Microsoft Defender custom indicators)"
+      - "DLP labels on model weights + training data; EDR blocks transfer when label present"
+      - "Cloud-app discovery: alert on traffic to non-allowed AI APIs"
+    refs: [AML.M0023]
+
+  - id: T_EDR_003
+    title: EDR coverage gap on GPU / training Linux nodes
+    stride_ai: [Defense_Evasion, Elevation_of_Privilege]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0040, AML.T0010]
+    attack_cloud: [T1078.004, T1190]
+    attack_enterprise: [T1078, T1059.004]
+    maestro: [M.L4.07]
+    likelihood: 3
+    impact: 5
+    description: |
+      EDR is deployed across Windows endpoints but coverage on Linux GPU
+      / training nodes (Ubuntu, RHEL on bare-metal H100 / A100 clusters)
+      lags or is exempted for performance reasons. Attacker who pivots
+      onto the training cluster operates in an unmonitored blind spot
+      — running unsanctioned training jobs, exfiltrating weights, or
+      installing miners that consume GPU quota.
+    mitigations:
+      - "Mandatory EDR coverage on every Linux training / inference node — no performance exemptions"
+      - "eBPF-based agents (Falco, CrowdStrike, SentinelOne) with low GPU-workload overhead"
+      - "EDR-coverage dashboard with daily inventory reconciliation against CMDB"
+      - "GPU-utilisation anomaly detection as a compensating control where EDR is absent"
+    refs: [T1078, T1059.004, AML.M0019]

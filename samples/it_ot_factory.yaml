@@ -1,0 +1,275 @@
+name: Smart Factory — Hybrid IT / OT / AI predictive maintenance
+description: |
+  A medium-sized manufacturing site running a hybrid IT/OT estate with an
+  AI predictive-maintenance pilot bolted on. Corporate IT (AD, M365, EDR)
+  is bridged into the OT zone via a Purdue level-3 historian, and a small
+  AI pipeline pulls historian data via a one-way data diode, embeds it
+  and lets a maintenance-engineer copilot agent answer "why is this pump
+  drifting?" questions. Used as the v0.10 reference sample for IT, OT,
+  legacy and identity threat modelling.
+business_context: |
+  Critical-infrastructure sector. Outages cost ~$45k/hour. Compliance:
+  IEC 62443, NIS2 (EU manufacturing), GDPR for employee data in M365.
+
+components:
+  # ─── Corporate IT zone ──────────────────────────────────────────────
+  - id: emp
+    name: Plant employee laptop
+    type: endpoint
+    trust_zone: corp_net
+    description: Windows 11 corporate laptop, EDR-managed.
+  - id: ad
+    name: Corporate Active Directory
+    type: directory_service
+    trust_zone: corp_net
+    description: On-prem AD forest, Entra ID hybrid join.
+  - id: mfa
+    name: Duo MFA
+    type: mfa_service
+    trust_zone: corp_net
+    description: Duo Push for VPN and admin consoles.
+  - id: vpn
+    name: Palo Alto GlobalProtect
+    type: vpn_gateway
+    trust_zone: dmz
+    description: Remote access VPN, terminating in the corporate DMZ.
+  - id: m365
+    name: Microsoft 365 / Exchange Online
+    type: email_server
+    trust_zone: external_provider
+    description: Tenant for plant staff email; phishing entry point.
+  - id: erp_db
+    name: ERP transactional database
+    type: database
+    trust_zone: corp_net
+    description: Microsoft SQL Server 2019 for ERP, joins AD via Windows auth.
+  - id: erp_app
+    name: ERP web application
+    type: web_application
+    trust_zone: corp_net
+    description: Internal SAP-Fiori-style portal used by ops planners.
+
+  # ─── Network spine ─────────────────────────────────────────────────
+  - id: edge_fw
+    name: Perimeter firewall (Fortigate)
+    type: firewall
+    trust_zone: dmz
+    description: Internet-facing NGFW; segments DMZ, corp, OT.
+  - id: ot_fw
+    name: IT/OT boundary firewall (Cisco FTD)
+    type: firewall
+    trust_zone: ot_dmz
+    description: Industrial DMZ firewall enforcing Purdue Level 3-4 split.
+  - id: core_sw
+    name: Core network switch (Cisco Catalyst 9500)
+    type: network_switch
+    trust_zone: corp_net
+    description: Layer-3 core; carries VLANs for corp, ERP, OT-uplink.
+  - id: lb
+    name: Internal load balancer (F5 BIG-IP)
+    type: load_balancer
+    trust_zone: corp_net
+    description: TLS-terminating LB in front of ERP web app.
+
+  # ─── Legacy + OT zone ──────────────────────────────────────────────
+  - id: as400
+    name: Legacy ledger (IBM AS/400)
+    type: legacy_mainframe
+    trust_zone: corp_net
+    description: IBM iSeries running RPG-based finance ledger; 5250 access.
+  - id: hist
+    name: Plant historian (OSIsoft PI)
+    type: scada
+    trust_zone: ot_dmz
+    description: Process historian in the OT DMZ; bridge between OT and IT.
+  - id: hmi
+    name: Operator HMI (Wonderware)
+    type: scada
+    trust_zone: ot_zone
+    description: Operator workstation on the production line, Win10.
+  - id: plc1
+    name: Pump PLC (Siemens S7-1500)
+    type: plc
+    trust_zone: ot_zone
+    description: PLC controlling four cooling pumps, S7 Comm.
+  - id: plc2
+    name: Mixer PLC (Allen-Bradley CompactLogix)
+    type: plc
+    trust_zone: ot_zone
+    description: PLC controlling the chemical mixer line.
+  - id: ot_bus
+    name: OT field bus (Modbus/TCP + OPC-UA)
+    type: industrial_protocol
+    trust_zone: ot_zone
+    description: Modbus and OPC-UA traffic between PLCs, HMI and historian.
+  - id: cam
+    name: Site IP cameras
+    type: iot_device
+    trust_zone: ot_dmz
+    description: 60 IP cameras on a dedicated VLAN; Hikvision firmware.
+
+  # ─── AI predictive-maintenance pilot ────────────────────────────────
+  - id: ai_lake
+    name: Historian export bucket
+    type: object_storage
+    trust_zone: prod
+    description: S3 bucket receiving daily historian export over data diode.
+  - id: embed
+    name: Embedding service (Bedrock Titan)
+    type: embedding_service
+    trust_zone: prod
+    description: Computes embeddings of historian time series for retrieval.
+  - id: vec
+    name: Maintenance-knowledge vector store
+    type: rag_vector_store
+    trust_zone: prod
+    description: pgvector index of historian time-series + maintenance manuals.
+  - id: llm
+    name: Maintenance copilot (Claude on Bedrock)
+    type: llm_inference
+    trust_zone: prod
+    description: Bedrock-hosted Claude responds to engineer questions.
+  - id: agent
+    name: Maintenance engineer copilot
+    type: agent
+    trust_zone: prod
+    description: LangGraph agent calling tools for historian, AS/400 lookup, ERP.
+  - id: tool_hist
+    name: Historian query tool
+    type: tool
+    trust_zone: prod
+    description: Read-only PI query tool exposed to the agent.
+  - id: kms
+    name: AWS KMS (CMK)
+    type: kms_key
+    trust_zone: prod
+    description: Customer-managed key wrapping vector store + bucket.
+  - id: ops_log
+    name: Splunk Cloud
+    type: observability_stack
+    trust_zone: prod
+    description: SIEM aggregating EDR, AD, OT firewall and AI-pilot logs.
+  - id: eng
+    name: Maintenance engineer
+    type: user
+    trust_zone: corp_net
+    description: Plant maintenance engineer asking the copilot questions.
+
+dataflows:
+  # IT
+  - source: eng
+    target: emp
+    label: workstation login
+  - source: emp
+    target: ad
+    label: kerberos auth
+  - source: emp
+    target: m365
+    label: email + SaaS
+  - source: emp
+    target: vpn
+    label: remote access (with MFA)
+  - source: vpn
+    target: mfa
+    label: Duo Push
+    crosses_boundary: true
+  - source: emp
+    target: lb
+    label: ERP HTTPS
+  - source: lb
+    target: erp_app
+    label: ERP HTTPS
+  - source: erp_app
+    target: erp_db
+    label: SQL (Windows auth)
+  - source: erp_db
+    target: as400
+    label: nightly ledger sync (FTP)
+  - source: emp
+    target: core_sw
+    label: VLAN traffic
+
+  # IT to OT (one-way through firewall)
+  - source: ot_fw
+    target: hist
+    label: read-only historian export
+    crosses_boundary: true
+
+  # OT
+  - source: hmi
+    target: plc1
+    label: operator commands
+  - source: hmi
+    target: plc2
+    label: operator commands
+  - source: plc1
+    target: ot_bus
+    label: Modbus/TCP read+write
+  - source: plc2
+    target: ot_bus
+    label: EtherNet/IP
+  - source: ot_bus
+    target: hist
+    label: process telemetry
+  - source: cam
+    target: core_sw
+    label: ONVIF stream
+
+  # AI pipeline
+  - source: hist
+    target: ai_lake
+    label: daily export via diode
+    crosses_boundary: true
+  - source: ai_lake
+    target: embed
+    label: batch embedding
+  - source: embed
+    target: vec
+    label: write vectors
+  - source: vec
+    target: kms
+    label: envelope encrypt
+  - source: ai_lake
+    target: kms
+    label: envelope encrypt
+  - source: eng
+    target: agent
+    label: maintenance question
+  - source: agent
+    target: tool_hist
+    label: tool call
+  - source: tool_hist
+    target: vec
+    label: similarity search
+  - source: agent
+    target: llm
+    label: prompt + retrieved context
+  - source: agent
+    target: erp_app
+    label: ERP lookup tool
+  - source: ops_log
+    target: emp
+    label: EDR telemetry (reverse — collected by SIEM)
+  - source: ops_log
+    target: edge_fw
+    label: firewall logs
+  - source: ops_log
+    target: ot_fw
+    label: OT firewall logs
+
+trust_boundaries:
+  - id: tb_internet
+    type: network
+    description: Internet vs corporate boundary at the edge firewall.
+    components_outside: [m365]
+    components_inside: [edge_fw, vpn, core_sw, emp, ad, mfa, erp_app, erp_db, lb, as400]
+  - id: tb_it_ot
+    type: network
+    description: Purdue Level-3/4 boundary between corporate IT and the OT zone.
+    components_inside: [hmi, plc1, plc2, ot_bus, cam]
+    components_outside: [emp, ad, mfa, erp_app, erp_db]
+  - id: tb_ai
+    type: deployment_zone
+    description: AI pilot lives in a separate cloud account.
+    components_inside: [ai_lake, embed, vec, llm, agent, tool_hist, kms, ops_log]
+    components_outside: [hist, hmi, plc1, plc2]

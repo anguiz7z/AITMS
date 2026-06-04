@@ -1,0 +1,390 @@
+# AWS Well-Architected Generative AI Lens — cross-walk patterns
+#
+# Reference: https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/generative-ai-lens.html
+#
+# Each entry maps an ATMS mitigation to a published GenAI Lens
+# best-practice ID. IDs follow the public Lens convention:
+#   AWS_GenAI_Lens.SEC-<n>      Security pillar
+#   AWS_GenAI_Lens.REL-<n>      Reliability pillar
+#   AWS_GenAI_Lens.COST-<n>     Cost Optimization pillar
+#   AWS_GenAI_Lens.PERF-<n>     Performance Efficiency pillar
+#   AWS_GenAI_Lens.OPS-<n>      Operational Excellence pillar
+#
+# All entries here are AI-specific (ai_specific: true).
+
+# ─── Security pillar ──────────────────────────────────────────────────────
+- id: AWS_GenAI_Lens.SEC-1
+  display_name: Apply least-privilege IAM to model invocation
+  framework: AWS_GenAI_Lens
+  category: identity
+  applies_to_component_types:
+    - llm_inference
+    - iam_principal
+    - agent
+  keywords:
+    - bedrock
+    - invokemodel
+    - iam policy
+    - least privilege
+    - foundation model
+  ai_specific: true
+  url: https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/sec-1-controlled-access-to-fms.html
+  short_summary: |
+    Restrict bedrock:InvokeModel / bedrock:InvokeModelWithResponseStream
+    to specific foundation-model ARNs and specific principals. Block
+    bedrock:GetFoundationModel from workload roles to prevent model
+    enumeration.
+
+- id: AWS_GenAI_Lens.SEC-2
+  display_name: Encrypt prompt and inference data with customer-managed KMS keys
+  framework: AWS_GenAI_Lens
+  category: data
+  applies_to_component_types:
+    - llm_inference
+    - kms_key
+    - prompt_template_store
+  keywords:
+    - kms
+    - encryption
+    - prompt
+    - inference
+    - customer-managed key
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/encryption.html
+  short_summary: |
+    All Bedrock model invocations, prompt templates and provisioned
+    throughput should be encrypted with customer-managed KMS keys.
+    Use distinct keys per tenant for cryptographic isolation.
+
+- id: AWS_GenAI_Lens.SEC-3
+  display_name: Enable Bedrock model-invocation logging to CloudWatch + S3
+  framework: AWS_GenAI_Lens
+  category: observability
+  applies_to_component_types:
+    - llm_inference
+    - log_aggregator
+    - siem
+  keywords:
+    - bedrock invocation log
+    - model invocation logging
+    - prompt logging
+    - audit
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html
+  short_summary: |
+    Turn on Bedrock model-invocation logging at the account level to
+    capture full prompt, completion, and image / embedding payloads
+    for audit. Required for incident reconstruction of prompt-injection
+    or data-leakage events.
+
+- id: AWS_GenAI_Lens.SEC-4
+  display_name: Apply Amazon Bedrock Guardrails to all production invocations
+  framework: AWS_GenAI_Lens
+  category: data
+  applies_to_component_types:
+    - guardrails
+    - output_filter
+    - llm_inference
+  keywords:
+    - bedrock guardrails
+    - content filter
+    - denied topics
+    - pii redaction
+    - grounding
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html
+  short_summary: |
+    Bedrock Guardrails enforce denied topics, content filters
+    (hate / violence / sexual / insults / misconduct / prompt-attack),
+    PII redaction, contextual grounding and word filters on both
+    prompts and completions.
+
+- id: AWS_GenAI_Lens.SEC-5
+  display_name: Use IAM roles for Bedrock Agents and Knowledge Bases
+  framework: AWS_GenAI_Lens
+  category: identity
+  applies_to_component_types:
+    - agent
+    - tool
+    - llm_inference
+  keywords:
+    - bedrock agents
+    - action group
+    - service role
+    - agent execution
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/agents-permissions.html
+  short_summary: |
+    Each Bedrock Agent uses a service role with permissions scoped to
+    exactly the Lambda action groups and KBs it owns. Never share an
+    execution role across agents or tenants.
+
+- id: AWS_GenAI_Lens.SEC-6
+  display_name: Propagate source ACLs into the Knowledge Base / vector store
+  framework: AWS_GenAI_Lens
+  category: data
+  applies_to_component_types:
+    - rag_vector_store
+    - embedding_service
+    - data_lake
+  keywords:
+    - knowledge base
+    - acl
+    - metadata filter
+    - retrieval
+    - tenant isolation
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/kb-data-source.html
+  short_summary: |
+    When ingesting documents into a Bedrock KB / OpenSearch / Aurora
+    pgvector, copy the source ACL into a metadata field and enforce a
+    retrieval-time filter. Otherwise embeddings will surface content
+    the requester is not entitled to read.
+
+- id: AWS_GenAI_Lens.SEC-7
+  display_name: VPC endpoints for Bedrock, SageMaker and Comprehend
+  framework: AWS_GenAI_Lens
+  category: network
+  applies_to_component_types:
+    - llm_inference
+    - private_link
+    - embedding_service
+  keywords:
+    - vpc endpoint
+    - privatelink
+    - bedrock-runtime
+    - sagemaker-runtime
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/vpc-interface-endpoints.html
+  short_summary: |
+    Provision interface endpoints for bedrock-runtime, bedrock-agent-runtime,
+    sagemaker-runtime and comprehend so model traffic never traverses
+    the public internet, and so endpoint policies can restrict which
+    models a VPC may invoke.
+
+- id: AWS_GenAI_Lens.SEC-8
+  display_name: Store and version prompt templates in a KMS-backed registry
+  framework: AWS_GenAI_Lens
+  category: data
+  applies_to_component_types:
+    - prompt_template_store
+    - kms_key
+    - code_repository
+  keywords:
+    - prompt template
+    - prompt management
+    - version control
+    - prompt registry
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-management.html
+  short_summary: |
+    Production prompts live in Bedrock Prompt Management or an
+    encrypted S3 / DynamoDB store with full version history. Stops
+    silent prompt tampering and supports rollback after a regression.
+
+- id: AWS_GenAI_Lens.SEC-9
+  display_name: Maintain an AI Bill of Materials (AIBOM) per model deployment
+  framework: AWS_GenAI_Lens
+  category: governance
+  applies_to_component_types:
+    - model_registry
+    - artifact_registry
+    - llm_inference
+  keywords:
+    - aibom
+    - model card
+    - model registry
+    - sbom
+    - provenance
+  ai_specific: true
+  url: https://docs.aws.amazon.com/sagemaker/latest/dg/model-registry.html
+  short_summary: |
+    Pin foundation-model version, fine-tune artifacts, training data
+    snapshot, evaluation metrics and Guardrail config to a SageMaker
+    Model Registry entry. Required for EU AI Act and FDA evidence.
+
+- id: AWS_GenAI_Lens.SEC-10
+  display_name: Defend against Denial-of-Wallet with quota + budget guardrails
+  framework: AWS_GenAI_Lens
+  category: resilience
+  applies_to_component_types:
+    - llm_inference
+    - api_gateway
+    - load_balancer
+  keywords:
+    - denial of wallet
+    - cost guardrail
+    - quota
+    - rate limit
+    - budget
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/quotas.html
+  short_summary: |
+    Set Bedrock service quotas per account, attach AWS Budgets with
+    SNS alerts, and front public LLM endpoints with API Gateway usage
+    plans + AWS WAF rate-based rules to cap blast radius of abusive
+    callers.
+
+# ─── Reliability + Operational pillars ───────────────────────────────────
+- id: AWS_GenAI_Lens.REL-1
+  display_name: Cross-region failover for foundation-model availability
+  framework: AWS_GenAI_Lens
+  category: resilience
+  applies_to_component_types:
+    - llm_inference
+    - load_balancer
+  keywords:
+    - cross-region
+    - inference profile
+    - failover
+    - high availability
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html
+  short_summary: |
+    Use Bedrock cross-region inference profiles so a regional outage
+    or quota cap doesn't black-hole production traffic. Pair with
+    Route 53 health checks on a Lambda probe.
+
+- id: AWS_GenAI_Lens.REL-2
+  display_name: Provisioned throughput for predictable-latency production traffic
+  framework: AWS_GenAI_Lens
+  category: resilience
+  applies_to_component_types:
+    - llm_inference
+  keywords:
+    - provisioned throughput
+    - reserved capacity
+    - latency
+    - throttling
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/prov-throughput.html
+  short_summary: |
+    Reserve provisioned throughput for the production foundation model
+    to avoid noisy-neighbor throttling at peak. Keep on-demand as
+    overflow with a circuit breaker.
+
+- id: AWS_GenAI_Lens.OPS-1
+  display_name: Continuous evaluation pipeline for model quality + safety
+  framework: AWS_GenAI_Lens
+  category: governance
+  applies_to_component_types:
+    - llm_inference
+    - ml_pipeline_orchestrator
+    - ml_experiment_tracker
+  keywords:
+    - model evaluation
+    - bedrock evaluations
+    - regression
+    - red team
+    - safety eval
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/model-evaluation.html
+  short_summary: |
+    Schedule Bedrock Model Evaluation jobs (automatic + human) before
+    every prompt or model change. Block promotion when quality, safety
+    or toxicity regresses against the baseline.
+
+- id: AWS_GenAI_Lens.OPS-2
+  display_name: Token / cost / latency metrics in CloudWatch + EMF
+  framework: AWS_GenAI_Lens
+  category: observability
+  applies_to_component_types:
+    - llm_inference
+    - metrics_platform
+    - observability_stack
+  keywords:
+    - tokens
+    - latency
+    - cost per request
+    - cloudwatch metrics
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/monitoring-cw.html
+  short_summary: |
+    Emit per-tenant token / latency / cost metrics via CloudWatch EMF
+    or OTLP. Required for SLO enforcement and Denial-of-Wallet
+    detection.
+
+- id: AWS_GenAI_Lens.OPS-3
+  display_name: Use SageMaker Model Cards for transparency artefacts
+  framework: AWS_GenAI_Lens
+  category: governance
+  applies_to_component_types:
+    - model_registry
+    - llm_inference
+  keywords:
+    - model card
+    - transparency
+    - intended use
+    - limitations
+    - bias
+  ai_specific: true
+  url: https://docs.aws.amazon.com/sagemaker/latest/dg/model-cards.html
+  short_summary: |
+    A signed model card is published with every fine-tune /
+    foundation-model deployment, listing intended use, training data
+    summary, known limitations and bias-evaluation results. Required
+    for EU AI Act Article 13.
+
+# ─── Cost + Performance Efficiency ───────────────────────────────────────
+- id: AWS_GenAI_Lens.COST-1
+  display_name: Right-size foundation model per use-case
+  framework: AWS_GenAI_Lens
+  category: governance
+  applies_to_component_types:
+    - llm_inference
+  keywords:
+    - model selection
+    - haiku
+    - sonnet
+    - cost optimization
+    - small model
+  ai_specific: true
+  url: https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/cost-1.html
+  short_summary: |
+    Route classification / extraction tasks to a small / cheap model
+    (Haiku, Titan Text Lite) and reserve the frontier model for
+    open-ended reasoning. Cuts both bill and energy footprint without
+    reducing user-perceived quality.
+
+- id: AWS_GenAI_Lens.PERF-1
+  display_name: Cache retrieved chunks and embeddings
+  framework: AWS_GenAI_Lens
+  category: resilience
+  applies_to_component_types:
+    - cache_store
+    - embedding_service
+    - rag_vector_store
+  keywords:
+    - prompt cache
+    - embedding cache
+    - retrieval cache
+    - latency
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/prompt-caching.html
+  short_summary: |
+    Use Bedrock prompt caching for stable system prompts + ElastiCache
+    / DynamoDB for retrieved chunks and embeddings. Cuts latency
+    by 30-70% and reduces per-call token cost.
+
+- id: AWS_GenAI_Lens.SEC-11
+  display_name: Validate and sanitise tool / action-group inputs from agents
+  framework: AWS_GenAI_Lens
+  category: data
+  applies_to_component_types:
+    - agent
+    - tool
+    - serverless_function
+  keywords:
+    - tool input
+    - action group
+    - schema validation
+    - parameter injection
+    - excessive agency
+  ai_specific: true
+  url: https://docs.aws.amazon.com/bedrock/latest/userguide/agents-action-create.html
+  short_summary: |
+    Every Bedrock Agent action group / tool defines a strict
+    OpenAPI / JSON-Schema contract and the receiving Lambda revalidates
+    inputs before any side-effecting call. Prevents the LLM from being
+    coerced (via prompt injection) into reaching beyond its intended
+    permissions — the OWASP LLM "Excessive Agency" risk.

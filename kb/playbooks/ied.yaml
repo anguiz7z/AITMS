@@ -1,0 +1,108 @@
+component_type: ied
+description: |
+  Intelligent Electronic Device — microprocessor-based equipment in
+  electrical substations: protective relays (SEL, GE Multilin, ABB,
+  Siemens SIPROTEC), bay controllers, merging units, and disturbance
+  recorders. Speaks IEC 61850 (MMS, GOOSE, Sampled Values), DNP3,
+  Modbus. Responsible for fault detection and breaker tripping on
+  ms-scale time horizons. Compromise enables cascading blackouts
+  (Ukraine 2015/2016 pattern).
+threats:
+  - id: T_IED_001
+    title: Spoofed GOOSE / Sampled-Values message causes incorrect breaker trip
+    stride_ai: [Spoofing, Tampering]
+    attack_enterprise: [T1557, T1565]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      IEC 61850 GOOSE multicasts ride on the substation LAN with no
+      crypto by default. Attacker on the station bus injects a
+      crafted GOOSE frame matching a higher state-number than the
+      live publisher — every subscribing IED accepts the new state
+      and trips the breaker. Demonstrated in academic literature
+      (UK CPNI 2016, DEFCON ICS Village 2019).
+    mitigations:
+      - "Enable IEC 62351-6 GOOSE authentication where the IED firmware supports it"
+      - "Station-bus segmentation by VLAN with strict per-port allowlist"
+      - "GOOSE-aware IDS monitors stNum jumps and out-of-band publishers"
+      - "Disable unused MMS / GOOSE multicast groups on every IED"
+    refs: [T0830, T0855, T0859]
+
+  - id: T_IED_002
+    title: Malicious protection-relay setting change disables fault protection
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1565, T1078]
+    maestro: [M.L7.11]
+    likelihood: 2
+    impact: 5
+    description: |
+      Engineering access (via SEL AcSELerator, ABB PCM600, Siemens
+      DIGSI) lets a logged-in user change relay pickup currents,
+      time-dial settings, or trip-block flags. Adversarial change
+      can either trip on normal load (caused-blackout) or fail to
+      trip on a real fault (equipment-damage / fire risk).
+    mitigations:
+      - "IED setting groups require approval workflow + after-event verification"
+      - "Settings-file hash baseline; CMMS-tracked changes only"
+      - "Per-engineer named accounts on IEDs; remove vendor defaults"
+      - "Setting-change alarms forwarded to SCADA master and SIEM"
+    refs: [T0858, T0836, AML.M0019]
+
+  - id: T_IED_003
+    title: Substation-LAN compromise via insecure engineering workstation
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190, T1078]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Substation engineering laptops carry vendor IED tools and the
+      authentication material to administer the IEDs. Laptops often
+      connect to corp Wi-Fi between site visits, picking up malware,
+      which propagates into the substation LAN on next plug-in.
+      Ukraine 2015 used this pivot pattern.
+    mitigations:
+      - "Substation-only engineering laptops; never connected to corp/internet"
+      - "Application allowlist + EDR coverage on engineering laptops"
+      - "Site-VPN jumphost with smart-card MFA replaces direct plug-in where feasible"
+      - "Quarterly malware-scan + integrity-verification of engineering laptops"
+    refs: [T0859, T0883, AML.M0019]
+
+  - id: T_IED_004
+    title: Telecontrol-protocol DoS leaves operator blind to substation state
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1498, T1499]
+    maestro: [M.L4.04]
+    likelihood: 3
+    impact: 3
+    description: |
+      Attacker floods the WAN link to the substation (often a small
+      MPLS pipe), making DNP3 / IEC 60870-5-104 polls time out.
+      Operator loses visibility of breaker states; protection still
+      functions locally but coordinated grid operations degrade.
+    mitigations:
+      - "Redundant WAN telecontrol path (microwave backup to fibre primary)"
+      - "Edge router QoS prioritises telecontrol traffic"
+      - "Substation gateway buffers and resyncs after outage"
+      - "Manned-fallback procedure tested annually"
+    refs: [T0814, T0815]
+
+  - id: T_IED_005
+    title: IED firmware/CVE exploitation (CVE-2021-44521 / similar)
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190, T1068]
+    maestro: [M.X.01]
+    likelihood: 2
+    impact: 4
+    description: |
+      IED firmware has shipped with serious CVEs (SEL CVE-2023-31177,
+      Hitachi Energy advisories, Siemens SSA-* series). Many utilities
+      run firmware versions years behind because outage windows
+      required for upgrade are rare and operationally risky.
+    mitigations:
+      - "Vendor advisory subscription with substation-asset-management cross-reference"
+      - "Coordinated outage windows aligned with vegetation-mgmt cycles to maximise patching opportunity"
+      - "Network-based virtual-patching at the substation gateway"
+      - "Annual CVE-aging KPI reported to ops leadership"
+    refs: [T0857, T0839, AML.M0007]

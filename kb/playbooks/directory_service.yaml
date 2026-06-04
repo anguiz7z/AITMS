@@ -1,0 +1,93 @@
+component_type: directory_service
+description: |
+  Identity / directory service — Microsoft Active Directory (on-prem),
+  Azure AD / Entra ID, OpenLDAP, FreeIPA, AWS Directory Service.
+  Authoritative identity store for users, computers, groups, policies.
+threats:
+  - id: T_DIR_001
+    title: Credential theft + replay (Kerberoast / DCSync / Pass-the-Hash)
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    attack_enterprise: [T1003, T1558, T1550]
+    maestro: [M.L7.03]
+    likelihood: 4
+    impact: 5
+    # v0.16.0: gate on AD/LDAP-shaped IdPs. Cognito / Entra ID / Auth0 /
+    # Okta don't expose krbtgt / NTLM primitives, so Kerberoast etc are
+    # structurally inapplicable.
+    requires:
+      metadata.idp_kind: [active_directory, ldap]
+    not_applicable_to:
+      metadata.idp_kind: [cognito, entra_id, auth0, okta, ping]
+    description: |
+      Attacker with a foothold in the network extracts service-account
+      tickets (Kerberoast), domain-controller secrets (DCSync), or NTLM
+      hashes (Pass-the-Hash) and impersonates privileged accounts.
+    mitigations:
+      - "Long random passwords (>25 chars) on all service accounts"
+      - "Tier 0/1/2 admin model; separate admin workstations"
+      - "Disable NTLM where possible; enforce Kerberos"
+      - "Privileged-access workstation (PAW) for DC + tier-0 admin"
+      - "Microsoft LAPS / equivalent for local admin password rotation"
+    refs: [T1003, T1558, T1550]
+
+  - id: T_DIR_002
+    title: Domain-controller compromise (Golden Ticket)
+    stride_ai: [Spoofing, Elevation_of_Privilege, Tampering]
+    attack_enterprise: [T1558, T1078]
+    maestro: [M.X.03]
+    likelihood: 2
+    impact: 5
+    # v0.16.0: Golden Ticket requires krbtgt → AD only.
+    requires:
+      metadata.idp_kind: [active_directory]
+    not_applicable_to:
+      metadata.idp_kind: [cognito, entra_id, auth0, okta, ping, ldap]
+    description: |
+      Attacker who obtains the krbtgt account hash can forge Kerberos tickets
+      for any user with any group membership — full domain takeover that
+      survives password resets.
+    mitigations:
+      - "Rotate krbtgt password twice every ~6-12 months"
+      - "Restrict who can replicate from the DC (DCSync requires Replicating Directory Changes)"
+      - "Tier-0 hardening: PAW, no internet, dedicated forest where feasible"
+      - "Detection: ATA / Defender for Identity baseline + alert on anomalous Kerberos"
+    refs: [T1558, T1078]
+
+  - id: T_DIR_003
+    title: Stale / orphaned accounts (privileged or otherwise)
+    stride_ai: [Spoofing, Repudiation]
+    attack_enterprise: [T1078]
+    maestro: [M.L6.02]
+    likelihood: 4
+    impact: 3
+    description: |
+      Accounts of departed employees / decommissioned services persist with
+      privileges. Often the entry point because monitoring focuses on active users.
+    mitigations:
+      - "Joiner-Mover-Leaver (JML) automation tied to HR system"
+      - "Quarterly access review; auto-disable inactive accounts (90d)"
+      - "Service-account inventory + ownership ledger"
+    refs: [T1078]
+
+  - id: T_DIR_004
+    title: Group-policy abuse / GPO modification
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1484]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    # v0.16.0: GPOs are an AD construct — cloud IdPs use Conditional
+    # Access policies, which is a different threat.
+    requires:
+      metadata.idp_kind: [active_directory]
+    not_applicable_to:
+      metadata.idp_kind: [cognito, entra_id, auth0, okta, ping, ldap]
+    description: |
+      Attacker with `Group Policy Creator Owner` or write-DACL to a key GPO
+      injects a startup script that runs on every domain-joined machine.
+      Mass-execution capability.
+    mitigations:
+      - "Tight delegation on every GPO; default-deny on non-IT admin"
+      - "Sysmon / Defender alert on GPO file changes"
+      - "GPO-change tickets required; audit-log review weekly"
+    refs: [T1484]

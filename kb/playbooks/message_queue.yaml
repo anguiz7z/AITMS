@@ -1,0 +1,66 @@
+component_type: message_queue
+description: |
+  Cloud message broker / queue / pub-sub — AWS SQS / SNS / EventBridge,
+  Azure Service Bus / Event Grid, GCP Pub/Sub. Often glues async stages
+  of the AI pipeline (ingest → enqueue → fine-tune; agent → enqueue →
+  approval; inference result → enqueue → audit log).
+threats:
+  - id: T_QUEUE_001
+    title: Queue policy allows write from unintended principals
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM01:2025, LLM04:2025]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0019, AML.T0051.001]
+    attack_cloud: [T1078.004, T1102]
+    maestro: [M.L2.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Queue / topic accepts messages from accounts / roles outside the workload's
+      blast radius. Adversary injects malicious payloads (RAG-corpus poisoning,
+      fake tool-result events) into the pipeline.
+    mitigations:
+      - "Queue policy: explicit `Principal` allowlist; no `*`"
+      - "Per-message authentication (signed envelopes) when crossing trust boundaries"
+      - "Validator at consumer side; reject mal-shaped messages"
+    refs: [AML.M0019]
+
+  - id: T_QUEUE_002
+    title: Sensitive payload in message body
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0057]
+    attack_cloud: [T1530]
+    maestro: [M.L5.05]
+    likelihood: 3
+    impact: 4
+    description: |
+      Message body contains raw PII, prompts, or model outputs. Queue retention
+      windows and DLQs (dead-letter queues) extend the data lifetime far beyond
+      what the payload owner expected. Logs of message bodies make it worse.
+    mitigations:
+      - "Reference-by-pointer pattern: payload is a key / URL, content lives in encrypted storage"
+      - "Server-side encryption with workload-specific KMS key"
+      - "DLQ access scoped tightly; redact before any human review"
+      - "Short retention windows on sensitive queues"
+    refs: [AML.M0012, AML.M0019]
+
+  - id: T_QUEUE_003
+    title: DoS / queue flooding against consumers
+    stride_ai: [Denial_of_Service]
+    owasp_llm: [LLM10:2025]
+    owasp_api: [API4:2023]
+    attack_cloud: [T1499, T1496]
+    maestro: [M.L4.04]
+    likelihood: 3
+    impact: 3
+    description: |
+      Adversary with publish access floods the queue. Consumer (often a
+      pay-per-invocation Lambda or a metered AI endpoint) bills the operator
+      for every spurious message. Backlog also delays legitimate work.
+    mitigations:
+      - "Per-publisher rate limit at queue ingress (or via API gateway)"
+      - "Message-size cap"
+      - "Visibility-timeout + redrive policy bounded; alert on unusual queue depth"
+    refs: [AML.M0023]

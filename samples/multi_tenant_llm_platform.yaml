@@ -1,0 +1,263 @@
+name: Multi-tenant LLM platform
+description: |
+  Internal AI platform that hosts third-party LLMs and routes per-tenant
+  workloads through a shared inference fleet. Tenants are separate business
+  units with their own data, prompts, and rate limits. The control plane is
+  shared; the data plane (vector store, KMS keys, logs) is per-tenant.
+business_context: |
+  Multi-tenancy is the core risk axis. A tenant must NEVER see another
+  tenant's prompts, embeddings, fine-tuned LoRAs, or response logs. Cross-
+  tenant injection (one tenant influencing another's response via shared
+  cache, shared retrieval, shared rate-limiter telemetry, …) is the
+  worst-case failure. ISO 27001 + SOC2 Type II requirements apply; tenants
+  in regulated industries (banking, healthcare) require evidence of
+  tenant isolation in audit reports.
+
+components:
+  - id: tenant_a_user
+    name: Tenant A user
+    type: user
+    trust_zone: external_customer
+    description: A representative customer-facing user from Tenant A.
+
+  - id: tenant_b_user
+    name: Tenant B user
+    type: user
+    trust_zone: external_customer
+    description: A representative customer-facing user from Tenant B.
+
+  - id: edge_lb
+    name: Edge load balancer + WAF
+    type: load_balancer
+    trust_zone: dmz
+    description: Cloudflare-fronted public ingress. mTLS to backend.
+    metadata:
+      vendor: Cloudflare
+      product: cloudflare
+
+  - id: gateway
+    name: API gateway (per-tenant routing + rate limit)
+    type: api_gateway
+    trust_zone: prod
+    description: |
+      Tenant identification via JWT claim `tenant_id`. Rate limits, per-
+      tenant prompt-token quotas, audit logging.
+    controls:
+      - jwt_validation
+      - per_tenant_rate_limit
+      - audit_logging
+
+  - id: control_iam
+    name: Platform IAM (shared)
+    type: iam_principal
+    trust_zone: prod
+    description: |
+      Workload identities for the inference workers + sidecar. Per-tenant
+      service accounts assume a tenant-scoped role.
+
+  - id: orchestrator
+    name: Inference orchestrator
+    type: agent
+    trust_zone: prod
+    description: |
+      Stateless service that picks a model + cluster + region based on
+      tenant routing rules and request type. NOT itself an LLM agent — a
+      classical control-plane router.
+    metadata:
+      multi_tenant: true
+
+  - id: shared_llm_fleet
+    name: Shared LLM inference fleet
+    type: llm_inference
+    trust_zone: prod
+    description: |
+      Shared GPU pool serving many tenants. Tenant requests are tagged in
+      the prompt context but the underlying GPU memory is shared. Side-
+      channel risk on shared KV-cache, prompt prefix cache, and PagedAttention.
+    metadata:
+      multi_tenant: true
+      product: vllm
+
+  - id: tenant_a_vector
+    name: Tenant A vector store (private)
+    type: rag_vector_store
+    trust_zone: prod
+    description: |
+      Per-tenant Pinecone namespace + per-tenant KMS encryption key.
+      Tenant A's RAG corpus.
+    metadata:
+      vendor: Pinecone
+      product: pinecone
+    controls:
+      - tenant_namespace
+      - per_tenant_kms_key
+
+  - id: tenant_b_vector
+    name: Tenant B vector store (private)
+    type: rag_vector_store
+    trust_zone: prod
+    description: Per-tenant Pinecone namespace.
+    metadata:
+      vendor: Pinecone
+      product: pinecone
+    controls:
+      - tenant_namespace
+      - per_tenant_kms_key
+
+  - id: tenant_a_kms
+    name: Tenant A KMS key
+    type: kms_key
+    trust_zone: prod
+    description: AWS KMS CMK; only Tenant A's IAM role can decrypt.
+
+  - id: tenant_b_kms
+    name: Tenant B KMS key
+    type: kms_key
+    trust_zone: prod
+    description: AWS KMS CMK; only Tenant B's IAM role can decrypt.
+
+  - id: shared_guardrails
+    name: Shared guardrails (input + output)
+    type: guardrails
+    trust_zone: prod
+    description: |
+      Per-tenant policy bundles loaded from configuration; the engine is
+      shared. Each tenant's policy bundle is signed and version-locked.
+
+  - id: shared_filter
+    name: Output PII redactor (shared)
+    type: output_filter
+    trust_zone: prod
+    description: |
+      Generic PII / secrets-pattern redactor. Per-tenant allow-lists for
+      acceptable identifiers (e.g. patient IDs in health-tenant context).
+
+  - id: prompt_cache
+    name: Shared prompt-prefix cache
+    type: prompt_template_store
+    trust_zone: prod
+    description: |
+      KV-cache shared across tenants for system prompts. The system prompt
+      itself is never per-tenant secret, but the cache being shared means
+      cache-timing side channels are an enumeration vector.
+
+  - id: tenant_a_logs
+    name: Tenant A audit logs
+    type: object_storage
+    trust_zone: prod
+    description: |
+      Tenant-namespaced S3 bucket with bucket-policy enforcing read access
+      only to Tenant A's IAM role + the platform's read-only audit role.
+
+  - id: tenant_b_logs
+    name: Tenant B audit logs
+    type: object_storage
+    trust_zone: prod
+
+  - id: control_obs
+    name: Platform observability stack
+    type: observability_stack
+    trust_zone: prod
+    description: |
+      Datadog + Honeycomb for platform-team visibility. Receives metrics
+      stripped of prompt content; trace IDs are tenant-anonymised.
+    metadata:
+      vendor: Datadog
+      product: datadog
+
+  - id: openai_passthrough
+    name: OpenAI API (passthrough for tenants who BYO model)
+    type: external_api
+    trust_zone: external_provider
+    description: |
+      For tenants that want to use OpenAI directly, the gateway proxies the
+      request. The platform never logs the body, only billing metrics.
+
+  - id: signing_keys
+    name: Platform signing keys (Vault)
+    type: secrets_vault
+    trust_zone: prod
+    description: |
+      Vault holds the platform's JWT signing key + per-tenant policy-bundle
+      signing keys.
+    metadata:
+      vendor: HashiCorp
+      product: vault
+
+dataflows:
+  - id: f_a_in
+    source: tenant_a_user
+    target: edge_lb
+    label: HTTPS prompt
+    crosses_boundary: true
+  - id: f_b_in
+    source: tenant_b_user
+    target: edge_lb
+    label: HTTPS prompt
+    crosses_boundary: true
+  - id: f_lb_gw
+    source: edge_lb
+    target: gateway
+    label: mTLS
+    crosses_boundary: true
+  - id: f_gw_orch
+    source: gateway
+    target: orchestrator
+    label: tenant-tagged request
+  - id: f_orch_guard
+    source: orchestrator
+    target: shared_guardrails
+    label: input policy check
+  - id: f_orch_llm
+    source: orchestrator
+    target: shared_llm_fleet
+    label: prompt + tenant tag
+  - id: f_orch_a_rag
+    source: orchestrator
+    target: tenant_a_vector
+    label: per-tenant RAG retrieve
+  - id: f_orch_b_rag
+    source: orchestrator
+    target: tenant_b_vector
+    label: per-tenant RAG retrieve
+  - id: f_a_kms
+    source: tenant_a_vector
+    target: tenant_a_kms
+    label: decrypt embedding column
+  - id: f_b_kms
+    source: tenant_b_vector
+    target: tenant_b_kms
+    label: decrypt embedding column
+  - id: f_llm_cache
+    source: shared_llm_fleet
+    target: prompt_cache
+    label: prefix-cache lookup
+  - id: f_filter
+    source: shared_llm_fleet
+    target: shared_filter
+    label: output PII redact
+  - id: f_a_log
+    source: shared_filter
+    target: tenant_a_logs
+    label: audit log (Tenant A)
+  - id: f_b_log
+    source: shared_filter
+    target: tenant_b_logs
+    label: audit log (Tenant B)
+  - id: f_obs
+    source: shared_llm_fleet
+    target: control_obs
+    label: redacted metrics + trace
+  - id: f_iam
+    source: orchestrator
+    target: control_iam
+    label: assume tenant-scoped role
+  - id: f_sign
+    source: gateway
+    target: signing_keys
+    label: validate JWT signing key
+  - id: f_passthrough
+    source: gateway
+    target: openai_passthrough
+    label: BYO-model passthrough
+    crosses_boundary: true

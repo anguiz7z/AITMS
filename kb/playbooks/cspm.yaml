@@ -1,0 +1,86 @@
+component_type: cspm
+description: |
+  Cloud Security Posture Management — Wiz, Palo Alto Prisma Cloud,
+  Microsoft Defender for Cloud, AWS Security Hub, Lacework, Orca,
+  Sysdig Secure. Continuous discovery + assessment of cloud-resource
+  misconfiguration against benchmarks (CIS, NIST, custom). For AI
+  workloads, the only practical way to maintain the right posture
+  across the dozens of cloud services in an AI pipeline.
+threats:
+  - id: T_CSPM_001
+    title: CSPM blind to AI-specific misconfiguration (Bedrock guardrails, SageMaker network isolation)
+    stride_ai: [Repudiation, Defense_Evasion]
+    owasp_llm: [LLM05:2025]
+    owasp_api: [API9:2023]
+    atlas: [AML.T0040]
+    attack_cloud: [T1562]
+    attack_enterprise: [T1562]
+    maestro: [M.L5.05]
+    csa_singapore: [CSA_AI.DEPLOY.01, CSA_AI.OPERATE.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      Generic CSPM rule packs cover S3 / IAM / KMS but lag the AI
+      service surface. Bedrock guardrails set to "log-only", SageMaker
+      endpoints without VPC isolation, Azure OpenAI deployments
+      without managed-identity, Vertex AI endpoints with public
+      access — none of these fire on default CSPM rule packs as of
+      2025. Wiz, Prisma, and Defender have started shipping AI-
+      specific rules (Wiz AI-SPM, Microsoft Defender CSPM AI rules)
+      but enabling them requires intent. Default deployment = AI
+      posture is invisible.
+    mitigations:
+      - "Enable AI-specific CSPM rule pack (Wiz AI-SPM, Defender CSPM for AI, Prisma AI Security) explicitly"
+      - "Custom CSPM policies for org-specific AI patterns (every Bedrock guardrail must be `block`, every SageMaker endpoint must be `VpcConfig`)"
+      - "Daily CSPM report routed to AI platform owner, not just central security"
+      - "Quarterly CSPM coverage review: enumerate every AI service in use, confirm each has an active rule pack"
+    refs: [AML.M0023]
+
+  - id: T_CSPM_002
+    title: Stale CSPM credentials / unmaintained scan losing visibility
+    stride_ai: [Repudiation, Defense_Evasion]
+    owasp_api: [API2:2023, API9:2023]
+    atlas: [AML.T0015]
+    attack_cloud: [T1562.008, T1078.004]
+    maestro: [M.L5.05]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      CSPM IAM role rotated as part of an unrelated cleanup. Scans
+      silently fail to enumerate certain accounts. New AI workloads
+      deployed in those accounts have no posture visibility for
+      months. Attacker who lands in the unscanned account can
+      misconfigure freely without tripping any alarm. The audit
+      finding surfaces years later.
+    mitigations:
+      - "CSPM platform itself monitored: alert if a configured account fails to ingest for > 24h"
+      - "CSPM role rotation procedure: tested rotation rather than ad-hoc; failure-fall-back to read-only emergency role"
+      - "Per-account scan-coverage dashboard reviewed monthly"
+      - "Independent control: AWS Config / Azure Policy / GCP Security Command Center continues to operate even if CSPM scan breaks — defence in depth"
+    refs: [AML.M0023]
+
+  - id: T_CSPM_003
+    title: Alert-fatigue / false-positive triage masking real AI misconfig
+    stride_ai: [Defense_Evasion]
+    owasp_api: [API9:2023]
+    atlas: [AML.T0040]
+    attack_cloud: [T1562]
+    maestro: [M.L5.05, M.L5.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 4
+    impact: 3
+    description: |
+      CSPM emits 50K findings on day one. The team mass-marks them
+      "accepted risk" without triaging individually. When a critical
+      AI misconfiguration (publicly accessible vector store with
+      production embeddings, broad-write IAM on the model registry)
+      lands in the firehose months later, it's lost in noise.
+      Especially common in orgs that bought CSPM but didn't staff for
+      it.
+    mitigations:
+      - "Severity-tiered triage: CSPM findings prioritised by exposure surface (publicly internet-reachable + sensitive data > theoretical risk)"
+      - "Auto-remediation playbooks for the top-10 findings (Lambda functions / Azure Logic Apps that close the misconfig automatically)"
+      - "Ticketing integration: every finding becomes a Jira / ServiceNow item with a named owner and SLA — no 'general queue'"
+      - "Monthly metric: time-to-remediate for AI-tagged findings; report to AI program owner"
+    refs: [AML.M0023]

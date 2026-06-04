@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ system.name }} — Threat Model</title>
+<style>
+:root {
+  --bg: #0e1116; --panel: #161b22; --panel2: #1f2630; --border: #30363d;
+  --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+  --info: #6e7681; --low: #2da44e; --medium: #d29922; --high: #db6d28; --critical: #cf222e;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; margin: 0; line-height: 1.55; }
+.container { max-width: 1200px; margin: 0 auto; padding: 32px 28px; }
+h1, h2, h3, h4 { color: #f0f6fc; line-height: 1.25; }
+h1 { font-size: 30px; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+h2 { font-size: 22px; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-top: 36px; }
+h3 { font-size: 17px; margin-top: 24px; }
+h4 { font-size: 15px; color: var(--accent); margin-top: 18px; }
+small, .muted { color: var(--muted); }
+code, pre { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; font-size: 13px; }
+code { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
+pre { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; white-space: pre-wrap; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+th { background: var(--panel2); color: var(--text); }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 16px 0; }
+.metric { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.metric .v { font-size: 28px; font-weight: 700; color: #f0f6fc; }
+.metric .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.severity { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: white; }
+.sev-info { background: var(--info); }
+.sev-low { background: var(--low); }
+.sev-medium { background: var(--medium); }
+.sev-high { background: var(--high); }
+.sev-critical { background: var(--critical); }
+.pill { display: inline-block; background: var(--panel2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; font-size: 11px; margin-right: 4px; font-family: ui-monospace, monospace; }
+.matrix { display: grid; grid-template-columns: 110px repeat(5, 1fr); gap: 4px; margin: 12px 0; max-width: 760px; }
+.matrix .cell { border: 1px solid var(--border); border-radius: 6px; padding: 18px 8px; text-align: center; font-weight: 700; font-size: 18px; color: #f0f6fc; cursor: pointer; transition: outline 0.1s ease, transform 0.1s ease; }
+.matrix .cell:hover { outline: 2px solid var(--accent); transform: scale(1.04); }
+.matrix .cell.selected { outline: 3px solid #f0f6fc; box-shadow: 0 0 0 2px var(--bg) inset; }
+.matrix .cell.s0 { cursor: default; }
+.matrix .cell.s0:hover { outline: none; transform: none; }
+.threat-block.filtered-out { display: none; }
+h3.threat-section-empty { display: none; }
+.matrix-filter-bar { font-size: 12px; color: var(--muted); margin-top: 4px; min-height: 18px; }
+.matrix-filter-bar button { background: transparent; color: var(--accent); border: none; cursor: pointer; padding: 0 4px; text-decoration: underline; font-size: 12px; }
+.matrix .head { background: var(--panel2); color: var(--muted); font-weight: 500; font-size: 12px; padding: 10px 6px; text-align: center; border-radius: 4px; }
+.matrix .cell.s0 { background: #161e26; color: var(--muted); font-weight: 400; }
+.matrix .cell.s-info     { background: #2a3a4a; }
+.matrix .cell.s-low      { background: #1f4a32; }
+.matrix .cell.s-medium   { background: #6a4f12; }
+.matrix .cell.s-high     { background: #8a3c10; }
+.matrix .cell.s-critical { background: #a3151f; }
+.matrix-legend { display: flex; gap: 8px; margin: 4px 0 12px 0; flex-wrap: wrap; font-size: 11px; }
+.matrix-legend .key { display: inline-flex; align-items: center; gap: 6px; }
+.matrix-legend .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); }
+.path-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; margin: 12px 0; }
+.mermaid-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin: 12px 0; overflow-x: auto; }
+.mermaid-wrap pre.mermaid { background: transparent; border: none; padding: 0; margin: 0; font-size: 12px; }
+.tactic-flow { color: var(--accent); font-family: ui-monospace, monospace; font-size: 12px; }
+.threat-block { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin: 12px 0; }
+hr.spacer { border: 0; border-top: 1px dashed var(--border); margin: 24px 0; }
+footer { color: var(--muted); font-size: 12px; margin-top: 60px; padding-top: 16px; border-top: 1px solid var(--border); }
+@media print {
+  body { background: white; color: black; }
+  .container { max-width: none; }
+  .metric, .threat-block, .path-card { break-inside: avoid; background: #f6f8fa; color: black; border: 1px solid #ddd; }
+  th, td { border-bottom: 1px solid #ddd; }
+  th { background: #f0f0f0; color: black; }
+  pre { background: #f6f8fa; color: black; }
+  h1, h2, h3, h4 { color: black; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>{{ system.name }}</h1>
+<p class="muted">Generated by ATMS v{{ tool_version }} — {{ generated_at }}</p>
+<p>{{ system.description }}</p>
+{% if system.business_context %}<p><strong>Business context.</strong> {{ system.business_context }}</p>{% endif %}
+
+<div class="metrics">
+  <div class="metric"><div class="k">Components</div><div class="v">{{ summary.components }}</div></div>
+  <div class="metric"><div class="k">Threats</div><div class="v">{{ summary.threats }}</div></div>
+  <div class="metric"><div class="k">Attack paths</div><div class="v">{{ summary.attack_paths }}</div></div>
+  <div class="metric"><div class="k">Mitigations</div><div class="v">{{ summary.mitigations }}</div></div>
+  <div class="metric"><div class="k">OWASP LLM</div><div class="v">{{ summary.owasp_coverage|length }}/10</div></div>
+  <div class="metric"><div class="k">OWASP Agentic</div><div class="v">{{ summary.owasp_agentic_coverage|length }}/17</div></div>
+  <div class="metric"><div class="k">OWASP API</div><div class="v">{{ summary.owasp_api_coverage|length }}/10</div></div>
+  <div class="metric"><div class="k">ATLAS techs</div><div class="v">{{ summary.atlas_coverage|length }}</div></div>
+  <div class="metric"><div class="k">ATT&amp;CK Cloud</div><div class="v">{{ summary.attack_cloud_coverage|length }}</div></div>
+  <div class="metric"><div class="k">ATT&amp;CK Enterprise</div><div class="v">{{ (summary.attack_enterprise_coverage or [])|length }}</div></div>
+  <div class="metric"><div class="k">LINDDUN privacy</div><div class="v">{{ (summary.linddun_coverage or [])|length }}</div></div>
+  <div class="metric"><div class="k">NIST AI 100-2</div><div class="v">{{ (summary.nist_ai_100_2_coverage or [])|length }}</div></div>
+  <div class="metric"><div class="k">MAESTRO layers</div><div class="v">{{ summary.maestro_layers|length }}/7</div></div>
+  <div class="metric"><div class="k">Methodology</div><div class="v" style="font-size:14px;" title="backend method ID: {{ summary.methodology or 'stride-ai' }}">STRIDE for AI</div></div>
+  {% if summary.evidence_total %}
+  <div class="metric"><div class="k">Evidence rows</div><div class="v">{{ summary.evidence_total }}</div></div>
+  {% endif %}
+  {% if summary.evidence_kev_hits %}
+  <div class="metric" style="border-color:#cf222e;"><div class="k">KEV hits</div><div class="v" style="color:#ff7b72;">{{ summary.evidence_kev_hits }}</div></div>
+  {% endif %}
+  {% if summary.evidence_unmatched %}
+  <div class="metric" style="border-color:#d29922;"><div class="k">Unmatched evidence</div><div class="v" style="color:#d29922;">{{ summary.evidence_unmatched }}</div></div>
+  {% endif %}
+  {% if summary.compliance_coverage %}
+  <div class="metric"><div class="k">Compliance controls</div><div class="v">{{ summary.compliance_coverage|length }}</div></div>
+  {% endif %}
+  {% if summary.ale and summary.ale.ale_high_total %}
+  <div class="metric"><div class="k">ALE range ($/yr)</div><div class="v" style="font-size:13px;">${{ "{:,.0f}".format(summary.ale.ale_low_total) }} – ${{ "{:,.0f}".format(summary.ale.ale_high_total) }}</div></div>
+  {% endif %}
+</div>
+
+{% if summary.kev_meta and summary.kev_meta.refreshed %}
+<p class="muted" style="font-size:12px;">CISA KEV snapshot dated <strong>{{ summary.kev_meta.refreshed }}</strong>{% if summary.kev_meta.rows %} ({{ summary.kev_meta.rows }} rows){% endif %} · refresh with <code>atms refresh-feeds</code>.</p>
+{% endif %}
+
+{% if summary.evidence_status_breakdown %}
+<h2>Evidence-status breakdown</h2>
+<p>
+{% for status, n in summary.evidence_status_breakdown.items() %}
+<span class="pill" title="evidence_status">{{ status }}: {{ n }}</span>
+{% endfor %}
+</p>
+{% endif %}
+
+{% if summary.kill_chain_breakdown %}
+<h2>Cyber Kill Chain breakdown</h2>
+<p>
+{% for phase, n in summary.kill_chain_breakdown.items() %}
+<span class="pill" title="{{ phase }}">{{ phase }}: {{ n }}</span>
+{% endfor %}
+</p>
+{% endif %}
+
+<h2>Severity breakdown</h2>
+<p>
+{% for sev in ['critical', 'high', 'medium', 'low', 'info'] -%}
+<span class="severity sev-{{ sev }}">{{ sev }}</span> {{ summary.severity_breakdown.get(sev, 0) }}&nbsp;&nbsp;
+{% endfor %}
+</p>
+
+<h2>Risk matrix (likelihood × impact)</h2>
+<p class="muted">Click a non-empty cell to filter the threats below to just that L×I bucket. Cells are coloured by the cell's intrinsic severity bucket; numbers are the threat count.</p>
+<div class="matrix-filter-bar" id="matrix-filter-bar">&nbsp;</div>
+<div class="matrix-legend">
+  <span class="key"><span class="swatch" style="background:#2a3a4a"></span>info</span>
+  <span class="key"><span class="swatch" style="background:#1f4a32"></span>low</span>
+  <span class="key"><span class="swatch" style="background:#6a4f12"></span>medium</span>
+  <span class="key"><span class="swatch" style="background:#8a3c10"></span>high</span>
+  <span class="key"><span class="swatch" style="background:#a3151f"></span>critical</span>
+</div>
+{% set sev_lookup = [
+  ['info',     'low',      'low',      'medium',   'medium'],
+  ['low',      'low',      'medium',   'medium',   'high'],
+  ['low',      'medium',   'medium',   'high',     'high'],
+  ['medium',   'medium',   'high',     'high',     'critical'],
+  ['medium',   'high',     'high',     'critical', 'critical'],
+] %}
+<div class="matrix">
+  <div class="head">L &darr; / I &rarr;</div>
+  {% for i in range(1, 6) %}<div class="head">Impact {{ i }}</div>{% endfor %}
+  {% for row in summary.risk_matrix -%}
+    <div class="head">Likelihood {{ loop.index }}</div>
+    {% set lk = loop.index0 %}
+    {% for cell in row %}
+      {% set sev = sev_lookup[lk][loop.index0] %}
+      <div class="cell {% if cell == 0 %}s0{% else %}s-{{ sev }}{% endif %}"
+           data-l="{{ lk + 1 }}" data-i="{{ loop.index0 + 1 }}"
+           {% if cell > 0 %}title="{{ cell }} threat(s) — L{{ lk + 1 }} × I{{ loop.index0 + 1 }} = {{ sev }}"{% endif %}>{{ cell }}</div>
+    {% endfor %}
+  {% endfor %}
+</div>
+
+<h2>Architecture (data flow diagram)</h2>
+<p class="muted">Auto-generated from the analysed system. Thick edges cross trust boundaries; subgraph clusters group components by trust zone. Pan / zoom with the buttons in the diagram. Falls back to the Mermaid source code if JS is disabled.</p>
+<div class="mermaid-wrap">
+<pre class="mermaid">
+{{ mermaid_dfd }}
+</pre>
+</div>
+<!-- Mermaid CDN load. The standalone HTML report is meant to be shareable, so we
+     pull from jsDelivr by default; if the viewer is offline the inline init
+     script below detects that and replaces the diagram with a friendly notice
+     rather than throwing a bomb icon. -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.5/dist/mermaid.min.js"></script>
+<script>
+(function () {
+  function isLikelyMermaid(text) {
+    if (!text) return false;
+    var s = text.trim();
+    return /^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|gantt|pie|journey|mindmap|gitGraph|timeline)\b/i.test(s);
+  }
+  function annotate(block) {
+    block.style.display = 'none';
+    var note = document.createElement('p');
+    note.style.color = '#8b949e';
+    note.style.fontStyle = 'italic';
+    note.textContent = 'Diagram unavailable (Mermaid not loaded or template not rendered).';
+    block.parentNode.insertBefore(note, block);
+  }
+  function run() {
+    if (!window.mermaid) {
+      document.querySelectorAll('pre.mermaid').forEach(annotate);
+      return;
+    }
+    var ok = [];
+    document.querySelectorAll('pre.mermaid').forEach(function (b) {
+      if (isLikelyMermaid(b.textContent)) ok.push(b); else annotate(b);
+    });
+    if (!ok.length) return;
+    try {
+      window.mermaid.initialize({
+        startOnLoad: false, theme: 'dark',
+        flowchart: { htmlLabels: true, curve: 'basis' },
+        // v0.14.4: standalone HTML reports are emailed and shared. Even
+        // though `_label` already escapes `<>&` (v0.14.2), running the
+        // bundled Mermaid in `loose` mode here would re-enable click
+        // directives + raw HTML — defeating the strict-mode hardening
+        // in `static/atms-mermaid.js`. Match that contract.
+        securityLevel: 'strict'
+      });
+      window.mermaid.run({ nodes: ok }).catch(function () { ok.forEach(annotate); });
+    } catch (e) { ok.forEach(annotate); }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', run);
+  } else { run(); }
+})();
+</script>
+
+<h2>Components</h2>
+<table>
+<thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Trust zone</th></tr></thead>
+<tbody>
+{% for c in system.components %}
+<tr><td><code>{{ c.id }}</code></td><td>{{ c.name }}</td><td><code>{{ c.type }}</code></td><td>{{ c.trust_zone }}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+
+<h2>Threats</h2>
+{% for component in system.components %}
+{% set comp_threats = threats | selectattr("component_id", "equalto", component.id) | list %}
+{% if comp_threats %}
+<h3>{{ component.name }} <small><code>{{ component.id }}</code> · {{ component.type }}{%
+  if component.metadata and component.metadata.get('source') %}
+  {% set src = component.metadata['source'] %}
+  {% if 'fallback' in src %}<span class="pill" title="Auto-classified as fallback — review needed" style="background: rgba(207,34,46,0.15); color: var(--critical); border-color: var(--critical); margin-left: 8px;">⚠ classified: fallback</span>{%
+    elif 'label' in src %}<span class="pill" title="Auto-classified by label regex (medium confidence)" style="background: rgba(210,153,34,0.15); color: var(--medium); border-color: var(--medium); margin-left: 8px;">classified: label</span>{%
+    elif 'style' in src or 'stencil' in src %}<span class="pill" title="Auto-classified by stencil/style (high confidence)" style="background: rgba(46,160,67,0.15); color: var(--low); border-color: var(--low); margin-left: 8px;">classified: stencil</span>{%
+    elif 'shape' in src %}<span class="pill" title="Auto-classified by Mermaid shape semantics (high confidence)" style="background: rgba(46,160,67,0.15); color: var(--low); border-color: var(--low); margin-left: 8px;">classified: shape</span>{%
+    endif %}
+{% endif %}</small></h3>
+{% for t in comp_threats | sort(attribute="risk_score", reverse=True) %}
+<div class="threat-block" data-l="{{ t.likelihood }}" data-i="{{ t.impact }}">
+  <h4>{{ t.id }} — {{ t.title }}</h4>
+  <p>
+    <span class="severity sev-{{ t.severity }}">{{ t.severity }}</span>
+    &nbsp;<span class="muted">L{{ t.likelihood }} × I{{ t.impact }} · risk {{ t.risk_score }}/100 · conf {{ t.confidence }}</span>
+  </p>
+  <p>{{ t.description }}</p>
+  <p class="muted">
+    {% for s in t.stride_ai %}<span class="pill">{{ s }}</span>{% endfor %}
+    {% for o in t.owasp_llm %}<span class="pill" title="OWASP LLM Top 10 2025">{{ o }}</span>{% endfor %}
+    {% for o in t.owasp_agentic %}<span class="pill" title="OWASP Agentic AI">{{ o }}</span>{% endfor %}
+    {% for o in t.owasp_api %}<span class="pill" title="OWASP API Security Top 10 2023">{{ o }}</span>{% endfor %}
+    {% for a in t.atlas_techniques %}<span class="pill" title="MITRE ATLAS">{{ a }}</span>{% endfor %}
+    {% for a in t.attack_cloud %}<span class="pill" title="MITRE ATT&amp;CK Cloud">{{ a }}</span>{% endfor %}
+    {% for a in t.attack_enterprise %}<span class="pill" title="MITRE ATT&amp;CK Enterprise + ICS">{{ a }}</span>{% endfor %}
+    {% for ld in t.linddun %}<span class="pill" title="LINDDUN privacy">{{ ld }}</span>{% endfor %}
+    {% for n in t.nist_ai_100_2 %}<span class="pill" title="NIST AI 100-2">{{ n }}</span>{% endfor %}
+    {% for c in t.csa_singapore %}<span class="pill" title="Singapore CSA — Guidelines on Securing AI Systems">{{ c }}</span>{% endfor %}
+    {% for ml in t.owasp_ml %}<span class="pill" title="OWASP ML Top 10">{{ ml }}</span>{% endfor %}
+    {% for cc in t.compliance_controls %}<span class="pill" title="Compliance">{{ cc }}</span>{% endfor %}
+    <span class="pill" title="disposition">disposition: {{ t.disposition }}</span>
+    {% if t.kill_chain_phase %}<span class="pill" title="Cyber Kill Chain phase">KC: {{ t.kill_chain_phase }}</span>{% endif %}
+    {% if t.ai_relevance == "primary" %}<span class="pill" style="background:#1f3a5a;border-color:#388bfd;color:#fff;" title="AI primary component">AI: primary</span>{% endif %}
+    {% if t.ai_relevance == "adjacent" and t.ai_caused_by %}<span class="pill" style="background:#3a2d5a;border-color:#a371f7;color:#fff;" title="AI-induced — caused by AI components in the dataflow blast radius">AI-adjacent ← {{ t.ai_caused_by | join(", ") }}</span>{% endif %}
+    <span class="pill" title="evidence_status">status: {{ t.evidence_status }}</span>
+    {% for e in t.evidence %}
+      {% if e.kev %}<span class="pill" style="background:#5a1f1f;border-color:#cf222e;color:#fff;" title="On CISA KEV — actively exploited">KEV {{ e.source_id }}</span>{% else %}<span class="pill" title="{{ e.source }}/{{ e.source_type }}">{{ e.source_id or e.source_type }}</span>{% endif %}
+    {% endfor %}
+    {% for m in t.maestro_threats %}<span class="pill" title="MAESTRO">{{ m }}</span>{% endfor %}
+  </p>
+  {% if t.mitigation_ids %}<p><small><strong>Mitigations:</strong> {{ t.mitigation_ids | join(", ") }}</small></p>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+<h2>Attack paths</h2>
+{% if attack_paths %}
+{% for p in attack_paths %}
+<div class="path-card">
+  <h4>{{ p.id }} — {{ p.title }}</h4>
+  <p class="muted">Difficulty {{ p.estimated_difficulty }}/5 · Business impact {{ p.business_impact }}/5</p>
+  <p class="tactic-flow">{{ p.tactics_traversed | join(" → ") }}</p>
+  <pre>{{ p.narrative }}</pre>
+</div>
+{% endfor %}
+{% else %}
+<p class="muted"><em>No multi-step attack paths discovered.</em></p>
+{% endif %}
+
+<h2>CSA Table of Attack <span class="muted" style="font-size: 13px;">(threat library)</span></h2>
+<p class="muted">Threat library in the CSA Singapore <em>Guide to Cyber Threat Modelling</em> (Feb 2021) Table-of-Attack format. <strong style="color:#d4a72c;">★</strong> marks an attack path terminating on a <strong>crown jewel</strong>; amber chips are <strong>stepping stones</strong> pivoted through to reach it.</p>
+{% if csa_table %}
+<table>
+  <thead><tr><th>S/N</th><th>Point of Entry</th><th>Threat Actor(s)</th><th>Sequence of Attack</th><th>Threat Description</th><th>Examples</th></tr></thead>
+  <tbody>
+  {% for r in csa_table %}
+    <tr>
+      <td><strong>{{ r.sn }}</strong></td>
+      <td>{{ r.point_of_entry }}{% if r.point_of_entry_type %}<br><span class="muted" style="font-size: 11px;">{{ r.point_of_entry_type }}</span>{% endif %}</td>
+      <td>{% for a in r.threat_actors %}<span class="pill">{{ a }}</span> {% endfor %}</td>
+      <td>
+        <span style="font-family: ui-monospace, monospace; font-size: 12px;">{{ r.sequence_str }}{% if r.is_crown_jewel %} <span title="crown jewel" style="color:#d4a72c;">★</span>{% endif %}</span>
+        {% if r.tactics_str and r.tactics_str != "—" %}<br><span class="muted" style="font-size: 11px;">{{ r.tactics_str }}</span>{% endif %}
+        {% if r.stepping_stones %}<br>{% for s in r.stepping_stones %}<span class="pill" style="background:#3a330f; border-color:#d4a72c; color:#f0d98c;" title="stepping stone">{{ s }}</span> {% endfor %}{% endif %}
+      </td>
+      <td>{{ r.threat_description }}<br><span class="muted" style="font-size: 11px;">difficulty {{ r.difficulty }}/5 · impact {{ r.business_impact }}/5</span></td>
+      <td>{% for x in r.examples %}<span class="pill">{{ x }}</span> {% endfor %}{% if not r.examples %}<span class="muted">—</span>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted"><em>No attack paths discovered.</em></p>
+{% endif %}
+
+<h2>Recommended roadmap (top 10)</h2>
+<p class="muted">Mitigations ranked by <code>risk_reduction &times; addressed-severity-weight / effort_cost</code>. Your "do these first" list — addresses the most critical threats per unit of work.</p>
+<table>
+  <thead><tr><th>Rank</th><th>ID</th><th>Title</th><th>Family</th><th>Auto</th><th>D3FEND</th><th>Validation</th><th>Effort</th><th>Reduces</th><th>Addresses</th><th>Frameworks</th></tr></thead>
+  <tbody>
+    {% for mid in summary.priority_mitigation_ids %}
+    {% set m = mitigations | selectattr("id", "equalto", mid) | first %}
+    {% if m %}
+    <tr>
+      <td><strong>{{ loop.index }}</strong></td>
+      <td><code>{{ m.id }}</code></td>
+      <td><strong>{{ m.title }}</strong></td>
+      <td>{% if m.control_family %}<span class="pill">{{ m.control_family }}</span>{% endif %}</td>
+      <td>{% if m.automatable %}<span class="pill">auto</span>{% endif %}</td>
+      <td>{% for d in m.d3fend %}<span class="pill">{{ d }}</span>{% endfor %}</td>
+      <td style="font-size: 12px; max-width: 320px;">{{ m.validation_test or "" }}</td>
+      <td>{{ m.effort }}</td>
+      <td>{{ m.risk_reduction }}/5</td>
+      <td>{{ m.addresses_threat_ids | length }} threats</td>
+      <td>{% for r in m.framework_refs %}<span class="pill">{{ r }}</span>{% endfor %}{% if not m.framework_refs %}<span class="muted">inline</span>{% endif %}</td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>All mitigations</h2>
+<table>
+<thead><tr><th>ID</th><th>Title</th><th>Effort</th><th>Reduces</th><th>Frameworks</th><th>Threats</th></tr></thead>
+<tbody>
+{% for m in mitigations %}
+<tr>
+  <td><code>{{ m.id }}</code></td>
+  <td>{{ m.title }}</td>
+  <td>{{ m.effort }}</td>
+  <td>{{ m.risk_reduction }}/5</td>
+  <td>{% for r in m.framework_refs %}<span class="pill">{{ r }}</span>{% endfor %}{% if not m.framework_refs %}<span class="muted">inline</span>{% endif %}</td>
+  <td>{{ m.addresses_threat_ids | length }}</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+
+<footer>
+Generated by <a href="https://github.com/anguiz7z/AITMS" style="color: var(--accent);">AI Threat Modeling Studio (ATMS)</a> v{{ tool_version }}.
+This tool produces decision-support output. AI threat models should be reviewed by a security professional before being treated as authoritative.
+</footer>
+
+<script>
+// v0.16.12: click-to-filter on the risk matrix. Clicking a cell with
+// at least one threat hides every threat-block not at that (L, I)
+// coordinate. Re-clicking the same cell (or the "clear" link) restores
+// the full list. Section headers without visible children are also
+// hidden so the user doesn't scroll through empty component sections.
+(function () {
+  var selectedL = null, selectedI = null;
+  var cells = document.querySelectorAll(".matrix .cell");
+  var blocks = document.querySelectorAll(".threat-block[data-l]");
+  var sections = document.querySelectorAll("h2 + *, h3 + *");  // unused
+  var bar = document.getElementById("matrix-filter-bar");
+
+  function applyFilter() {
+    var anyVisible = false;
+    blocks.forEach(function (b) {
+      var match = (selectedL === null) ||
+                  (b.dataset.l === String(selectedL) && b.dataset.i === String(selectedI));
+      b.classList.toggle("filtered-out", !match);
+      if (match) anyVisible = true;
+    });
+    // Hide h3 section headers + any non-threat-block siblings between
+    // them when ALL threats under them are filtered out. We walk the
+    // DOM order between each h3 and the next h2/h3.
+    var headers = document.querySelectorAll("h2 ~ h3");
+    headers.forEach(function (h) {
+      var node = h.nextElementSibling;
+      var hasVisible = false;
+      while (node && node.tagName !== "H3" && node.tagName !== "H2") {
+        if (node.classList && node.classList.contains("threat-block") &&
+            !node.classList.contains("filtered-out")) {
+          hasVisible = true;
+          break;
+        }
+        node = node.nextElementSibling;
+      }
+      h.classList.toggle("threat-section-empty", !hasVisible);
+    });
+    // Filter bar status text
+    if (selectedL === null) {
+      bar.innerHTML = "&nbsp;";
+    } else {
+      var n = 0;
+      blocks.forEach(function (b) {
+        if (!b.classList.contains("filtered-out")) n++;
+      });
+      bar.innerHTML = "Filtered to L" + selectedL + " × I" + selectedI +
+                      " — " + n + " threat(s). " +
+                      '<button id="matrix-clear">clear filter</button>';
+      document.getElementById("matrix-clear").addEventListener("click", function () {
+        selectedL = null; selectedI = null;
+        cells.forEach(function (c) { c.classList.remove("selected"); });
+        applyFilter();
+      });
+    }
+  }
+
+  cells.forEach(function (c) {
+    if (c.classList.contains("s0")) return;       // skip empty cells
+    if (!c.dataset.l) return;                     // skip header cells
+    c.addEventListener("click", function () {
+      var l = parseInt(c.dataset.l, 10);
+      var i = parseInt(c.dataset.i, 10);
+      if (selectedL === l && selectedI === i) {
+        // Re-click: clear filter.
+        selectedL = null; selectedI = null;
+        cells.forEach(function (x) { x.classList.remove("selected"); });
+      } else {
+        selectedL = l; selectedI = i;
+        cells.forEach(function (x) { x.classList.remove("selected"); });
+        c.classList.add("selected");
+      }
+      applyFilter();
+    });
+  });
+})();
+</script>
+</div>
+</body>
+</html>

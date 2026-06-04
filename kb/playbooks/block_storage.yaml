@@ -1,0 +1,89 @@
+component_type: block_storage
+description: |
+  Cloud block storage — AWS EBS volumes, Azure Managed Disks, GCP
+  Persistent Disks. Mounted to training-job hosts, vector-DB nodes,
+  inference VMs, and feature-engineering instances. Holds the
+  attached-disk state of AI workloads (model checkpoints during a
+  multi-day fine-tune, vector index files, scratch data).
+threats:
+  - id: T_BLKSTOR_001
+    title: Unencrypted volume holding training data or model weights
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024, AML.T0044]
+    attack_cloud: [T1530, T1078.004]
+    attack_enterprise: [T1552]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      EBS / Managed Disk / Persistent Disk created without
+      encryption-at-rest (or with the default platform-managed key in
+      a region where that key is shared across all customers). A
+      compromised IAM role with `ec2:CreateSnapshot` / Azure `Microsoft.Compute/disks/beginGetAccess`
+      / GCP `compute.disks.createSnapshot` exports the volume to an
+      attacker-controlled account or downloads it via the SAS URL.
+      Training data, model checkpoints, and embeddings extracted
+      verbatim. Especially severe because AI workloads accumulate
+      multi-TB of sensitive training data per checkpoint cycle.
+    mitigations:
+      - "Mandatory encryption with customer-managed KMS keys (EBS `EncryptionByDefault`, Azure CMK, GCP CMEK)"
+      - "Org-level SCP / Azure Policy / GCP Org Policy denies disk creation without `kmsKeyId`"
+      - "Snapshot export blocked at IAM — only break-glass role; alert on every snapshot copy / disk export operation"
+      - "Disk-attach IAM scoped to specific instance roles; deny cross-account share"
+    refs: [AML.M0019]
+
+  - id: T_BLKSTOR_002
+    title: Snapshot leak / public sharing of disk image
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM10:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0024.000, AML.T0044]
+    attack_cloud: [T1530]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 2
+    impact: 5
+    description: |
+      EBS snapshots marked `Public` (CVE-2018-15869 pattern) or Azure
+      Disk shared with `All Users`. Snapshots of AI training nodes
+      include the in-flight fine-tune checkpoint, the API keys in
+      `/etc/secrets`, and the cached HuggingFace token in
+      `~/.cache/huggingface`. Researchers (Bishop Fox, Magnet) have
+      repeatedly demonstrated mass-scraping of public EBS snapshots
+      for credentials and proprietary data.
+    mitigations:
+      - "AWS Config rule `ebs-snapshot-public-restorable-check` set to non-compliant → auto-remediate via SSM"
+      - "Azure Policy `Disable shared access to disks` enforced at MG level"
+      - "GCP Org Policy `compute.disksMustHaveCmekKey` plus `compute.disableSerialPortAccess`"
+      - "Pre-snapshot hook: scrub `/home/*/.cache`, `/etc/secrets/*`, model checkpoint dirs before allowing snapshot"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_BLKSTOR_003
+    title: Disk-encryption-key revocation as ransomware-of-impact
+    stride_ai: [Denial_of_Service, Tampering]
+    owasp_api: [API8:2023]
+    attack_cloud: [T1485, T1486, T1561.001]
+    attack_enterprise: [T1486]
+    maestro: [M.X.04]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 5
+    description: |
+      An attacker with KMS / Key Vault / Cloud KMS administrative rights
+      schedules deletion of (or disables) the CMK encrypting the AI
+      training cluster's EBS volumes. The disks become unmountable on
+      next instance start. Multi-day fine-tune runs lose state. The
+      ScatteredSpider / LAPSUS$ playbook targets the KMS layer
+      specifically because it's lower-permission than data exfil and
+      delivers the same business impact.
+    mitigations:
+      - "KMS key deletion gated by 30-day mandatory waiting period + MFA + dual-approval"
+      - "Cross-region replication of training checkpoints with separate KMS key trust boundary"
+      - "Backup-vault (AWS Backup with Vault Lock, Azure Backup immutable vaults) for daily disk snapshots — separate key + IAM"
+      - "Alert on every KMS `ScheduleKeyDeletion` / `DisableKey` action with SIEM page to on-call"
+    refs: [AML.M0019]

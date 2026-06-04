@@ -1,0 +1,121 @@
+component_type: server_linux
+description: |
+  Linux server — generic on-prem or cloud-hosted Linux server running
+  application workloads, databases, or middleware. Distributions
+  include RHEL, Ubuntu Server, Debian, Amazon Linux, SUSE. Excludes
+  containerised workloads (see container_runtime).
+threats:
+  - id: T_SRVLNX_001
+    title: SSH credential abuse / brute-force / stolen key
+    stride_ai: [Spoofing, Elevation_of_Privilege, Lateral_Movement]
+    attack_enterprise: [T1110, T1078, T1021.004]
+    attack_cloud: [T1078.004]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      SSH exposed to broad source ranges; attacker brute-forces a
+      weak password, replays a leaked private key (GitHub leak
+      patterns, S3 misconfig), or pivots through a compromised
+      developer laptop. Once inside, the standard shell access
+      enables lateral movement.
+    mitigations:
+      - "Disable password auth; require keys + per-session MFA"
+      - "Source-IP allowlist or bastion-only access"
+      - "Short-lived SSH certificates via vault (Vault SSH-CA, Teleport)"
+      - "Fail2ban / Crowdsec on SSH; SIEM alert on auth anomalies"
+    refs: [T1133, AML.M0019]
+
+  - id: T_SRVLNX_002
+    title: Kernel / userspace CVE exploitation (privilege escalation)
+    stride_ai: [Elevation_of_Privilege, Tampering]
+    attack_enterprise: [T1068, T1203, T1543]
+    maestro: [M.X.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Local user (compromised app, low-priv shell) exploits a kernel
+      CVE (Dirty Pipe, OverlayFS, polkit, sudo CVE-2023-22809) to
+      escalate to root. Many Linux servers run 6–18 months behind
+      stable kernel releases.
+    mitigations:
+      - "Live-patch (Ksplice / kpatch / Ubuntu Livepatch) for critical kernel CVEs"
+      - "Vulnerability scanning weekly with auto-ticketed remediation"
+      - "Minimize installed packages; remove SUID binaries not required"
+      - "AppArmor / SELinux enforcing mode; auditd for syscall telemetry"
+    refs: [T1068, AML.M0007]
+
+  - id: T_SRVLNX_003
+    title: Insecure cron / systemd timer abuse for persistence
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1053.003, T1053.006, T1543.002]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 3
+    description: |
+      Attacker with shell adds a cron entry (root or user crontab)
+      or a systemd timer unit pointing to a writable payload. Survives
+      reboots, blends with legitimate maintenance jobs. Default Linux
+      auditing rarely catches the persistence-write itself.
+    mitigations:
+      - "auditd rules covering cron / systemd unit writes; alert to SIEM"
+      - "Filesystem-integrity monitoring on /etc/cron* and /etc/systemd/"
+      - "Read-only / immutable bind-mount of /etc where workload permits"
+      - "Periodic offline cron-job inventory diff vs baseline"
+    refs: [T1053, AML.M0019]
+
+  - id: T_SRVLNX_004
+    title: Coin-mining / commodity malware via vulnerable internet-facing service
+    stride_ai: [Tampering, Denial_of_Service]
+    attack_enterprise: [T1190, T1496]
+    maestro: [M.L4.04]
+    likelihood: 4
+    impact: 3
+    description: |
+      Internet-facing service (Redis no-auth, Docker socket exposed,
+      old Confluence/Jira, OpenSSH < 9.6) gets owned by mass scanner;
+      cryptominer or worm installs. The cycles + reputation cost +
+      the malware's persistence are the primary harm.
+    mitigations:
+      - "Default-deny ingress with explicit allowlist per service"
+      - "External attack-surface monitoring (Censys / Shodan continuous scan)"
+      - "Service patching SLA tied to severity"
+      - "Outbound-egress allowlist blocks miner-pool destinations"
+    refs: [T1190, AML.M0019]
+
+  - id: T_SRVLNX_005
+    title: Sensitive file disclosure via misconfigured permissions
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1552, T1552.001]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 3
+    description: |
+      `.env`, `id_rsa`, `.aws/credentials`, `.kube/config`, password
+      backup files left in world-readable home directories or `/tmp`.
+      Any local user (cohabitant tenant, web app under low-priv UID)
+      can read them.
+    mitigations:
+      - "Periodic secret-scan of home directories (`gitleaks fs`, custom regex)"
+      - "Filesystem ACL audit; alert on world-readable secrets"
+      - "Move secrets to vault; environment-injection from IMDS / metadata"
+      - "User-onboarding template enforces umask 077"
+    refs: [T1552, AML.M0019]
+
+  - id: T_SRVLNX_006
+    title: Outdated package / unpatched CVE in long-running server
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190, T1203]
+    maestro: [M.X.01]
+    likelihood: 5
+    impact: 4
+    description: |
+      Long-running pet servers accumulate CVEs over time — Log4Shell,
+      openssl, glibc, OpenSSL XZ-Utils backdoor (CVE-2024-3094) class.
+      Patch-Tuesday cadence on Linux is unstructured; servers diverge.
+    mitigations:
+      - "Unattended-upgrades / dnf-automatic for security updates"
+      - "Vulnerability scanner integrated with ticketing; SLA enforced"
+      - "Golden-image refresh quarterly (cattle, not pets)"
+      - "SBOM tracking and proactive monitoring on critical packages"
+    refs: [AML.M0007]

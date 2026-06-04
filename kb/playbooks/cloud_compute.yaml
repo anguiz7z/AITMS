@@ -1,0 +1,69 @@
+component_type: cloud_compute
+description: |
+  Generic cloud VM (EC2 / Azure VM / Compute Engine / OCI Compute). Hosts AI
+  workloads (custom inference, model-serving containers, RAG indexing jobs)
+  or sits adjacent to them (data preprocessing, batch eval).
+threats:
+  - id: T_VM_001
+    title: IMDS abuse → IAM role credential theft
+    stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+    owasp_llm: [LLM02:2025]
+    owasp_agentic: [AGT09]
+    owasp_api: [API2:2023]
+    atlas: [AML.T0055]
+    attack_cloud: [T1552.005, T1078.004]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Cloud VM exposes the instance metadata service (IMDSv1) at 169.254.169.254.
+      An SSRF in an AI workload running on the VM (LangChain url-fetch tool,
+      Lambda Web Adapter, vulnerable inference container) returns the workload
+      role's temporary credentials. Attacker pivots to anything the role can do
+      (Bedrock invoke, S3 PutObject, KMS Decrypt).
+    mitigations:
+      - "Enforce IMDSv2 only — session-token-required mode on EC2 / Azure-VM-equivalent"
+      - "Egress allow-list on the VM blocks all non-IMDS metadata-like endpoints"
+      - "Workload role granted only the minimum Bedrock / S3 / KMS actions"
+    refs: [AML.M0019]
+
+  - id: T_VM_002
+    title: Container escape on shared-host VM → host compromise
+    stride_ai: [Elevation_of_Privilege]
+    owasp_agentic: [AGT09]
+    owasp_api: [API8:2023]
+    attack_cloud: [T1611, T1059]
+    attack_enterprise: [T1611]
+    maestro: [M.L4.05]
+    likelihood: 2
+    impact: 5
+    description: |
+      AI workload runs in a privileged container with broad host mounts or
+      shared kernel namespaces. Container-runtime CVE, kernel exploit, or
+      hostPath mount abuse escapes to the host VM, compromising every other
+      workload on the same VM.
+    mitigations:
+      - "Drop CAP_SYS_ADMIN, ban --privileged, deny hostPath mounts in admission policy"
+      - "gVisor / Kata Containers for AI inference containers handling untrusted input"
+      - "Run AI inference on dedicated VMs, not multi-tenant nodes"
+    refs: [AML.M0019]
+
+  - id: T_VM_003
+    title: Public AMI / image reused with embedded secrets
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM03:2025]
+    owasp_api: [API7:2023]
+    atlas: [AML.T0010]
+    attack_cloud: [T1552]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 4
+    description: |
+      AI-training or inference AMI is published / shared publicly while still
+      containing baked-in API keys, model weights, fine-tuning data, or RAG
+      corpora. Any account that copies the AMI inherits the secrets.
+    mitigations:
+      - "AMI hygiene scan in CI; refuse to publish images with secret-pattern matches"
+      - "All credentials injected at runtime via IMDS / Secrets Manager, never baked"
+      - "Model weights stored in registry, not AMI; pulled at startup with signed manifest"
+    refs: [AML.M0023]

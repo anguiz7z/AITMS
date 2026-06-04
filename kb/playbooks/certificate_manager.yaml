@@ -1,0 +1,112 @@
+component_type: certificate_manager
+description: |
+  Certificate management service — issues, renews, and distributes
+  TLS/SSL certificates. Examples: AWS Certificate Manager (ACM),
+  Azure Key Vault Certificates, GCP Certificate Manager, Venafi
+  TPP / Trust Protection Platform, DigiCert CertCentral, Sectigo
+  Certificate Manager. Used both for public PKI (Let's Encrypt /
+  CA-signed) and corporate / private PKI hierarchies. Compromise
+  enables impersonation of any service.
+threats:
+  - id: T_CRTMGR_001
+    title: Unauthorized certificate issuance for high-value FQDN
+    stride_ai: [Spoofing, Tampering]
+    attack_enterprise: [T1553.004, T1556.005]
+    attack_cloud: [T1553]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      Attacker with valid IAM / vault access requests a cert for a
+      sensitive FQDN (api.bank.com, admin.corp.com), with ACME /
+      DNS validation that passes because they also control DNS
+      (DNS hijack + cert issuance combo). Resulting cert lets them
+      MITM TLS, impersonate the service, terminate traffic.
+    mitigations:
+      - "DNS-CAA records restrict which CAs may issue for the domain"
+      - "Certificate Transparency log monitoring with alert on novel issuances"
+      - "Cert-issuance API requires ticketed approval workflow"
+      - "MFA + tier-0 isolation on issuance-capable identities"
+    refs: [T1553, AML.M0019]
+
+  - id: T_CRTMGR_002
+    title: Auto-renewal lapse causes broad service outage
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1499]
+    maestro: [M.L4.04]
+    likelihood: 4
+    impact: 4
+    description: |
+      Cert auto-renewal silently breaks — ACME challenge can't
+      resolve, lambda has expired role, DNS provider's API key
+      rotated. Cert expires; mTLS dies; every dependent service
+      goes offline simultaneously. The Microsoft Teams 2020 outage,
+      the Spotify 2020 outage, and many others traced to a single
+      cert expiry.
+    mitigations:
+      - "Expiry-monitoring alerts at 60 / 30 / 7 / 1 days"
+      - "Renewal SLO with automated retry-on-failure"
+      - "Multi-CA backup issuance path"
+      - "Annual cert-rotation dry-run on each critical service"
+    refs: [AML.M0019]
+
+  - id: T_CRTMGR_003
+    title: Private key exfiltration from certificate manager
+    stride_ai: [Information_Disclosure, Spoofing]
+    attack_enterprise: [T1552.004, T1078.004]
+    attack_cloud: [T1552.004]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      ACM / Key Vault stores private keys; an over-permissive IAM
+      grant (e.g. ssm:GetParameters or KeyVault Get-Secret on the
+      cert) leaks the private key. Attacker with the private key
+      can impersonate the service indefinitely until rotation.
+    mitigations:
+      - "Use non-exportable certs (ACM private certs / Key Vault with HSM-backed key)"
+      - "Per-cert least-privilege IAM; alert on cross-account / unusual reads"
+      - "Audit-log every private-key access; SIEM correlation"
+      - "Quarterly rotation enforced for non-HSM-backed certs"
+    refs: [T1552, AML.M0019]
+
+  - id: T_CRTMGR_004
+    title: Misissuance via compromised CA / DNS-validation hijack
+    stride_ai: [Spoofing, Tampering]
+    attack_enterprise: [T1565.003, T1583.002]
+    attack_cloud: [T1565]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      Public CAs have been compromised (DigiNotar 2011, Trustwave
+      2012); they have misissued (Comodo 2011); DNS-validation
+      methods can be hijacked transiently (BGP route hijack +
+      ACME challenge). Cert manager then auto-publishes the
+      attacker-controlled cert.
+    mitigations:
+      - "CAA + CT-log monitoring as primary defence"
+      - "DNSSEC where supported by the registrar"
+      - "Multi-perspective validation (Let's Encrypt MPIC) preferred"
+      - "Annual review of CA vendor selection and compromise history"
+    refs: [T1553, AML.M0019]
+
+  - id: T_CRTMGR_005
+    title: Wildcard / long-lived cert overuse expands blast radius
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1552.004]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 3
+    description: |
+      Operations team uses *.corp.com wildcard across hundreds of
+      microservices for convenience; or uses 397-day max-validity
+      public certs (the maximum browsers will trust) on every
+      service. Single key compromise impacts every service that
+      uses the wildcard for the entire validity window.
+    mitigations:
+      - "Per-service named certs; deprecate wildcard usage where feasible"
+      - "Short-lived certs (30-90 day) on automated rotation"
+      - "SAN inventory of every cert; flag certs covering > N hostnames"
+      - "Service-mesh mTLS uses short-lived workload identities (SPIFFE / SPIRE)"
+    refs: [T1552, AML.M0019]

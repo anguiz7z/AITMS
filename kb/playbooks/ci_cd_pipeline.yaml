@@ -1,0 +1,79 @@
+component_type: ci_cd_pipeline
+description: |
+  Continuous integration / deployment pipeline (Jenkins, GitHub Actions, GitLab
+  CI, CodePipeline, Cloud Build, Azure DevOps). Builds + tests + deploys AI
+  workloads. Critical supply chain surface: poisons the model, the prompt
+  templates, the deployed container, or the inference config.
+threats:
+  - id: T_CICD_001
+    title: Workflow file modified via PR → secrets exfil / model poisoning
+    stride_ai: [Tampering, Information_Disclosure]
+    owasp_llm: [LLM03:2025]
+    owasp_agentic: [AGT12]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0010, AML.T0019]
+    attack_cloud: [T1554]
+    attack_enterprise: [T1195.002]
+    maestro: [M.L1.07, M.L7.11]
+    likelihood: 3
+    impact: 5
+    description: |
+      Attacker submits a PR modifying `.github/workflows/*.yml` to dump
+      `AWS_*` / `ANTHROPIC_API_KEY` / model-registry credentials to a public
+      gist. Or modifies the model-training step to inject a backdoor /
+      poison training data. PR is merged without sufficient review.
+    mitigations:
+      - "Branch protection: require 2+ reviewers + CODEOWNERS on workflow changes"
+      - "Workflow files protected by CODEOWNERS / dedicated security-team review"
+      - "OIDC-federated cloud auth (no long-lived secrets in CI)"
+      - "Secret scanning + alert on PR that adds new secret-reading steps"
+    refs: [AML.M0023]
+
+  - id: T_CICD_002
+    title: Self-hosted runner compromise → escapes into cloud workload identity
+    stride_ai: [Elevation_of_Privilege]
+    owasp_api: [API5:2023, API8:2023]
+    atlas: [AML.T0010]
+    attack_cloud: [T1078.004, T1554]
+    attack_enterprise: [T1554]
+    maestro: [M.L7.11]
+    likelihood: 3
+    impact: 5
+    description: |
+      Self-hosted runner (in VPC / on-prem) runs jobs from unauthenticated
+      pull requests, then a job modifies the runner's state or pulls a
+      malicious base image, persisting access. Runner has the OIDC role
+      that can deploy to production AI endpoints.
+    mitigations:
+      - "Ephemeral runners only (one job per VM); destroy after run"
+      - "Don't run untrusted PRs on self-hosted runners (use `pull_request_target` carefully)"
+      - "Runner IAM role limited to the specific resources it deploys; no `*`"
+      - "Image-pull restricted to signed internal registry"
+    refs: [AML.M0019]
+
+  - id: T_CICD_003
+    title: Unsigned model artifact deployed → supply-chain weight poisoning
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM03:2025, LLM04:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0018, AML.T0010, AML.T0011]
+    nist_ai_100_2: [NIST_PAI_POISONING_MODEL]
+    owasp_ml: [ML02:2023, ML10:2023]
+    attack_cloud: [T1554, T1195.002]
+    attack_enterprise: [T1195.002]
+    maestro: [M.L1.04, M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Pipeline deploys model weights (.safetensors, .pt, .pkl) without
+      signature verification. Attacker who compromises the training job /
+      build artifact swaps a backdoored model into the artifact path; the
+      next deployment loads it. PyTorch .pt files are pickled — also a
+      direct RCE vector at load-time.
+    mitigations:
+      - "Cosign / Sigstore signature on every model artifact produced by the training job"
+      - "Deployment script (or admission controller) refuses to load any unsigned model"
+      - "Use safetensors format instead of pickle for model serialization (no RCE at load)"
+      - "Per-model SBOM tracking + provenance pinning (in-toto attestation)"
+    refs: [T1195.002, AML.M0023, ML02:2023]

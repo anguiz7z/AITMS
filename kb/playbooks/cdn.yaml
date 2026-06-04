@@ -1,0 +1,72 @@
+component_type: cdn
+description: |
+  Content Delivery Network — CloudFront, Azure Front Door, Cloud CDN, Akamai,
+  Fastly, Cloudflare. Caches AI-app static assets, terminates TLS, applies
+  WAF rules. Distinct from on-prem load balancers (no firmware management
+  plane to compromise).
+threats:
+  - id: T_CDN_001
+    title: Cache deception → AI app served from poisoned cache key
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM01:2025]
+    owasp_api: [API8:2023]
+    attack_cloud: [T1071.001]
+    attack_enterprise: [T1565.002]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      CDN caches the AI chat UI bundle. Attacker exploits cache-key normalisation
+      gap (e.g. ignoring `Vary: Authorization`) to poison the public cache with
+      attacker-controlled JS or response content. Every subsequent user receives
+      the malicious version.
+    mitigations:
+      - "Cache-key normalisation: include the relevant Vary headers"
+      - "Subresource Integrity (SRI) hashes on every script tag in chat UI"
+      - "Origin response validation: signed manifests rejected if hash mismatch"
+      - "CDN log review on cache-purge / cache-key drift"
+    refs: [AML.M0019]
+
+  - id: T_CDN_002
+    title: TLS-decryption logging at the CDN leaks prompt content
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    maestro: [M.L7.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      CDN terminates TLS to inspect for WAF rules and logs request bodies
+      (or response bodies) at full fidelity. Prompts containing PII / business
+      data are logged at the CDN provider; CDN-level breach or insider access
+      reads them.
+    mitigations:
+      - "Disable request/response body logging at the CDN; log only headers + status"
+      - "End-to-end TLS via CDN passthrough mode for /chat and /completions endpoints"
+      - "Field-level encryption: encrypt prompt body at the client before sending"
+    refs: [AML.M0023]
+
+  - id: T_CDN_003
+    title: CDN-origin bypass exposing the AI inference backend
+    stride_ai: [Spoofing, Tampering]
+    owasp_llm: [LLM10:2025]
+    owasp_api: [API4:2023, API8:2023]
+    atlas: [AML.T0029]
+    attack_cloud: [T1190]
+    attack_enterprise: [T1190]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      The AI inference backend (ALB / origin) is reachable on its public IP
+      bypassing the CDN entirely. WAF + rate limits + bot-block applied at
+      the CDN are skipped. Attackers find the origin IP via DNS history,
+      certificate transparency logs, or Shodan and hit the model endpoint
+      directly — burning tokens, extracting models, or DoSing the workload.
+    mitigations:
+      - "Origin firewall rule: only accept traffic from the CDN provider's published IP ranges"
+      - "Origin-shielding header (CloudFront custom origin header / Cloudflare authenticated origin pulls) — reject requests missing it"
+      - "Rotate origin IP whenever it leaks; never reuse for the same FQDN"
+      - "Subscribe to CDN-IP-range updates and automate ACL updates"
+    refs: [T1190, API4:2023, AML.M0019]

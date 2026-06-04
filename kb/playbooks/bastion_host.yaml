@@ -1,0 +1,70 @@
+component_type: bastion_host
+description: |
+  Bastion / jump host for administrative access to AI workload subnets
+  (SSM Session Manager, Azure Bastion, GCP IAP, Teleport, JumpCloud). The
+  bastion is the single chokepoint for SSH / RDP into production AI
+  infrastructure; its compromise = root on every AI workload.
+threats:
+  - id: T_BAST_001
+    title: Bastion session-recording bypass / disabled by privileged user
+    stride_ai: [Repudiation, Defense_Evasion]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0040]
+    attack_cloud: [T1078.004]
+    attack_enterprise: [T1562.008]
+    maestro: [M.L7.03]
+    likelihood: 2
+    impact: 4
+    description: |
+      Bastion session recording is enabled by default but a privileged user
+      runs a session over `tmux` / `screen` to evade scrollback capture, or
+      disables session recording for "maintenance," or uses the
+      private-key-direct-from-laptop SSH path that doesn't traverse the bastion.
+    mitigations:
+      - "Network firewall denies direct SSH to AI subnets; only bastion paths allowed"
+      - "Session recording covers stdin + stdout + pty; not just bash history"
+      - "Disabling session recording is itself a high-severity SIEM alert"
+      - "Just-in-time bastion access (Teleport, AWS SSM SDP-like) with time-limited tokens"
+    refs: [AML.M0019]
+
+  - id: T_BAST_002
+    title: Bastion host CVE → privilege escalation in admin path
+    stride_ai: [Elevation_of_Privilege, Lateral_Movement]
+    owasp_api: [API8:2023]
+    attack_cloud: [T1190]
+    attack_enterprise: [T1190]
+    maestro: [M.L7.03]
+    likelihood: 3
+    impact: 5
+    description: |
+      OpenSSH / RDS / Teleport bastion runs a vulnerable version; remote
+      code execution on the bastion host gives the attacker the bastion's
+      service account (typically broad SSH / RDP into the AI fleet).
+    mitigations:
+      - "Patch SLA on bastion <72h for High CVEs"
+      - "Bastion deployed via managed service (SSM Session Manager) eliminates the public surface"
+      - "Bastion has no outbound internet egress; cannot fetch attacker payloads"
+    refs: [AML.M0019]
+
+  - id: T_BAST_003
+    title: SSH key sprawl + lack of key rotation → long-lived credential exposure
+    stride_ai: [Spoofing, Information_Disclosure]
+    owasp_api: [API2:2023, API5:2023]
+    atlas: [AML.T0040]
+    attack_cloud: [T1078.004, T1552.004]
+    attack_enterprise: [T1552.004, T1078]
+    maestro: [M.L7.03]
+    likelihood: 4
+    impact: 4
+    description: |
+      Engineers add personal SSH public keys to ~/.ssh/authorized_keys on the
+      bastion. Keys persist after engineers leave. No central key inventory.
+      Compromised keys from breached laptops grant indefinite access to the
+      bastion and the AI workload subnets behind it. Common gap: org has no
+      detector for stale or orphan keys.
+    mitigations:
+      - "Replace key-based access with short-lived OIDC / SSO-issued certificates (Teleport, smallstep, AWS SSM)"
+      - "Authorized-keys file managed via central source-of-truth (Ansible, Puppet, AWS EC2 Instance Connect); no local edits"
+      - "Automatic key revocation tied to HR offboarding (JML automation)"
+      - "Weekly audit of authorized_keys on every bastion vs source-of-truth; alert on drift"
+    refs: [T1078, T1552.004, AML.M0019]

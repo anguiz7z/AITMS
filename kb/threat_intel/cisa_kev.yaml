@@ -1,0 +1,519 @@
+# CISA Known Exploited Vulnerabilities — curated snapshot
+# Source: https://www.cisa.gov/known-exploited-vulnerabilities-catalog
+# Snapshot taken: 2026-05-10
+#
+# This is a selected subset (~120 CVEs) covering the highest-impact
+# entries known to be relevant to ATMS' component types: AI/cloud, IT,
+# OT, network gear, identity, email. The full KEV catalogue has ~1,400
+# rows; refresh with `atms refresh-feeds --kev` to pull the live CSV.
+#
+# Schema:
+#   - cve: CVE-YYYY-NNNN
+#     vendor: vendor name
+#     product: product family (matches device-catalog product names)
+#     description: one-line CISA description
+#     date_added: YYYY-MM-DD when CISA added the CVE to KEV
+#     due_date: YYYY-MM-DD federal-civilian remediation deadline
+#     ransomware: known to be used in ransomware campaigns
+
+- cve: CVE-2024-3400
+  vendor: Palo Alto Networks
+  product: PAN-OS Firewall (PA-Series / VM-Series)
+  description: PAN-OS GlobalProtect command-injection (pre-auth RCE).
+  date_added: 2024-04-12
+  due_date: 2024-04-19
+  ransomware: false
+- cve: CVE-2024-21762
+  vendor: Fortinet
+  product: FortiGate
+  description: FortiOS SSL-VPN out-of-bounds write (pre-auth RCE).
+  date_added: 2024-02-09
+  due_date: 2024-02-16
+  ransomware: false
+- cve: CVE-2023-46805
+  vendor: Ivanti
+  product: Connect Secure
+  description: Ivanti Connect Secure / Policy Secure auth bypass.
+  date_added: 2024-01-10
+  due_date: 2024-01-22
+  ransomware: false
+- cve: CVE-2024-21887
+  vendor: Ivanti
+  product: Connect Secure
+  description: Ivanti Connect Secure command injection (chained with -46805).
+  date_added: 2024-01-10
+  due_date: 2024-01-22
+  ransomware: false
+- cve: CVE-2023-23397
+  vendor: Microsoft
+  product: Outlook
+  description: Outlook NTLM credential leak via reminder URI.
+  date_added: 2023-03-14
+  due_date: 2023-04-04
+  ransomware: false
+- cve: CVE-2021-26855
+  vendor: Microsoft
+  product: Exchange Server (on-prem)
+  description: ProxyLogon pre-auth SSRF on Exchange Server.
+  date_added: 2021-11-03
+  due_date: 2021-11-17
+  ransomware: true
+- cve: CVE-2021-34473
+  vendor: Microsoft
+  product: Exchange Server (on-prem)
+  description: ProxyShell pre-auth RCE chain on Exchange Server.
+  date_added: 2021-11-03
+  due_date: 2021-11-17
+  ransomware: true
+- cve: CVE-2022-41040
+  vendor: Microsoft
+  product: Exchange Server (on-prem)
+  description: ProxyNotShell SSRF + RCE on Exchange Server.
+  date_added: 2022-09-30
+  due_date: 2022-10-21
+  ransomware: false
+- cve: CVE-2024-49112
+  vendor: Microsoft
+  product: Active Directory Domain Services
+  description: Windows LDAP / domain-controller RCE.
+  date_added: 2024-12-12
+  due_date: 2025-01-02
+  ransomware: false
+- cve: CVE-2025-21333
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows Hyper-V NT-kernel local privilege escalation.
+  date_added: 2025-01-15
+  due_date: 2025-02-05
+  ransomware: false
+- cve: CVE-2024-30040
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows MSHTML platform security feature bypass.
+  date_added: 2024-05-14
+  due_date: 2024-06-04
+  ransomware: false
+- cve: CVE-2022-30190
+  vendor: Microsoft
+  product: Office (legacy)
+  description: Follina MSDT URL-handler RCE.
+  date_added: 2022-06-14
+  due_date: 2022-07-05
+  ransomware: false
+- cve: CVE-2024-38063
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows TCP/IP IPv6 wormable RCE.
+  date_added: 2024-08-13
+  due_date: 2024-09-03
+  ransomware: false
+- cve: CVE-2024-29988
+  vendor: Microsoft
+  product: SmartScreen
+  description: SmartScreen Mark-of-the-Web bypass.
+  date_added: 2024-04-09
+  due_date: 2024-04-30
+  ransomware: false
+- cve: CVE-2025-29824
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows CLFS driver elevation of privilege.
+  date_added: 2025-04-08
+  due_date: 2025-04-29
+  ransomware: true
+- cve: CVE-2024-43093
+  vendor: Google
+  product: Android Enterprise device
+  description: Android FAT filesystem path traversal (CVE used in active campaigns).
+  date_added: 2024-11-07
+  due_date: 2024-11-28
+  ransomware: false
+- cve: CVE-2024-38014
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows Installer privilege escalation.
+  date_added: 2024-09-10
+  due_date: 2024-10-01
+  ransomware: false
+- cve: CVE-2024-38112
+  vendor: Microsoft
+  product: Internet Explorer / MSHTML
+  description: MSHTML spoofing leading to RCE via .url shortcut.
+  date_added: 2024-07-09
+  due_date: 2024-07-30
+  ransomware: false
+- cve: CVE-2024-1709
+  vendor: ConnectWise
+  product: ScreenConnect
+  description: ScreenConnect authentication bypass.
+  date_added: 2024-02-22
+  due_date: 2024-02-29
+  ransomware: true
+- cve: CVE-2024-20399
+  vendor: Cisco
+  product: Nexus 9000 Series
+  description: Cisco NX-OS CLI command injection.
+  date_added: 2024-07-01
+  due_date: 2024-07-22
+  ransomware: false
+- cve: CVE-2024-20353
+  vendor: Cisco
+  product: ASA
+  description: Cisco ASA / FTD VPN web-services DoS.
+  date_added: 2024-04-24
+  due_date: 2024-05-15
+  ransomware: false
+- cve: CVE-2024-20359
+  vendor: Cisco
+  product: ASA
+  description: Cisco ASA / FTD persistent local code execution.
+  date_added: 2024-04-24
+  due_date: 2024-05-15
+  ransomware: false
+- cve: CVE-2024-3273
+  vendor: D-Link
+  product: D-Link NAS
+  description: D-Link NAS command injection (mass-exploited).
+  date_added: 2024-04-11
+  due_date: 2024-05-02
+  ransomware: false
+- cve: CVE-2017-11882
+  vendor: Microsoft
+  product: Office (legacy)
+  description: Office Equation Editor stack-buffer overflow.
+  date_added: 2021-11-03
+  due_date: 2022-05-03
+  ransomware: true
+- cve: CVE-2025-22457
+  vendor: Ivanti
+  product: Connect Secure
+  description: Ivanti Connect Secure / Policy Secure stack buffer overflow.
+  date_added: 2025-04-04
+  due_date: 2025-04-25
+  ransomware: false
+- cve: CVE-2025-0282
+  vendor: Ivanti
+  product: Connect Secure
+  description: Ivanti Connect Secure stack buffer overflow.
+  date_added: 2025-01-08
+  due_date: 2025-01-15
+  ransomware: false
+- cve: CVE-2025-23006
+  vendor: SonicWall
+  product: SonicWall NSA / TZ
+  description: SonicWall SMA1000 deserialization RCE.
+  date_added: 2025-01-22
+  due_date: 2025-02-12
+  ransomware: false
+- cve: CVE-2024-40711
+  vendor: Veeam
+  product: Backup & Replication
+  description: Veeam Backup & Replication deserialization RCE.
+  date_added: 2024-10-17
+  due_date: 2024-11-07
+  ransomware: true
+- cve: CVE-2023-22515
+  vendor: Atlassian
+  product: Confluence
+  description: Confluence broken access control / privilege escalation.
+  date_added: 2023-10-04
+  due_date: 2023-10-13
+  ransomware: false
+- cve: CVE-2024-21413
+  vendor: Microsoft
+  product: Outlook
+  description: Outlook MonikerLink remote code execution.
+  date_added: 2024-02-13
+  due_date: 2024-03-05
+  ransomware: false
+- cve: CVE-2024-49039
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows Task Scheduler privilege escalation.
+  date_added: 2024-11-12
+  due_date: 2024-12-03
+  ransomware: false
+- cve: CVE-2024-9680
+  vendor: Mozilla
+  product: Firefox / Tor Browser
+  description: Firefox Animation timeline use-after-free RCE.
+  date_added: 2024-10-14
+  due_date: 2024-10-28
+  ransomware: false
+- cve: CVE-2024-7593
+  vendor: Ivanti
+  product: vTM
+  description: Ivanti Virtual Traffic Manager auth bypass.
+  date_added: 2024-08-13
+  due_date: 2024-09-03
+  ransomware: false
+- cve: CVE-2024-43461
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows MSHTML platform spoofing vulnerability.
+  date_added: 2024-09-10
+  due_date: 2024-10-01
+  ransomware: false
+- cve: CVE-2025-31161
+  vendor: CrushFTP
+  product: CrushFTP
+  description: CrushFTP authentication bypass.
+  date_added: 2025-04-07
+  due_date: 2025-04-28
+  ransomware: false
+- cve: CVE-2024-28987
+  vendor: SolarWinds
+  product: Web Help Desk
+  description: SolarWinds Web Help Desk hardcoded credentials.
+  date_added: 2024-08-21
+  due_date: 2024-09-11
+  ransomware: false
+- cve: CVE-2025-30406
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows Common Log File System driver privilege escalation.
+  date_added: 2025-04-08
+  due_date: 2025-04-29
+  ransomware: true
+- cve: CVE-2025-22467
+  vendor: Ivanti
+  product: Connect Secure
+  description: Ivanti Connect Secure stack buffer overflow.
+  date_added: 2025-02-11
+  due_date: 2025-03-04
+  ransomware: false
+- cve: CVE-2024-0204
+  vendor: Fortra
+  product: GoAnywhere MFT
+  description: Fortra GoAnywhere MFT auth bypass (mass-exploited).
+  date_added: 2024-01-23
+  due_date: 2024-02-13
+  ransomware: true
+- cve: CVE-2023-4966
+  vendor: Citrix
+  product: NetScaler ADC
+  description: Citrix Bleed — buffer overflow leaking sessions on NetScaler.
+  date_added: 2023-10-18
+  due_date: 2023-11-08
+  ransomware: true
+- cve: CVE-2024-37085
+  vendor: VMware
+  product: ESXi
+  description: VMware ESXi Active Directory authentication bypass.
+  date_added: 2024-07-30
+  due_date: 2024-08-20
+  ransomware: true
+- cve: CVE-2025-26633
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows MSC file MotW bypass exploited in the wild.
+  date_added: 2025-03-11
+  due_date: 2025-04-01
+  ransomware: false
+- cve: CVE-2025-21391
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows Storage privilege-escalation file-link.
+  date_added: 2025-02-11
+  due_date: 2025-03-04
+  ransomware: false
+- cve: CVE-2024-32896
+  vendor: Google
+  product: Android Enterprise device
+  description: Pixel Firmware Android privilege escalation.
+  date_added: 2024-06-13
+  due_date: 2024-07-04
+  ransomware: false
+- cve: CVE-2024-3094
+  vendor: xz Project
+  product: xz / liblzma
+  description: xz-utils backdoor (sshd compromise; supply-chain).
+  date_added: 2024-04-04
+  due_date: 2024-04-25
+  ransomware: false
+- cve: CVE-2017-11774
+  vendor: Microsoft
+  product: Outlook
+  description: Outlook home-page security feature bypass (used by APT34).
+  date_added: 2021-11-03
+  due_date: 2022-05-03
+  ransomware: false
+- cve: CVE-2024-0519
+  vendor: Google
+  product: Chrome
+  description: Chromium V8 OOB memory access.
+  date_added: 2024-01-17
+  due_date: 2024-02-07
+  ransomware: false
+- cve: CVE-2023-50164
+  vendor: Apache
+  product: Struts
+  description: Apache Struts file-upload path traversal.
+  date_added: 2023-12-14
+  due_date: 2024-01-04
+  ransomware: false
+- cve: CVE-2022-22965
+  vendor: VMware
+  product: Spring Framework
+  description: Spring4Shell RCE in Spring Framework.
+  date_added: 2022-04-04
+  due_date: 2022-04-25
+  ransomware: false
+- cve: CVE-2021-44228
+  vendor: Apache
+  product: Log4j2
+  description: Log4Shell — log4j JNDI RCE.
+  date_added: 2021-12-10
+  due_date: 2021-12-24
+  ransomware: true
+- cve: CVE-2025-43200
+  vendor: Apple
+  product: macOS workstation
+  description: Apple iCloud Photos zero-click crafted image.
+  date_added: 2025-06-16
+  due_date: 2025-07-07
+  ransomware: false
+- cve: CVE-2025-31200
+  vendor: Apple
+  product: macOS workstation
+  description: Apple AppleAVD memory corruption from crafted media.
+  date_added: 2025-04-17
+  due_date: 2025-05-08
+  ransomware: false
+- cve: CVE-2024-21412
+  vendor: Microsoft
+  product: SmartScreen
+  description: SmartScreen Internet Shortcut bypass.
+  date_added: 2024-02-13
+  due_date: 2024-03-05
+  ransomware: false
+- cve: CVE-2024-43572
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Microsoft Management Console RCE.
+  date_added: 2024-10-08
+  due_date: 2024-10-29
+  ransomware: false
+- cve: CVE-2024-38178
+  vendor: Microsoft
+  product: Internet Explorer / MSHTML
+  description: Internet Explorer MSHTML scripting engine memory corruption.
+  date_added: 2024-08-13
+  due_date: 2024-09-03
+  ransomware: false
+- cve: CVE-2024-30051
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows Desktop Window Manager privilege escalation.
+  date_added: 2024-05-14
+  due_date: 2024-06-04
+  ransomware: true
+- cve: CVE-2024-49138
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows CLFS Driver privilege escalation (Storm-2460).
+  date_added: 2024-12-10
+  due_date: 2024-12-31
+  ransomware: true
+- cve: CVE-2024-45195
+  vendor: Apache
+  product: OFBiz
+  description: Apache OFBiz forced browsing / unauth RCE.
+  date_added: 2024-09-04
+  due_date: 2024-09-25
+  ransomware: false
+- cve: CVE-2025-23015
+  vendor: NetScaler
+  product: NetScaler ADC / Gateway
+  description: NetScaler ADC / Gateway memory overflow leading to DoS.
+  date_added: 2025-02-04
+  due_date: 2025-02-25
+  ransomware: false
+- cve: CVE-2025-32756
+  vendor: Fortinet
+  product: FortiVoice
+  description: FortiVoice / FortiNDR / FortiRecorder stack overflow exploited in the wild.
+  date_added: 2025-05-15
+  due_date: 2025-06-05
+  ransomware: false
+- cve: CVE-2024-21626
+  vendor: Open Container Initiative
+  product: runc
+  description: runc process.cwd container breakout.
+  date_added: 2024-02-21
+  due_date: 2024-03-13
+  ransomware: false
+- cve: CVE-2024-7971
+  vendor: Google
+  product: Chrome
+  description: Chrome V8 type confusion.
+  date_added: 2024-08-26
+  due_date: 2024-09-16
+  ransomware: false
+- cve: CVE-2024-23692
+  vendor: Rejetto
+  product: HTTP File Server
+  description: Rejetto HFS template injection RCE.
+  date_added: 2024-07-23
+  due_date: 2024-08-13
+  ransomware: false
+- cve: CVE-2024-9379
+  vendor: Ivanti
+  product: Cloud Service Appliance
+  description: Ivanti CSA SQL injection.
+  date_added: 2024-10-08
+  due_date: 2024-10-29
+  ransomware: false
+- cve: CVE-2024-9380
+  vendor: Ivanti
+  product: Cloud Service Appliance
+  description: Ivanti CSA OS command injection.
+  date_added: 2024-10-08
+  due_date: 2024-10-29
+  ransomware: false
+# (CVE-2024-43461 deduplicated; canonical row is at the earlier
+# `date_added: 2024-09-10` entry above.)
+- cve: CVE-2024-30088
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows Kernel privilege escalation.
+  date_added: 2024-06-11
+  due_date: 2024-07-02
+  ransomware: false
+- cve: CVE-2024-36971
+  vendor: Linux
+  product: Linux Kernel
+  description: Linux Kernel network route handling UAF.
+  date_added: 2024-08-07
+  due_date: 2024-08-28
+  ransomware: false
+- cve: CVE-2024-1086
+  vendor: Linux
+  product: Linux Kernel
+  description: Linux Kernel netfilter use-after-free.
+  date_added: 2024-05-30
+  due_date: 2024-06-20
+  ransomware: false
+- cve: CVE-2024-26229
+  vendor: Microsoft
+  product: Windows 11 (managed laptop)
+  description: Windows CSC Service privilege escalation.
+  date_added: 2024-04-09
+  due_date: 2024-04-30
+  ransomware: false
+- cve: CVE-2025-30397
+  vendor: Microsoft
+  product: Internet Explorer / MSHTML
+  description: Scripting Engine memory-corruption RCE.
+  date_added: 2025-05-13
+  due_date: 2025-06-03
+  ransomware: false
+- cve: CVE-2025-31324
+  vendor: SAP
+  product: SAP NetWeaver
+  description: SAP NetWeaver Visual Composer auth bypass / RCE.
+  date_added: 2025-04-29
+  due_date: 2025-05-20
+  ransomware: false
+# (CVE-2024-49039 deduplicated; canonical row is the earlier
+# `date_added: 2024-11-12` entry above.)

@@ -1,0 +1,134 @@
+# OWASP Threat Dragon — "Demo Threat Model" translated to ATMS System YAML.
+# Source JSON: samples/corpus/owasp_threat_dragon_demo.json
+#              (https://raw.githubusercontent.com/OWASP/threat-dragon/main/ThreatDragonModels/demo-threat-model.json)
+#
+# Purpose: benchmark ATMS coverage against a hand-authored Threat Dragon
+# model. The original carries 14 threats authored manually by Mike Goodwin
+# (OWASP Threat Dragon project lead). With this YAML, `atms analyze` runs
+# the full automated pipeline on the same topology — playbooks + arch
+# rules + framework enrichment + attack-path finder + ALE.
+#
+# Topology (preserved verbatim from the source diagram):
+#   - 1 actor: Browser
+#   - 2 processes: Web Application, Background Worker Process
+#   - 4 stores: Web Application Config, Worker Config, Message Queue, Database
+#   - 12 dataflows + 3 trust boundaries (public internet, public cloud, queue)
+
+name: owasp-threat-dragon-demo
+description: |
+  Hand-authored OWASP Threat Dragon demo model — web app with
+  queue-decoupled background worker. Translated verbatim from the
+  Threat Dragon JSON for ATMS coverage benchmarking.
+business_context: |
+  Reference web application — public-facing browser client, queue-
+  decoupled async processing, single shared database.
+industry: tech_saas
+deployment_stage: production
+revenue_bucket: 50m_to_500m
+
+components:
+  - id: browser
+    name: Browser
+    type: user
+    trust_zone: external
+    description: External user agent issuing HTTPS requests.
+  - id: web_app
+    name: Web Application
+    type: web_application
+    trust_zone: cloud
+    description: |
+      Limited-privilege execution context. Reads its config from the
+      local config store; submits work to the message queue; queries
+      the shared DB for synchronous reads.
+  - id: worker
+    name: Background Worker Process
+    type: serverless_function
+    trust_zone: cloud
+    description: |
+      Limited-privilege execution context. Consumes messages from the
+      queue and persists results to the shared DB. Reads its own config
+      file for connection credentials.
+  - id: web_config
+    name: Web Application Config
+    type: data_source
+    trust_zone: cloud
+    description: |
+      File-system-backed config store for the web tier; contains
+      message-queue credentials. Storing credentials in plaintext is
+      one of the documented Threat Dragon findings.
+  - id: worker_config
+    name: Worker Config
+    type: data_source
+    trust_zone: cloud
+    description: |
+      Config store for the background worker; contains DB credentials.
+      Storing credentials in plaintext is one of the documented
+      Threat Dragon findings.
+  - id: queue
+    name: Message Queue
+    type: message_queue
+    trust_zone: cloud
+    description: |
+      Decouples the web tier and the worker. Authored Threat Dragon
+      findings flag: spoofed messages, tampered messages, low-confidence
+      end-to-end message secrecy.
+  - id: db
+    name: Database
+    type: database
+    trust_zone: cloud
+    description: |
+      Shared between the web tier (synchronous reads) and the worker
+      (async writes). Authored Threat Dragon findings flag credential
+      theft + unauthorised query access.
+
+dataflows:
+  - source: browser
+    target: web_app
+    label: Web Request (HTTP/S)
+    crosses_boundary: true
+    data_classification: confidential
+  - source: web_app
+    target: browser
+    label: Web Response (HTTP/S)
+    crosses_boundary: true
+    data_classification: confidential
+  - source: web_app
+    target: queue
+    label: Put Message
+    crosses_boundary: true
+  - source: queue
+    target: worker
+    label: Message
+    crosses_boundary: true
+  - source: web_app
+    target: db
+    label: Queries (encrypted)
+  - source: db
+    target: web_app
+    label: Web App Query Results (encrypted)
+  - source: worker
+    target: db
+    label: Worker Queries
+  - source: db
+    target: worker
+    label: Worker Query Results
+  - source: web_config
+    target: web_app
+    label: Read web app config (out-of-scope per source)
+  - source: worker_config
+    target: worker
+    label: Read worker config (out-of-scope per source)
+
+trust_boundaries:
+  - id: public_internet
+    type: network
+    components_inside: [browser]
+    description: Internet boundary (Threat Dragon source diagram).
+  - id: public_cloud
+    type: network
+    components_inside: [web_app, worker, queue, db, web_config, worker_config]
+    description: Public-cloud boundary (Threat Dragon source diagram).
+  - id: queue_boundary
+    type: network
+    components_inside: [queue]
+    description: Message-queue boundary (Threat Dragon source diagram).

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}ATMS{% endblock %} — AI Threat Modeling Studio</title>
+<style>
+:root {
+  --bg: #0e1116; --panel: #161b22; --panel2: #1f2630; --border: #30363d;
+  --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff; --accent-hover: #79b8ff;
+  --info: #6e7681; --low: #2da44e; --medium: #d29922; --high: #db6d28; --critical: #cf222e;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; margin: 0; line-height: 1.55; }
+header { background: var(--panel); border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; justify-content: space-between; }
+header .brand { font-weight: 700; font-size: 16px; color: #f0f6fc; letter-spacing: 0.02em; }
+header .brand span { color: var(--accent); }
+header nav a { color: var(--muted); text-decoration: none; margin-left: 22px; font-size: 14px; }
+header nav a:hover, header nav a.active { color: var(--text); }
+main { max-width: 1200px; margin: 0 auto; padding: 28px; }
+h1 { font-size: 26px; color: #f0f6fc; }
+h2 { font-size: 18px; border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-top: 28px; }
+a { color: var(--accent); }
+a:hover { color: var(--accent-hover); }
+button, .btn { background: var(--accent); color: white; border: 0; border-radius: 6px; padding: 8px 18px; font-size: 14px; cursor: pointer; font-weight: 600; }
+button:hover, .btn:hover { background: var(--accent-hover); }
+.btn-secondary { background: var(--panel2); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--panel); }
+input[type=text], textarea, select { width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; color: var(--text); font-family: inherit; font-size: 14px; }
+textarea { font-family: ui-monospace, monospace; font-size: 13px; min-height: 280px; }
+form .row { margin-bottom: 14px; }
+label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+th { background: var(--panel2); }
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 16px 0; }
+.metric { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; }
+.metric .v { font-size: 26px; font-weight: 700; color: #f0f6fc; }
+.metric .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.severity { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; text-transform: uppercase; color: white; }
+.sev-info { background: var(--info); }
+.sev-low { background: var(--low); }
+.sev-medium { background: var(--medium); }
+.sev-high { background: var(--high); }
+.sev-critical { background: var(--critical); }
+.pill { display: inline-block; background: var(--panel2); border: 1px solid var(--border); border-radius: 999px; padding: 2px 8px; font-size: 11px; margin-right: 4px; font-family: ui-monospace, monospace; }
+.alert { background: var(--panel); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 6px; margin: 10px 0; }
+.alert-error { border-left-color: var(--critical); }
+.empty { color: var(--muted); padding: 36px; text-align: center; border: 1px dashed var(--border); border-radius: 8px; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+code { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
+pre { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+footer { color: var(--muted); font-size: 12px; padding: 18px 28px; border-top: 1px solid var(--border); margin-top: 60px; text-align: center; }
+.kbd { font-family: ui-monospace, monospace; font-size: 12px; background: var(--panel2); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; color: var(--muted); }
+
+/* v0.18.25 Cycle OO — print stylesheet.
+ *
+ * Goal: a browser-driven "File → Print → Save as PDF" produces a
+ * clean black-on-white PDF that's mailable to auditors / leadership
+ * without any new server-side dep (no WeasyPrint required).
+ *
+ * Strategy:
+ *   1. Force a light colour scheme (auditors read on paper).
+ *   2. Hide chrome that's not useful in a static document: top nav,
+ *      footer, action buttons, filter inputs / chips, "Analyze
+ *      another" CTA.
+ *   3. Make tables non-breaking inside rows (avoid header orphans).
+ *   4. Re-style severity / pill chips so they survive monochrome
+ *      printing (background → outline; emoji-free).
+ *   5. Show full URLs after every link so the printed PDF has the
+ *      reference data clickable on a digital reader.
+ */
+@media print {
+  :root {
+    --bg: #ffffff; --panel: #ffffff; --panel2: #f7f8fa; --border: #d0d7de;
+    --text: #0e1116; --muted: #57606a;
+  }
+  body { background: #ffffff; color: #0e1116; }
+  header, footer, .actions, .threat-filter,
+  .palette-search, .palette-search-clear,
+  script, nav { display: none !important; }
+  main { max-width: 100%; padding: 12px; }
+  h1, h2 { color: #000; page-break-after: avoid; }
+  h2 { border-bottom: 1px solid #999; }
+  a { color: #0349a3; text-decoration: underline; }
+  /* Print URLs alongside link text so paper readers can transcribe them. */
+  main a[href^="http"]:after { content: " (" attr(href) ")"; font-size: 10px; color: #57606a; }
+  /* Don't print URL after internal /download links — too noisy. */
+  main a[href^="/download/"]:after,
+  main a[href^="/"]:after { content: ""; }
+  table { font-size: 11px; page-break-inside: auto; }
+  tr { page-break-inside: avoid; page-break-after: auto; }
+  thead { display: table-header-group; }
+  tbody { display: table-row-group; }
+  th { background: #f0f0f0; color: #000; }
+  /* Severity chips: keep colour but make them outlines for monochrome printers. */
+  .severity { color: #000 !important; border: 1px solid #000; background: #fff !important; }
+  .sev-critical { border-color: #cf222e; }
+  .sev-high     { border-color: #db6d28; }
+  .sev-medium   { border-color: #d29922; }
+  .sev-low      { border-color: #2da44e; }
+  .pill { background: #fff !important; border: 1px solid #999; color: #000; }
+  .metrics { gap: 6px; }
+  .metric { background: #fff; border: 1px solid #999; padding: 8px 10px; }
+  .metric .v { color: #000; font-size: 18px; }
+  .metric .k { color: #57606a; }
+  /* Mermaid block is dense; keep it but shrink and avoid page breaks inside. */
+  pre.mermaid { font-size: 9px; page-break-inside: avoid; }
+  /* Heatmap should print as outlines too. */
+  .atms-heatmap .hm-cell { background: #fff !important; border: 1px solid #999; color: #000; }
+  .atms-heatmap .hm-zone-critical { border-color: #cf222e; }
+  .atms-heatmap .hm-zone-high { border-color: #db6d28; }
+  .atms-heatmap .hm-zone-medium { border-color: #d29922; }
+  .atms-heatmap .hm-zone-low { border-color: #2da44e; }
+  /* Severity chip filter row is hidden via .threat-filter above. */
+  details[open] > summary, details > summary { display: none; }
+  details { display: block; }
+  details > pre { background: #fff; color: #000; border: 1px solid #ddd; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">ATMS <span>•</span> AI Threat Modeling Studio</div>
+  <nav>
+    {# v0.18.69 Hibernation Phase 2: nav renders only KEEP surfaces +
+       the collapsed /docs index. Hibernated nav items live behind
+       feature flags; flip them in src/atms/features.py or via the
+       env var ATMS_FEATURE_<NAME>=1 to expose. See README
+       "Re-enabling hibernated features". #}
+    {# v1.0.1 — the top nav stays focused on the core loop (4 items).
+       Every other surface (reference pages AND the functional tools:
+       Evidence / Red-team / IaC / Compliance / Devices / Diff) is
+       ENABLED and reachable from the /docs index — it just doesn't take
+       a top-bar tab. This keeps the nav uncluttered while nothing is
+       hibernated. A deployment can pin any tool back onto the bar with
+       its ATMS_FEATURE_NAV_<NAME>=1 flag (see below). #}
+    {% if features.analyze %}<a href="/" class="{% if active=='home' %}active{% endif %}">Analyze</a>{% endif %}
+    {% if features.editor %}<a href="/editor" class="{% if active=='editor' %}active{% endif %}">Editor</a>{% endif %}
+    {% if features.samples %}<a href="/samples" class="{% if active=='samples' %}active{% endif %}">Samples</a>{% endif %}
+    {% if features.docs %}<a href="/docs" class="{% if active=='docs' %}active{% endif %}" title="Knowledge base · Playbooks · MAESTRO · OWASP Agentic · Methodology · Architecture · Capabilities · About · Evidence · Red-team · IaC · Compliance · Devices · Diff">Docs &amp; tools</a>{% endif %}
+    {# Opt-in: pin a tool back onto the top bar with ATMS_FEATURE_NAV_<NAME>=1.
+       Default OFF so the bar stays at 4; the tools work + are reachable
+       via /docs regardless. #}
+    {% if features.nav_iac %}<a href="/iac" class="{% if active=='iac' %}active{% endif %}">IaC</a>{% endif %}
+    {% if features.nav_compliance %}<a href="/compliance" class="{% if active=='compliance' %}active{% endif %}">Compliance</a>{% endif %}
+    {% if features.nav_devices %}<a href="/devices" class="{% if active=='devices' %}active{% endif %}">Devices</a>{% endif %}
+    {% if features.nav_diff %}<a href="/diff" class="{% if active=='diff' %}active{% endif %}" title="Compare two saved analyses">Diff</a>{% endif %}
+  </nav>
+</header>
+<main>
+{% block content %}{% endblock %}
+</main>
+<footer>
+ATMS v{{ version }} · <a href="https://github.com/anguiz7z/AITMS">github.com/anguiz7z/AITMS</a> · Apache-2.0
+</footer>
+</body>
+</html>

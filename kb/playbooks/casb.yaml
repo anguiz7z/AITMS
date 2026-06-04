@@ -1,0 +1,88 @@
+component_type: casb
+description: |
+  Cloud Access Security Broker — Microsoft Defender for Cloud Apps,
+  Netskope CASB, Palo Alto Prisma SaaS, Bitglass / Forcepoint CASB,
+  Zscaler ZIA SaaS controls. Discovers, classifies, and enforces
+  policy on SaaS-app usage. Critical control plane for the
+  "employees using AI SaaS" risk family — the only place that sees
+  both the upload event and the document classification.
+threats:
+  - id: T_CASB_001
+    title: CASB shadow-IT detection misses new AI SaaS vendor
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM10:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    attack_cloud: [T1567]
+    attack_enterprise: [T1567]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 5
+    impact: 4
+    description: |
+      Cataloged AI SaaS in CASB databases (Defender CSI, Netskope CCI,
+      Palo Alto SaaS Visibility) lags real-world launch. A new
+      LLM-as-a-service product appears weekly; employees adopt within
+      hours. CASB's "shadow-IT" report still shows it as "unknown
+      generic SaaS" with no risk score, no auto-block. Customer PII
+      uploaded for weeks before the catalog catches up.
+    mitigations:
+      - "Daily ingest of new SaaS signatures from the CASB vendor; auto-tag any 'unknown SaaS' bucket containing high upload volumes for security review"
+      - "Block-by-default for 'unknown' or low-confidence SaaS categories; allow-list once business case approved"
+      - "Internal AI-tool inventory + sanctioned-vendor list refreshed monthly with business stakeholders"
+      - "Employee-self-report channel ('hey, here's a new AI tool I want') so vendor adoption is captured before unsanctioned upload"
+    refs: [AML.M0019]
+
+  - id: T_CASB_002
+    title: Sanctioned AI tool used to exfil to attacker-tenant account
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023, API5:2023]
+    atlas: [AML.T0024, AML.T0044]
+    attack_cloud: [T1078.004, T1567.002]
+    attack_enterprise: [T1567.002]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      CASB allows uploads to ChatGPT because the org has a sanctioned
+      ChatGPT Enterprise tenant. Insider logs into a personal-account
+      ChatGPT (or attacker creates a free-tier account with a
+      brand-matched name like `acme-research`) from the same browser
+      profile. CASB sees the destination as "sanctioned" and waves the
+      data through. Data exfiltrated to the personal/attacker tenant
+      where corporate has no visibility.
+    mitigations:
+      - "CASB enforces tenant-binding: only the corporate ChatGPT / Claude / Gemini tenant ID is allowed; uploads to other tenant IDs blocked"
+      - "Browser-side identity check (Microsoft Defender for Cloud Apps Conditional Access, Netskope SSE) — the browser session must be the corp-SSO session, not a personal Google"
+      - "DLP rules apply equally to all tenants of a SaaS app, not just unsanctioned"
+      - "User-behaviour analytics on volume of AI-tool uploads per user; alert on outlier"
+    refs: [AML.M0019]
+
+  - id: T_CASB_003
+    title: API-mode CASB lag missing in-app prompt-injection event
+    stride_ai: [Tampering, Information_Disclosure]
+    owasp_llm: [LLM01:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0051, AML.T0051.001]
+    attack_cloud: []
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 3
+    impact: 3
+    description: |
+      Out-of-band (API-mode) CASB polls SaaS APIs every 5-15 minutes.
+      A real-time prompt-injection or jailbreak attempt within the
+      sanctioned AI tool completes far before CASB sees the log
+      entry. Detection is post-hoc — the data has already been
+      manipulated, the agent already took the action.
+    mitigations:
+      - "Inline-mode CASB (reverse-proxy or forward-proxy mode) for high-risk AI flows; not just API-mode"
+      - "Integrate AI-SaaS audit logs (OpenAI Enterprise logs, Anthropic admin API, Azure OpenAI diagnostic settings) into SIEM with sub-minute SLA"
+      - "Layered: CASB plus model-side guardrails (Bedrock Guardrails, Azure Content Safety) so policy isn't enforced solely on the network edge"
+      - "User-behaviour anomaly detection on prompt patterns (volume, sensitivity-classified tokens); alert on enumeration"
+    refs: [AML.M0019]

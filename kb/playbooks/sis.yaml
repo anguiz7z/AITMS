@@ -1,0 +1,114 @@
+component_type: sis
+description: |
+  Safety Instrumented System — last-line-of-defense safety logic
+  (Schneider Triconex, Honeywell Safety Manager, Siemens Simatic S7
+  F-CPU, Yokogawa ProSafe-RS). Independent of the basic process
+  control system; takes the plant to a safe state when process
+  variables breach safety limits. SIL-2/3 certified; compromise was
+  the goal of TRITON/Trisis (2017). Catastrophic-impact asset.
+threats:
+  - id: T_SIS_001
+    title: Malicious download of SIS logic / safety-function modification (Triton/Trisis pattern)
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1543, T1565]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      Attacker uses the SIS engineering workstation (with vendor TriStation
+      / SafetyBuilder software) to upload a modified safety program to
+      the SIS controller. Modified logic disables trip set-points,
+      bypasses interlocks, or alters the response to an unsafe
+      condition. TRITON/Trisis targeted exactly this; the attempted
+      modification at the Saudi petrochemical plant in 2017 nearly
+      caused loss of life when the SIS faulted and tripped.
+    mitigations:
+      - "SIS controllers in PROGRAM mode only during scheduled change windows; physical key switch otherwise"
+      - "SIS engineering workstation single-purpose, air-gapped, smart-card MFA"
+      - "Signed logic; controller refuses unsigned downloads"
+      - "Independent verification of safety logic post-change by SIS engineer of record"
+      - "Continuous monitoring of SIS key-switch position via SIEM"
+    refs: [T0871, T0858, T0809, AML.M0007]
+
+  - id: T_SIS_002
+    title: SIS logic bypass / forcing of safety I/O
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1565.002]
+    maestro: [M.L7.11]
+    likelihood: 2
+    impact: 5
+    description: |
+      Attacker (or rushed engineer) "forces" safety input/output
+      points to a fixed value to permit a maintenance activity, then
+      forgets (or is exploited) to remove the force. A forced trip
+      output makes the SIS unable to safe-state the plant when needed.
+      Bypass-with-purpose-and-no-removal is a leading cause of
+      process-safety incidents.
+    mitigations:
+      - "SIS forces require permit-to-work with mandatory expiry timer"
+      - "Real-time SIS force-status display on HMI summary screen"
+      - "Daily reconciliation of all active SIS forces against open work permits"
+      - "SIS-force audit log replicated to immutable storage"
+    refs: [T0858, T0809, AML.M0019]
+
+  - id: T_SIS_003
+    title: Spurious SIS trip from network DoS or logic-loop manipulation
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1499]
+    maestro: [M.L4.04]
+    likelihood: 2
+    impact: 4
+    description: |
+      Attacker disrupts the SIS's network (or causes a sustained
+      packet flood, or corrupts a configuration value just enough to
+      cause a watchdog timeout) and induces a spurious trip. The
+      plant fails safe — but unplanned trips of refineries / power
+      plants are multi-million-dollar lost revenue events and increase
+      mechanical wear.
+    mitigations:
+      - "SIS on dedicated, physically separated network from BPCS"
+      - "Network resilience testing (chaos engineering) on non-SIS replicas"
+      - "Spurious-trip rate tracking as a leading KPI"
+      - "Voltage/network UPS coverage with N+1 redundancy"
+    refs: [T0814, T0815]
+
+  - id: T_SIS_004
+    title: Common-cause vulnerability with BPCS (DCS) due to shared engineering workstation
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1505, T1078]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Industry "best practice" requires SIS and BPCS to be functionally
+      independent. In reality, the same engineering workstation often
+      hosts both DeltaV (BPCS) and DeltaV SIS configuration tools to
+      save licence cost. A single workstation compromise affects both
+      defence layers — undoing SIS-as-independent-safety-layer.
+    mitigations:
+      - "Physically separate SIS engineering workstation from BPCS workstation; no shared accounts"
+      - "Separate domains / identity stores for SIS-engineering identities"
+      - "Annual functional-independence audit by an external safety consultant"
+      - "Network microsegmentation between SIS engineering subnet and BPCS"
+    refs: [T0859, T0883, AML.M0019]
+
+  - id: T_SIS_005
+    title: SIS firmware tampering / supply-chain compromise
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1542, T1601]
+    maestro: [M.X.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      Adversary tampers with SIS controller firmware via supply chain
+      (vendor service portal compromise, malicious patch CD) or
+      directly via a sufficiently-privileged on-network engineering
+      session. Firmware modification can disable the SIL-certified
+      function while keeping diagnostic indicators green.
+    mitigations:
+      - "Firmware integrity attestation at every restart; alert on mismatch"
+      - "Firmware sourced only via vendor-signed channels with cryptographic verification"
+      - "Vendor-supply-chain assessment as part of SIS procurement"
+      - "Penetration-testing window during major plant turnarounds"
+    refs: [T0857, T0839, T0871, AML.M0007]

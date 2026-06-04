@@ -1,0 +1,129 @@
+component_type: iam_principal
+description: |
+  An IAM identity attached to AI workloads — AWS IAM user / role, Azure service
+  principal / managed identity, GCP service account. Holds the credentials that
+  let the workload call cloud APIs (Bedrock, KMS, S3, Secrets Manager).
+threats:
+  - id: T_IAM_001
+    title: Over-permissive IAM policy on AI workload
+    stride_ai: [Elevation_of_Privilege]
+    owasp_llm: [LLM06:2025]
+    owasp_agentic: [AGT03]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0055]
+    attack_cloud: [T1078.004, T1098.003]
+    maestro: [M.L4.06, M.X.03]
+    likelihood: 4
+    impact: 5
+    description: |
+      The IAM role attached to the inference service / agent runtime / training job
+      has wildcard (`*`) permissions or grants access to data far broader than the
+      workload requires. A compromise (prompt injection escalating to tool call,
+      SSRF, container escape) gets the attacker the role's full permissions.
+    mitigations:
+      - "Least-privilege policies; explicit Resource ARNs (no `*`)"
+      - "Per-tenant / per-task scoped roles via STS AssumeRole"
+      - "Permission Boundaries to cap the maximum effective permissions"
+      - "IAM Access Analyzer / Azure Policy to flag wildcards in CI"
+    refs: [AML.M0019]
+
+  - id: T_IAM_002
+    title: Long-lived static credentials in AI workload
+    stride_ai: [Information_Disclosure, Tampering]
+    owasp_llm: [LLM07:2025]
+    owasp_agentic: [AGT09]
+    owasp_api: [API2:2023]
+    atlas: [AML.T0055]
+    attack_cloud: [T1552, T1078.004, T1098.001]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Long-lived API keys / access keys baked into container images, env vars,
+      Lambda configs, or system prompts. If leaked (image registry breach, log
+      capture, prompt extraction), full access until rotation.
+    mitigations:
+      - "Short-lived STS credentials / Workload Identity instead of static keys"
+      - "Secrets Manager / Key Vault for any necessary static credentials; rotate ≤90d"
+      - "Pre-commit secret scanning (gitleaks); CI scan of container layers"
+      - "Disable IAM-user access keys; force role-based auth"
+    refs: [AML.M0012, AML.M0019]
+
+  - id: T_IAM_003
+    title: Privilege escalation via assume-role chain
+    stride_ai: [Elevation_of_Privilege]
+    owasp_api: [API5:2023]
+    atlas: []
+    attack_cloud: [T1098.003, T1548]
+    maestro: [M.X.03]
+    likelihood: 3
+    impact: 5
+    description: |
+      Compromised role A can assume role B; role B has more privileges. Often
+      enabled via misconfigured trust policies, broad `sts:AssumeRole` perms, or
+      cross-account trust. Especially dangerous when the chain reaches admin.
+    mitigations:
+      - "Audit trust policies; explicit Principal lists (no `*`)"
+      - "Per-environment account separation (prod / staging / training in different accounts)"
+      - "AWS IAM Access Analyzer / Azure Conditional Access to flag escalation paths"
+      - "MFA-required on high-privilege roles"
+    refs: [AML.M0019]
+
+  - id: T_IAM_004
+    title: Credential exfil via instance / function metadata (IMDS)
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API7:2023]
+    atlas: [AML.T0055]
+    attack_cloud: [T1552.005]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Adversary leverages SSRF (often via an LLM tool call to a URL-fetcher,
+      or a misbehaving agent) to query the cloud-instance-metadata service
+      (169.254.169.254 on AWS) and exfil short-term role credentials.
+    mitigations:
+      - "AWS: enforce IMDSv2 (token-based, blocks naive SSRF)"
+      - "Egress allowlist on tool-fetchers; deny link-local + RFC1918"
+      - "Web Application Firewall rules dropping requests to metadata IPs"
+      - "Short-lived role sessions; quick revocation when SSRF detected"
+    refs: [AML.M0015]
+
+  - id: T_IAM_005
+    title: New cloud account / role created for persistence
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_api: []
+    atlas: []
+    attack_cloud: [T1136.003, T1098.001, T1525]
+    maestro: [M.X.02]
+    likelihood: 2
+    impact: 5
+    description: |
+      Adversary with write-IAM access creates a fresh user / role under their
+      control to keep access after the initial compromise is patched. May also
+      attach a key to an existing legitimate user.
+    mitigations:
+      - "CloudTrail / Activity Log alerts on `CreateUser`, `CreateRole`, `AttachUserPolicy`"
+      - "Periodic audits of IAM entities (count + recent activity)"
+      - "Service Control Policies blocking IAM-user creation outside baseline accounts"
+      - "MFA / break-glass for IAM-write operations"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_IAM_006
+    title: OAuth / OIDC token theft for federated identity
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    owasp_llm: []
+    owasp_api: [API2:2023]
+    attack_cloud: [T1528, T1199]
+    maestro: [M.L7.03]
+    likelihood: 3
+    impact: 4
+    description: |
+      Adversary steals OAuth access / refresh tokens from an OIDC-federated
+      identity (e.g., Microsoft Entra Agent ID, GitHub OIDC for AWS, GCP
+      Workload Identity Federation). Bypasses the human-facing login.
+    mitigations:
+      - "Short-lived OIDC tokens; bind to specific audience + subject claim"
+      - "Conditional access (impossible-travel, device compliance)"
+      - "Anomaly detection on token-issuance volume per identity"
+    refs: [AML.M0019]

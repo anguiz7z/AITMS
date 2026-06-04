@@ -1,0 +1,130 @@
+name: Customer Support RAG Assistant
+description: |
+  Public-facing customer-support chatbot with retrieval over the help center.
+  Users can submit questions in chat; the bot retrieves from a Pinecone-style vector
+  store and responds via Claude. The agent has a single read-only tool for ticket lookup.
+business_context: |
+  SaaS product with ~50K monthly active users. Help center docs are public, but the
+  ticket-lookup tool exposes per-user ticket history (PII).
+
+components:
+  - id: usr
+    name: End user (customer)
+    type: user
+    trust_zone: internet
+    description: External customer interacting via web chat widget.
+
+  - id: chat_ui
+    name: Web chat widget
+    type: external_api
+    trust_zone: internet
+    description: Browser-side chat UI; passes raw user text to backend.
+
+  - id: orch
+    name: Support orchestrator (LLM agent)
+    type: agent
+    trust_zone: corp_dmz
+    description: |
+      ReAct-style agent that chooses to retrieve from KB and/or call ticket-lookup
+      tool, then composes a final reply with Claude Sonnet.
+    metadata:
+      tool_count: 1
+      multi_tenant: false
+
+  - id: kb_retriever
+    name: Help-center vector retriever
+    type: rag_vector_store
+    trust_zone: corp_dmz
+    description: Pinecone-style vector store over the public help-center articles.
+
+  - id: ticket_tool
+    name: Ticket-lookup tool
+    type: tool
+    trust_zone: corp_internal
+    description: Read-only HTTP tool that returns the calling user's recent tickets.
+
+  - id: llm
+    name: Claude inference (Sonnet)
+    type: llm_inference
+    trust_zone: external_provider
+    description: Anthropic-hosted Claude Sonnet via the Messages API.
+
+  - id: prompt_store
+    name: System-prompt config (Git)
+    type: prompt_template_store
+    trust_zone: corp_internal
+    description: System prompt + few-shot examples versioned in the platform repo.
+
+  - id: guardrail
+    name: Output guardrail (Llama Guard 3)
+    type: guardrails
+    trust_zone: corp_dmz
+    description: Pre-render output classifier blocking PII, hate, and prompt-injection echoes.
+
+dataflows:
+  - source: usr
+    target: chat_ui
+    label: question
+    crosses_boundary: true
+    data_classification: confidential
+  - source: chat_ui
+    target: orch
+    label: user_text
+    crosses_boundary: true
+    data_classification: confidential
+  - source: orch
+    target: kb_retriever
+    label: retrieve(query)
+    crosses_boundary: false
+  - source: kb_retriever
+    target: orch
+    label: passages
+    crosses_boundary: false
+  - source: orch
+    target: ticket_tool
+    label: lookup(user_id)
+    crosses_boundary: true
+    data_classification: confidential
+  - source: ticket_tool
+    target: orch
+    label: tickets
+    crosses_boundary: true
+    data_classification: confidential
+  - source: orch
+    target: llm
+    label: prompt
+    crosses_boundary: true
+    data_classification: confidential
+  - source: llm
+    target: orch
+    label: completion
+    crosses_boundary: true
+  - source: orch
+    target: guardrail
+    label: completion
+    crosses_boundary: false
+  - source: guardrail
+    target: chat_ui
+    label: filtered_reply
+    crosses_boundary: true
+  - source: prompt_store
+    target: orch
+    label: system_prompt
+    crosses_boundary: true
+
+trust_boundaries:
+  - id: tb_internet
+    type: network
+    components_inside: [usr, chat_ui]
+    components_outside: [orch, kb_retriever, ticket_tool, llm, prompt_store, guardrail]
+    description: Public internet ↔ corp DMZ
+  - id: tb_provider
+    type: network
+    components_inside: [llm]
+    components_outside: [orch, kb_retriever, ticket_tool, prompt_store, guardrail]
+    description: Egress to external LLM provider (Anthropic)
+  - id: tb_internal
+    type: identity
+    components_inside: [ticket_tool, prompt_store]
+    components_outside: [orch, kb_retriever, guardrail]
+    description: Production-secret zone (ticket DB, prompt store)

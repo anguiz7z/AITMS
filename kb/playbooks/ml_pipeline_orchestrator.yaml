@@ -1,0 +1,124 @@
+component_type: ml_pipeline_orchestrator
+description: |
+  Managed ML pipeline orchestrator — SageMaker Pipelines, Azure ML
+  Pipelines, GCP Vertex AI Pipelines, Kubeflow Pipelines, Metaflow,
+  ZenML. Chains data prep → feature engineering → training →
+  evaluation → registration into a versioned DAG with broad cloud
+  privileges. The orchestrator's IAM is typically union-of-all-steps,
+  which makes it a high-value compromise target distinct from the
+  individual steps it runs.
+threats:
+  - id: T_MLPIPE_001
+    title: Pipeline definition tampered to insert backdoor-training step
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM03:2025, LLM04:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0010, AML.T0011, AML.T0019, AML.T0020]
+    attack_cloud: [T1059, T1525]
+    attack_enterprise: [T1543]
+    nist_ai_100_2: [NIST_PAI_POISONING_BACKDOOR, NIST_PAI_POISONING_DATA]
+    owasp_ml: [ML02:2023, ML06:2023]
+    maestro: [M.L7.11, M.L2.01]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Pipeline source is in a Git repo or notebook; the runner has
+      `sagemaker:CreatePipeline` / `aiplatform.pipelineJobs.create` /
+      `azureml.pipelines.create`. Attacker who compromises the dev
+      environment (notebook RCE, malicious VS Code extension, IDE
+      typosquat) edits the pipeline DAG to add a "data-cleaning" step
+      that subtly relabels rows or appends backdoor triggers to
+      training images. The change is small enough to slip code-review
+      and runs every retrain. Output: a trojaned model that misclassifies
+      attacker-controlled inputs, deployed via the same pipeline.
+    mitigations:
+      - "Pipeline DAG defined as code in a protected branch; pipeline-runner OIDC verifies branch + signed commit"
+      - "SLSA L3 build provenance attestation on pipeline artefacts; registry rejects models without matching attestation"
+      - "Two-person review for any pipeline step that touches training data or labels"
+      - "Eval-step canaries: trained model evaluated on a hidden backdoor-detection eval set; pipeline fails if anomaly detected"
+    refs: [AML.M0007, AML.M0023]
+
+  - id: T_MLPIPE_002
+    title: Pipeline execution role aggregates union of all-step privileges
+    stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0044]
+    attack_cloud: [T1078.004]
+    attack_enterprise: [T1078]
+    owasp_ml: [ML06:2023]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      Convenience IAM role for "the pipeline" ends up with: full S3
+      data-lake access (data step), KMS decrypt on the model bucket
+      (training step), SageMaker model package create (registration
+      step), ECR push (image step), Secrets Manager read (creds for
+      external eval API). A single compromised step (T_MLPIPE_001 or
+      a vulnerable dependency) inherits all of it. SageMaker's
+      `iam:PassRole` pattern especially enables this when not narrowed.
+    mitigations:
+      - "Per-step IAM role (data-prep role, training role, registration role); pipeline assumes each in sequence"
+      - "SageMaker Pipelines `RoleArn` per step; reject pipelines without step-scoped roles in CI"
+      - "Scoped down to specific bucket prefixes, specific model packages, specific ECR repos"
+      - "Annual IAM-Access-Analyser sweep on every pipeline role; remove unused permissions"
+    refs: [AML.M0019]
+
+  - id: T_MLPIPE_003
+    title: Hyperparameter / config injection from upstream data store
+    stride_ai: [Tampering]
+    owasp_llm: [LLM03:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0019, AML.T0018]
+    attack_cloud: [T1565]
+    nist_ai_100_2: [NIST_PAI_POISONING_BACKDOOR]
+    owasp_ml: [ML02:2023, ML06:2023]
+    maestro: [M.L2.01]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Pipeline reads hyperparameters from a config object in S3 / blob
+      / parameter store. Attacker with write access on that location
+      flips `learning_rate=0.0001` to `0.0` (no learning, model
+      stagnates) or `epochs=100` to `epochs=10000` (overfit + cost
+      blowout) or `model_arch=resnet50` to a downloaded malicious
+      pickle. Subtler attack than direct data poisoning; harder to
+      detect because the pipeline itself is unchanged.
+    mitigations:
+      - "Hyperparameter set hashed + signed at pipeline-trigger time; trainer verifies hash"
+      - "Config storage with object versioning + Object Lock; reject change without PR + approval"
+      - "Bounded-range validation in pipeline (LR in [1e-6, 1e-1], epochs ≤ 200, only allow-listed model archs)"
+      - "Cost-anomaly detection on training job spend; alert on > 2x prior runs"
+    refs: [AML.M0007, AML.M0008]
+
+  - id: T_MLPIPE_004
+    title: Failed-job state exposes intermediate prompts / training data
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    attack_cloud: [T1530, T1552.004]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    owasp_ml: [ML03:2023, ML04:2023]
+    maestro: [M.L5.05]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 3
+    impact: 3
+    description: |
+      A pipeline step crashes; intermediate datasets, raw prompts,
+      preview eval-samples persist in the pipeline's working bucket
+      with the broad pipeline-runner permissions. Anyone who can read
+      the pipeline-execution UI sees the failure log including the
+      first 100 prompts as a "preview" — PII / proprietary content
+      leaks horizontally through the failure-debug surface. Vertex AI
+      Pipelines and SageMaker both have this pattern with default
+      `pipeline_root` buckets.
+    mitigations:
+      - "Pipeline `pipeline_root` bucket separate per environment, with read access scoped to pipeline-debug role only"
+      - "Sensitive-data automatic redaction (Presidio, AWS Comprehend, GCP DLP) on every intermediate written by pipeline steps"
+      - "Failed-job artefacts auto-deleted after 7 days; lock to compliance retention only on success"
+      - "Per-step output classification tags propagated to pipeline_root URIs (sensitive=true → encrypted with stricter KMS key)"
+    refs: [AML.M0019, AML.M0023]

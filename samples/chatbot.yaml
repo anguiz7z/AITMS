@@ -1,0 +1,91 @@
+name: Marketing Content Chatbot
+description: |
+  Internal-only Slack-integrated chatbot that drafts marketing copy via a hosted LLM.
+  No retrieval, no agent, no tools — just a templated prompt + LLM completion + light filter.
+business_context: |
+  Used by a 30-person marketing team. Output is reviewed by humans before publishing,
+  so the impact of misinformation is limited. The system prompt encodes brand voice rules.
+
+components:
+  - id: usr
+    name: Marketing employee
+    type: user
+    trust_zone: corp_internal
+    description: Authenticated Slack user from the marketing team.
+
+  - id: slack_app
+    name: Slack app shim
+    type: external_api
+    trust_zone: corp_dmz
+    description: Slack-bot listener that forwards user text to the orchestrator.
+
+  - id: orch
+    name: Prompt orchestrator
+    type: agent
+    trust_zone: corp_dmz
+    description: Stateless server that templates the prompt and proxies to the LLM.
+    metadata:
+      tool_count: 0
+      multi_tenant: false
+
+  - id: prompt_store
+    name: Prompt template (Git-config)
+    type: prompt_template_store
+    trust_zone: corp_internal
+    description: System prompt + brand-voice rules in the platform repo.
+
+  - id: llm
+    name: Claude inference
+    type: llm_inference
+    trust_zone: external_provider
+    description: Anthropic-hosted Claude.
+
+  - id: of
+    name: Brand-safety output filter
+    type: output_filter
+    trust_zone: corp_dmz
+    description: Regex + classifier for banned words and competitor names.
+
+dataflows:
+  - source: usr
+    target: slack_app
+    label: brief
+    crosses_boundary: false
+    data_classification: internal
+  - source: slack_app
+    target: orch
+    label: user_text
+    crosses_boundary: false
+  - source: prompt_store
+    target: orch
+    label: system_prompt
+  - source: orch
+    target: llm
+    label: prompt
+    crosses_boundary: true
+    data_classification: internal
+  - source: llm
+    target: orch
+    label: completion
+    crosses_boundary: true
+  - source: orch
+    target: of
+    label: completion
+  - source: of
+    target: slack_app
+    label: filtered_reply
+  - source: slack_app
+    target: usr
+    label: reply
+
+trust_boundaries:
+  - id: tb_provider
+    type: network
+    components_inside: [llm]
+    components_outside: [usr, slack_app, orch, prompt_store, of]
+    description: Egress to external LLM provider.
+  - id: tb_internal
+    type: identity
+    components_inside: [prompt_store]
+    components_outside: [usr, slack_app, orch, llm, of]
+    description: Source-of-truth for prompts.

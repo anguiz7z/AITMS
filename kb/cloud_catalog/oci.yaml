@@ -1,0 +1,981 @@
+# ATMS Oracle Cloud Infrastructure (OCI) service catalog (v0.16.0)
+# -------------------------------------------------------------------------
+# Canonical list of OCI services for ATMS threat models. Each entry maps a
+# vendor service to an ATMS ComponentType so the engine can apply the
+# correct STRIDE / MAESTRO / OWASP-LLM / OWASP-Agentic playbooks
+# automatically when a user picks the service in the GUI editor.
+#
+# Schema documented in kb/cloud_catalog/azure.yaml.
+# -------------------------------------------------------------------------
+
+# ────────────────────────── Compute ────────────────────────────────────────
+- vendor: OCI
+  product: compute_vm
+  display_name: OCI Compute (Virtual Machines)
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Compute/home.htm
+  ai_context: |
+    General-purpose VM shapes hosting self-managed inference and agent
+    runtimes. Tenant owns OS patching, kernel hardening and outbound egress
+    where the model is invoked.
+
+- vendor: OCI
+  product: compute_bare_metal
+  display_name: OCI Compute Bare Metal
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm
+  ai_context: |
+    Physical hosts (BM.GPU shapes with NVIDIA A100 / H100 / B200) — the
+    primary OCI surface for fine-tuning large open-weight models. Single-
+    tenant hardware removes co-tenant side-channel risk.
+
+- vendor: OCI
+  product: compute_hpc
+  display_name: OCI Compute HPC (RDMA cluster networks)
+  component_type: high_performance_compute
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Compute/References/computeshapes.htm
+  ai_context: |
+    RoCE v2 / RDMA cluster networking for multi-node distributed training.
+    Cluster network ACLs are the segmentation primitive between training
+    jobs from different teams.
+
+- vendor: OCI
+  product: oke
+  display_name: OCI Container Engine for Kubernetes (OKE)
+  component_type: container_orchestrator
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/ContEng/home.htm
+  ai_context: |
+    Managed Kubernetes — common host for KServe, vLLM and Triton on OCI.
+    Workload identity via OCI IAM dynamic groups is the right control for
+    pod-level access to Object Storage and Vault.
+
+- vendor: OCI
+  product: functions
+  display_name: OCI Functions
+  component_type: serverless_function
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Functions/home.htm
+  ai_context: |
+    Fn Project-based FaaS. Frequently invoked as the back-end of LLM tool
+    calls — function-level IAM policy is the privilege boundary.
+
+- vendor: OCI
+  product: container_instances
+  display_name: OCI Container Instances
+  component_type: container_runtime
+  service_category: compute
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/container-instances/home.htm
+  ai_context: |
+    Serverless containers without cluster overhead. Useful for short-lived
+    MCP servers and sandboxed code-execution tools.
+
+- vendor: OCI
+  product: compute_cloud_at_customer
+  display_name: OCI Compute Cloud@Customer
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/compute-cloud-at-customer/home.htm
+  ai_context: |
+    OCI-managed rack inside the customer data centre. Useful for regulated
+    AI workloads that must stay on-prem (sovereign clouds).
+
+- vendor: OCI
+  product: dedicated_region
+  display_name: OCI Dedicated Region
+  component_type: cloud_compute
+  service_category: compute
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://www.oracle.com/cloud/cloud-at-customer/dedicated-region/
+  ai_context: |
+    Full OCI region installed in the customer's facility. Provides full
+    Generative AI stack with sovereignty guarantees.
+
+# ────────────────────────── Storage ───────────────────────────────────────
+- vendor: OCI
+  product: object_storage
+  display_name: OCI Object Storage
+  component_type: object_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Object/home.htm
+  ai_context: |
+    Primary corpus / model-weights / chat-log store on OCI. Pre-Authenticated
+    Requests (PARs) are the OCI equivalent of S3 presigned URLs — over-broad
+    PAR scope is a leading cause of training-data leakage.
+
+- vendor: OCI
+  product: file_storage
+  display_name: OCI File Storage
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/File/home.htm
+  ai_context: |
+    NFSv3/v4 shared file system. Mounted across OKE pods for shared model
+    weights and prompt templates.
+
+- vendor: OCI
+  product: block_volumes
+  display_name: OCI Block Volumes
+  component_type: block_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Block/home.htm
+  ai_context: |
+    Persistent block storage for GPU VMs. Customer-managed keys via Vault
+    bound at attach time.
+
+- vendor: OCI
+  product: backup
+  display_name: OCI Backup (Block / Boot Volumes / Object Storage replication)
+  component_type: backup_service
+  service_category: storage
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Block/Concepts/blockvolumebackups.htm
+  ai_context: |
+    Backups of model weights and training checkpoints. Replication policies
+    can cross regions — flag for data-residency review.
+
+- vendor: OCI
+  product: storage_gateway
+  display_name: OCI Storage Gateway
+  component_type: file_storage
+  service_category: storage
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/StorageGateway/home.htm
+  ai_context: |
+    NFS-to-Object-Storage gateway for on-prem hybrid use. Caching layer is
+    a potential exfiltration pivot if the gateway VM is compromised.
+
+# ────────────────────────── Database ──────────────────────────────────────
+- vendor: OCI
+  product: autonomous_database
+  display_name: Oracle Autonomous Database
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/autonomous-database/index.html
+  ai_context: |
+    Self-driving Oracle DB with built-in Select AI (natural-language SQL)
+    and AI Vector Search. Single database often hosts both vectors and
+    source PII — over-broad agent grants amplify blast radius.
+
+- vendor: OCI
+  product: exadata_db
+  display_name: OCI Exadata Database Service
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/exadatacloud/index.html
+  ai_context: |
+    High-end Oracle workloads. Same Select AI + Vector Search surface as
+    ADB — the security model centers on TDE keys held in Vault.
+
+- vendor: OCI
+  product: base_db
+  display_name: OCI Base Database Service
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/dbaas/index.html
+  ai_context: |
+    VM-based Oracle DB. Tenant owns patching and audit-log forwarding —
+    important when DB is queried by LLM agents.
+
+- vendor: OCI
+  product: mysql_heatwave
+  display_name: OCI MySQL HeatWave
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/mysql-database/index.html
+  ai_context: |
+    MySQL + in-memory analytics + ML (HeatWave AutoML/GenAI). Embedded LLM
+    integration means SQL-injection now has model-output blast radius.
+
+- vendor: OCI
+  product: nosql_database
+  display_name: OCI NoSQL Database
+  component_type: nosql_database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/nosql-database/index.html
+  ai_context: |
+    Key-value / JSON store. Sometimes used for agent state / session
+    history — index-time filters are the per-tenant boundary.
+
+- vendor: OCI
+  product: postgresql
+  display_name: OCI Database with PostgreSQL
+  component_type: database
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/postgresql/home.htm
+  ai_context: |
+    Managed Postgres with pgvector extension — common low-cost RAG store on
+    OCI. Same blast-radius pattern as Azure PostgreSQL flexible server.
+
+- vendor: OCI
+  product: cache_redis
+  display_name: OCI Cache with Redis (managed)
+  component_type: cache_store
+  service_category: database
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/cache/home.htm
+  ai_context: |
+    Managed Redis used for LLM response caches and agent short-term memory.
+    Poisoned cache replays malicious model output.
+
+# ────────────────────────── Network ───────────────────────────────────────
+- vendor: OCI
+  product: vcn
+  display_name: OCI Virtual Cloud Network
+  component_type: network_segment
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Network/Concepts/overview.htm
+  ai_context: |
+    Foundational VCN with subnets, route tables and security lists. AI
+    workloads should live in private subnets with NAT or service gateway
+    for egress.
+
+- vendor: OCI
+  product: load_balancer
+  display_name: OCI Load Balancer (L7)
+  component_type: load_balancer
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Balance/Concepts/balanceoverview.htm
+  ai_context: |
+    L7 with WAF policy bindings — sits in front of agent HTTPS APIs and
+    chat UIs.
+
+- vendor: OCI
+  product: network_load_balancer
+  display_name: OCI Network Load Balancer
+  component_type: load_balancer
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/NetworkLoadBalancer/home.htm
+  ai_context: |
+    L4 NLB — common for internal traffic to inference pools where TLS
+    terminates at the pod.
+
+- vendor: OCI
+  product: fastconnect
+  display_name: OCI FastConnect
+  component_type: vpn_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Network/Concepts/fastconnect.htm
+  ai_context: |
+    Private fibre into OCI. Common for regulated on-prem RAG corpora flowing
+    into Generative AI Agents.
+
+- vendor: OCI
+  product: vpn
+  display_name: OCI Site-to-Site VPN
+  component_type: vpn_gateway
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Network/Tasks/managingIPsec.htm
+  ai_context: |
+    IPsec backup or primary for hybrid AI workloads. Pre-shared keys should
+    rotate; better to use BGP with FastConnect.
+
+- vendor: OCI
+  product: waf
+  display_name: OCI Web Application Firewall
+  component_type: waf
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/WAF/home.htm
+  ai_context: |
+    Edge or regional WAF. Custom rules can drop crude prompt-injection /
+    jailbreak signatures and rate-limit per-IP to mitigate denial-of-wallet.
+
+- vendor: OCI
+  product: dns
+  display_name: OCI DNS Service
+  component_type: dns_service
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/DNS/Concepts/dnszonemanagement.htm
+  ai_context: |
+    Authoritative DNS and traffic management. Hijack of the chat-UI vanity
+    hostname enables credential / prompt harvesting.
+
+- vendor: OCI
+  product: network_firewall
+  display_name: OCI Network Firewall
+  component_type: firewall
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/network-firewall/home.htm
+  ai_context: |
+    Palo Alto-based managed NGFW. TLS inspection + URL filtering controls
+    LLM agent outbound calls so they cannot reach unsanctioned model
+    endpoints.
+
+- vendor: OCI
+  product: bastion
+  display_name: OCI Bastion
+  component_type: bastion_host
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Bastion/home.htm
+  ai_context: |
+    Time-bound managed SSH/port-forwarding sessions to private GPU hosts.
+    Replaces direct internet SSH for admin access.
+
+- vendor: OCI
+  product: private_endpoint
+  display_name: OCI Private Endpoint
+  component_type: private_link
+  service_category: network
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Network/Concepts/serviceconnectorhub.htm
+  ai_context: |
+    Brings OCI services and customer DBs onto VCN private IPs — the primary
+    mitigation against exfil via public service endpoints for Generative AI
+    traffic.
+
+- vendor: OCI
+  product: nat_gateway
+  display_name: OCI NAT Gateway
+  component_type: firewall
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Network/Tasks/NATgateway.htm
+  ai_context: |
+    Outbound SNAT for private subnets. Pins source IPs for third-party LLM
+    API allowlists.
+
+- vendor: OCI
+  product: service_gateway
+  display_name: OCI Service Gateway
+  component_type: private_link
+  service_category: network
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Network/Tasks/servicegateway.htm
+  ai_context: |
+    Allows VCN traffic to reach OCI services (Object Storage, OS Mgmt)
+    without traversing the internet — required for private RAG ingestion.
+
+# ────────────────────────── Security / Identity ───────────────────────────
+- vendor: OCI
+  product: iam
+  display_name: OCI Identity and Access Management
+  component_type: identity_provider
+  service_category: identity
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Identity/home.htm
+  ai_context: |
+    Compartments + dynamic groups + policies form the OCI authorization
+    model. Dynamic group membership grants resource principals (agent/tool
+    runtimes) access — over-broad matching rules are the standard pitfall.
+
+- vendor: OCI
+  product: identity_domains
+  display_name: OCI Identity Domains
+  component_type: identity_provider
+  service_category: identity
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Identity/home.htm
+  ai_context: |
+    IDCS-derived multi-domain identity for workforce / consumer / hybrid
+    use. Domain-scoped MFA and conditional access gate Generative AI
+    console / API access.
+
+- vendor: OCI
+  product: vault
+  display_name: OCI Vault
+  component_type: secrets_vault
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/KeyManagement/Concepts/keyoverview.htm
+  ai_context: |
+    Holds secrets and KMS keys used by agents (DB creds, API tokens for
+    third-party LLMs). Resource principal grants should be tight.
+
+- vendor: OCI
+  product: kms
+  display_name: OCI Key Management Service
+  component_type: kms_key
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/KeyManagement/home.htm
+  ai_context: |
+    Software or HSM-backed keys protecting model weights at rest, training
+    data, and TDE for Autonomous DB. Key compartment policy bounds access.
+
+- vendor: OCI
+  product: certificate_service
+  display_name: OCI Certificate Service
+  component_type: certificate_manager
+  service_category: security
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/certificates/home.htm
+  ai_context: |
+    Managed CA / certificate issuance for load balancers and APIs serving
+    AI traffic. Auto-renewal eliminates expiry-driven outages.
+
+- vendor: OCI
+  product: cloud_guard
+  display_name: OCI Cloud Guard
+  component_type: cspm
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/cloud-guard/home.htm
+  ai_context: |
+    CSPM + threat detection for OCI. Detectors for over-privileged dynamic
+    groups directly catch common agent-identity mistakes.
+
+- vendor: OCI
+  product: data_safe
+  display_name: Oracle Data Safe
+  component_type: dlp
+  service_category: security
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/data-safe/index.html
+  ai_context: |
+    User assessment / data discovery / activity auditing / masking for
+    Oracle DBs. Masked test datasets reduce blast radius for AI experiments.
+
+- vendor: OCI
+  product: threat_intelligence
+  display_name: OCI Threat Intelligence Service
+  component_type: siem
+  service_category: security
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/threat-intel/home.htm
+  ai_context: |
+    IOC feed and risk scoring used by Cloud Guard. Useful enrichment for
+    detecting attacker IPs hitting AI endpoints.
+
+- vendor: OCI
+  product: os_management
+  display_name: OCI OS Management Service
+  component_type: vulnerability_scanner
+  service_category: security
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/os-management/home.htm
+  ai_context: |
+    Patch / package / config management for OCI VMs. Critical for GPU hosts
+    running self-managed inference.
+
+- vendor: OCI
+  product: vulnerability_scanning
+  display_name: OCI Vulnerability Scanning Service
+  component_type: vulnerability_scanner
+  service_category: security
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/scanning/home.htm
+  ai_context: |
+    Host and container image scanning. Should be wired into the AI image
+    pipeline (OKE container registry).
+
+# ────────────────────────── Monitoring & Observability ────────────────────
+- vendor: OCI
+  product: logging
+  display_name: OCI Logging
+  component_type: log_aggregator
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Logging/home.htm
+  ai_context: |
+    Service and custom logs from Generative AI / Agents. Often contains raw
+    prompts and completions — must be scoped.
+
+- vendor: OCI
+  product: monitoring
+  display_name: OCI Monitoring
+  component_type: metrics_platform
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Monitoring/home.htm
+  ai_context: |
+    Metric store + alarms. Tracks GPU utilisation, token throughput, agent
+    success rate.
+
+- vendor: OCI
+  product: apm
+  display_name: OCI Application Performance Monitoring
+  component_type: tracing_platform
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/application-performance-monitoring/index.html
+  ai_context: |
+    Distributed tracing for agent → tool → model call chains. Required for
+    incident response on hallucinated or hijacked agent runs.
+
+- vendor: OCI
+  product: logging_analytics
+  display_name: OCI Logging Analytics
+  component_type: siem
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/logging-analytics/home.htm
+  ai_context: |
+    Machine-data analytics with built-in parsers. SIEM-grade analysis of
+    Generative AI logs.
+
+- vendor: OCI
+  product: trace_service
+  display_name: OCI Trace Service
+  component_type: tracing_platform
+  service_category: monitoring
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/tracing/home.htm
+  ai_context: |
+    OpenTelemetry-compatible tracing. Captures per-span model and tool
+    latency for AI workloads.
+
+- vendor: OCI
+  product: notifications
+  display_name: OCI Notifications
+  component_type: alerting_platform
+  service_category: monitoring
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Notification/home.htm
+  ai_context: |
+    Pub/sub for alarms — pages on AI cost / error / safety triggers.
+
+# ────────────────────────── DevOps & Code ─────────────────────────────────
+- vendor: OCI
+  product: devops
+  display_name: OCI DevOps Service
+  component_type: ci_cd_pipeline
+  service_category: devops
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/devops/using/home.htm
+  ai_context: |
+    Code repos + build + deployment pipelines + artifact registry. Service
+    principal scope on deployments is the supply-chain pivot for AI apps.
+
+- vendor: OCI
+  product: container_registry
+  display_name: OCI Container Registry
+  component_type: container_registry
+  service_category: devops
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Registry/home.htm
+  ai_context: |
+    Holds inference / agent images. Image signing (Cosign) + scanning
+    + private endpoint enforcement is the hardening stack.
+
+- vendor: OCI
+  product: artifact_registry
+  display_name: OCI Artifact Registry
+  component_type: artifact_registry
+  service_category: devops
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/artifacts/home.htm
+  ai_context: |
+    Generic artifact storage (Python wheels, model bundles). Dependency
+    confusion mitigations needed for AI library stacks.
+
+- vendor: OCI
+  product: resource_manager
+  display_name: OCI Resource Manager
+  component_type: iac_template_registry
+  service_category: devops
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/ResourceManager/home.htm
+  ai_context: |
+    Managed Terraform service. Stacks deploy AI infra — state file is
+    sensitive and should be encrypted with a customer key.
+
+# ────────────────────────── Messaging / Integration ───────────────────────
+- vendor: OCI
+  product: queue
+  display_name: OCI Queue
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/queue/home.htm
+  ai_context: |
+    Managed message queue between agent orchestrators and tool workers.
+    Untrusted payloads should be validated before downstream consumption.
+
+- vendor: OCI
+  product: streaming
+  display_name: OCI Streaming
+  component_type: stream_processor
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Streaming/home.htm
+  ai_context: |
+    Kafka-compatible event stream. Feeds real-time RAG and streaming feature
+    stores.
+
+- vendor: OCI
+  product: service_connector_hub
+  display_name: OCI Service Connector Hub
+  component_type: etl_orchestrator
+  service_category: messaging
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/service-connector-hub/home.htm
+  ai_context: |
+    No-code data movement between OCI services — e.g. Logging to Object
+    Storage. Misrouted connectors can exfiltrate AI logs to wrong bucket.
+
+- vendor: OCI
+  product: events
+  display_name: OCI Events Service
+  component_type: message_queue
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/Events/home.htm
+  ai_context: |
+    Event-driven triggers for resource state changes — fires AI ingestion
+    pipelines on Object Storage uploads.
+
+- vendor: OCI
+  product: api_gateway
+  display_name: OCI API Gateway
+  component_type: api_gateway
+  service_category: messaging
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/APIGateway/home.htm
+  ai_context: |
+    Public ingress for AI APIs. Custom plugins enforce rate limits and
+    per-tenant quotas in front of Generative AI Inference.
+
+# ────────────────────────── Data Platform ─────────────────────────────────
+- vendor: OCI
+  product: data_integration
+  display_name: OCI Data Integration
+  component_type: etl_orchestrator
+  service_category: data
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/data-integration/index.html
+  ai_context: |
+    ETL/ELT for RAG ingestion and feature engineering. Connection metadata
+    holds credentials — must use Vault references.
+
+- vendor: OCI
+  product: data_catalog
+  display_name: OCI Data Catalog
+  component_type: dlp
+  service_category: data
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/data-catalog/index.html
+  ai_context: |
+    Metadata catalog underpinning data governance for AI/ML datasets.
+    Sensitive-data tagging informs which corpora may be used in training.
+
+- vendor: OCI
+  product: data_flow
+  display_name: OCI Data Flow
+  component_type: ml_pipeline_orchestrator
+  service_category: data
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/data-flow/using/home.htm
+  ai_context: |
+    Managed Spark — large-scale corpora preprocessing for fine-tuning.
+
+- vendor: OCI
+  product: big_data_service
+  display_name: OCI Big Data Service
+  component_type: ml_pipeline_orchestrator
+  service_category: data
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/bigdata/home.htm
+  ai_context: |
+    Managed Hadoop. Less common than Data Flow / OCI Spark for new AI
+    workloads.
+
+- vendor: OCI
+  product: golden_gate
+  display_name: OCI GoldenGate
+  component_type: stream_processor
+  service_category: data
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/goldengate/index.html
+  ai_context: |
+    Real-time data replication into AI feature stores from Oracle / non-
+    Oracle DBs.
+
+# ────────────────────────── AI / ML ───────────────────────────────────────
+- vendor: OCI
+  product: generative_ai
+  display_name: OCI Generative AI
+  component_type: llm_inference
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/generative-ai/home.htm
+  ai_context: |
+    Managed inference for foundation models (Cohere Command, Meta Llama,
+    Mistral). Dedicated AI clusters provide isolation; on-demand serving
+    is multi-tenant.
+
+- vendor: OCI
+  product: generative_ai_agents
+  display_name: OCI Generative AI Agents
+  component_type: agent
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/generative-ai-agents/home.htm
+  ai_context: |
+    Managed RAG agents grounded in OCI sources (Object Storage, OpenSearch,
+    Oracle DB AI Vector Search). Endpoint, knowledge base and tool grants
+    are each first-class identities deserving threat modelling.
+
+- vendor: OCI
+  product: data_science
+  display_name: OCI Data Science
+  component_type: ml_pipeline_orchestrator
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/data-science/using/home.htm
+  ai_context: |
+    Notebooks, jobs, model deployments, model registry, AI Quick Actions for
+    fine-tuning open-weight models. Compartment-scoped — easy to over-grant
+    when sharing across teams.
+
+- vendor: OCI
+  product: vision
+  display_name: OCI Vision (AI Vision)
+  component_type: vision_pipeline
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/vision/home.htm
+  ai_context: |
+    Image labeling, object detection, OCR. Often a tool for vision-language
+    agents — adversarial image content can carry hidden text instructions.
+
+- vendor: OCI
+  product: language
+  display_name: OCI Language (AI Language)
+  component_type: content_safety_classifier
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/language/home.htm
+  ai_context: |
+    NER, sentiment, key-phrase extraction, PII detection, translation. Used
+    as a guardrail pre-processor for prompts entering Generative AI.
+
+- vendor: OCI
+  product: speech
+  display_name: OCI Speech (AI Speech)
+  component_type: speech_pipeline
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/speech/home.htm
+  ai_context: |
+    STT for OCI voicebots / call-centre agents. Audio inputs can carry
+    adversarial prompts.
+
+- vendor: OCI
+  product: document_understanding
+  display_name: OCI Document Understanding
+  component_type: vision_pipeline
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/document-understanding/home.htm
+  ai_context: |
+    Document OCR / key-value extraction. RAG ingestion step where malicious
+    PDFs can inject instructions into extracted text.
+
+- vendor: OCI
+  product: anomaly_detection
+  display_name: OCI Anomaly Detection
+  component_type: ml_inference_endpoint
+  service_category: ai
+  applies_to_ai_workflows: false
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/anomaly/home.htm
+  ai_context: |
+    Univariate / multivariate anomaly detection — security-adjacent ML for
+    detecting unusual usage patterns on AI endpoints.
+
+- vendor: OCI
+  product: opensearch
+  display_name: OCI Search Service with OpenSearch
+  component_type: rag_vector_store
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en-us/iaas/Content/search-opensearch/home.htm
+  ai_context: |
+    Managed OpenSearch with k-NN vector index — common backing store for
+    OCI Generative AI Agents knowledge bases.
+
+- vendor: OCI
+  product: select_ai
+  display_name: Oracle Select AI (Autonomous Database NL2SQL)
+  component_type: agent
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en/database/oracle/oracle-database/23/dbcsd/select-ai.html
+  ai_context: |
+    Natural-language to SQL embedded in Autonomous DB. The "AI provider"
+    setting decides which LLM sees schema + sample data — choose with
+    care for sensitive workloads.
+
+- vendor: OCI
+  product: ai_vector_search
+  display_name: Oracle AI Vector Search
+  component_type: rag_vector_store
+  service_category: ai
+  applies_to_ai_workflows: true
+  threats_specific: []
+  references:
+    - https://docs.oracle.com/en/database/oracle/oracle-database/23/vecse/index.html
+  ai_context: |
+    Native vector type in Oracle DB 23ai. Sits in same database as PII —
+    row-level security is the per-tenant boundary.

@@ -1,0 +1,292 @@
+# MITRE ATLAS Techniques (curated subset focused on AI/ML/LLM systems)
+# Source: https://atlas.mitre.org/techniques/
+# Selected for high-coverage of LLM, RAG, agentic, training-pipeline scenarios.
+# Each technique lists tactic IDs, common keywords, and applicable component types
+# to drive deterministic mapping in src/atms/engines/mapping.py.
+
+- id: AML.T0000
+  name: Search Open Technical Databases
+  tactics: [AML.TA0002]
+  keywords: [research, paper, publication, github, model card, public]
+  applies_to: [model_registry, llm_inference, training_pipeline]
+  description: Adversary searches publicly available research, papers, and code for information about the target model.
+
+- id: AML.T0006
+  name: Active Scanning
+  tactics: [AML.TA0002]
+  keywords: [scan, probe, enumeration, fingerprint]
+  applies_to: [llm_inference, agent, mcp_server]
+  description: Adversary actively probes the AI system to discover model versions, endpoints, and capabilities.
+
+- id: AML.T0010
+  name: AI Supply Chain Compromise
+  tactics: [AML.TA0004]
+  keywords: [supply chain, model hub, weights, dataset, plugin, trojan, backdoor]
+  applies_to: [model_registry, training_pipeline, fine_tuning_pipeline, mcp_server]
+  description: Adversary compromises models, datasets, or supporting components in the ML supply chain.
+
+- id: AML.T0010.000
+  name: Hardware
+  tactics: [AML.TA0003, AML.TA0004]
+  keywords: [gpu, hardware, accelerator]
+  applies_to: [training_pipeline, llm_inference]
+  description: Adversary tampers with GPU/TPU hardware in the ML supply chain.
+
+- id: AML.T0010.001
+  name: AI Software
+  tactics: [AML.TA0003, AML.TA0004]
+  keywords: [pytorch, tensorflow, library, framework, dependency]
+  applies_to: [training_pipeline, fine_tuning_pipeline, llm_inference]
+  description: Adversary compromises ML frameworks or libraries used by the target.
+
+- id: AML.T0010.002
+  name: Data
+  tactics: [AML.TA0003, AML.TA0004]
+  keywords: [dataset, training data, corpus, poisoning]
+  applies_to: [training_pipeline, fine_tuning_pipeline, rag_vector_store, data_source]
+  description: Adversary poisons or compromises training/RAG datasets.
+
+- id: AML.T0010.003
+  name: Model
+  tactics: [AML.TA0003, AML.TA0004]
+  keywords: [model weights, hugging face, model hub, backdoored model]
+  applies_to: [model_registry, llm_inference, fine_tuning_pipeline]
+  description: Adversary distributes a tampered or backdoored pre-trained model.
+
+- id: AML.T0011
+  name: User Execution
+  tactics: [AML.TA0005]
+  keywords: [user click, social engineering, phishing]
+  applies_to: [user, agent, llm_inference]
+  description: Adversary relies on a user to execute malicious code or take an action.
+
+- id: AML.T0012
+  name: Valid Accounts
+  tactics: [AML.TA0004, AML.TA0012]
+  keywords: [credentials, account takeover, leaked api key]
+  applies_to: [llm_inference, model_registry, agent]
+  description: Adversary obtains and uses legitimate credentials to access the AI system.
+
+- id: AML.T0015
+  name: Evade AI Model
+  tactics: [AML.TA0004, AML.TA0007, AML.TA0011]
+  keywords: [adversarial example, evasion, perturbation, bypass]
+  applies_to: [llm_inference, output_filter, guardrails]
+  description: Adversary crafts inputs designed to evade or subvert the model's intended behavior.
+
+- id: AML.T0017
+  name: Develop Capabilities
+  tactics: [AML.TA0003]
+  keywords: [tooling, exploit development, surrogate model]
+  applies_to: [training_pipeline, llm_inference]
+  description: Adversary develops their own capabilities (tools, surrogate models, datasets) for the operation.
+
+- id: AML.T0018
+  name: Manipulate AI Model
+  tactics: [AML.TA0006, AML.TA0001]
+  keywords: [model tampering, weight manipulation, fine-tune]
+  applies_to: [model_registry, fine_tuning_pipeline, llm_inference]
+  description: Adversary manipulates the model directly via weight changes, retraining, or fine-tuning.
+
+- id: AML.T0019
+  name: Publish Poisoned Datasets
+  tactics: [AML.TA0003]
+  keywords: [poison, dataset, backdoor trigger]
+  applies_to: [training_pipeline, fine_tuning_pipeline, data_source]
+  description: Adversary publishes a poisoned dataset with embedded backdoors or biases.
+
+- id: AML.T0020
+  name: Poison Training Data
+  tactics: [AML.TA0003, AML.TA0006]
+  keywords: [training data poisoning, label flip, data corruption]
+  applies_to: [training_pipeline, fine_tuning_pipeline]
+  description: Adversary poisons training data to introduce backdoors or degrade model performance.
+
+- id: AML.T0024
+  name: Exfiltration via AI Inference API
+  tactics: [AML.TA0010]
+  keywords: [model extraction, inference api abuse, data leak via output]
+  applies_to: [llm_inference, agent]
+  description: Adversary uses repeated inference API calls to exfiltrate model functionality or training data.
+
+- id: AML.T0024.000
+  name: Infer Training Data Membership
+  tactics: [AML.TA0011]
+  keywords: [membership inference, training data leak]
+  applies_to: [llm_inference]
+  description: Adversary determines whether specific data was used to train the model.
+
+- id: AML.T0024.001
+  name: Invert AI Model
+  tactics: [AML.TA0011]
+  keywords: [model inversion, embedding inversion]
+  applies_to: [llm_inference, embedding_service]
+  description: Adversary reconstructs training data or sensitive inputs from model outputs.
+
+- id: AML.T0024.002
+  name: Extract AI Model
+  tactics: [AML.TA0011]
+  keywords: [model stealing, distillation, extraction]
+  applies_to: [llm_inference]
+  description: Adversary extracts a functional copy of the target model via repeated queries.
+
+- id: AML.T0029
+  name: Denial of AI Service
+  tactics: [AML.TA0011]
+  keywords: [dos, denial of service, resource exhaustion, token flood]
+  applies_to: [llm_inference, agent, embedding_service]
+  description: Adversary degrades or denies access to ML inference services.
+
+- id: AML.T0031
+  name: Erode AI Model Integrity
+  tactics: [AML.TA0011]
+  keywords: [degrade, integrity, accuracy drift]
+  applies_to: [llm_inference, training_pipeline, fine_tuning_pipeline]
+  description: Adversary degrades model accuracy or behavior over time, often via continual poisoning.
+
+- id: AML.T0034
+  name: Cost Harvesting
+  tactics: [AML.TA0011]
+  keywords: [denial of wallet, dow, cost abuse, expensive query]
+  applies_to: [llm_inference, agent]
+  description: Adversary forces the target to incur excessive operational cost (denial of wallet).
+
+- id: AML.T0040
+  name: AI Model Inference API Access
+  tactics: [AML.TA0000]
+  keywords: [api access, inference endpoint]
+  applies_to: [llm_inference]
+  description: Adversary obtains access to the target's ML inference API.
+
+- id: AML.T0043
+  name: Craft Adversarial Data
+  tactics: [AML.TA0001]
+  keywords: [adversarial example, perturbation, input manipulation]
+  applies_to: [llm_inference, output_filter, guardrails]
+  description: Adversary crafts inputs designed to cause specific model misbehavior.
+
+- id: AML.T0044
+  name: Full AI Model Access
+  tactics: [AML.TA0000]
+  keywords: [full access, weights download]
+  applies_to: [model_registry, llm_inference]
+  description: Adversary obtains the full model (weights, architecture).
+
+- id: AML.T0048
+  name: External Harms
+  tactics: [AML.TA0011]
+  keywords: [downstream harm, business impact, user harm]
+  applies_to: [llm_inference, agent, output_filter]
+  description: Adversary causes harm to users, organizations, or society via the AI system's outputs/actions.
+
+- id: AML.T0049
+  name: Exploit Public-Facing Application
+  tactics: [AML.TA0004]
+  keywords: [web app exploit, api exploit, ssrf, rce]
+  applies_to: [llm_inference, agent, mcp_server, tool]
+  description: Adversary exploits a vulnerability in a public-facing application that hosts/exposes the AI system.
+
+- id: AML.T0050
+  name: Command and Scripting Interpreter
+  tactics: [AML.TA0005]
+  keywords: [shell, code execution, scripting]
+  applies_to: [agent, tool, mcp_server]
+  description: Adversary abuses LLM-driven code or shell execution capability.
+
+- id: AML.T0051
+  name: LLM Prompt Injection
+  tactics: [AML.TA0005]
+  keywords: [prompt injection, jailbreak, system prompt override]
+  applies_to: [llm_inference, agent, rag_vector_store, tool]
+  description: Adversary crafts prompts to override the LLM's intended instructions.
+
+- id: AML.T0051.000
+  name: Direct
+  tactics: [AML.TA0004, AML.TA0006]
+  keywords: [direct prompt injection, jailbreak via user input]
+  applies_to: [llm_inference, agent]
+  description: Adversary injects prompts directly via user-controllable input.
+
+- id: AML.T0051.001
+  name: Indirect
+  tactics: [AML.TA0004, AML.TA0006]
+  keywords: [indirect prompt injection, rag injection, document injection]
+  applies_to: [llm_inference, agent, rag_vector_store, tool]
+  description: Adversary embeds malicious prompts in content the LLM later retrieves (documents, web pages, tool outputs).
+
+- id: AML.T0052
+  name: Phishing
+  tactics: [AML.TA0004, AML.TA0015]
+  keywords: [phishing, social engineering]
+  applies_to: [user, llm_inference, agent]
+  description: Adversary tricks users into providing credentials or information to access the AI system.
+
+- id: AML.T0053
+  name: AI Agent Tool Invocation
+  tactics: [AML.TA0005, AML.TA0012]
+  keywords: [plugin compromise, mcp server, tool abuse]
+  applies_to: [mcp_server, tool, agent]
+  description: Adversary compromises an LLM plugin/tool/MCP server to execute attacks.
+
+- id: AML.T0054
+  name: LLM Jailbreak
+  tactics: [AML.TA0012, AML.TA0007]
+  keywords: [jailbreak, safety bypass, dan, persona attack]
+  applies_to: [llm_inference, output_filter, guardrails]
+  description: Adversary bypasses LLM safety/alignment to elicit prohibited outputs.
+
+- id: AML.T0055
+  name: Unsecured Credentials
+  tactics: [AML.TA0013]
+  keywords: [exposed api key, credential in code, system prompt secret]
+  applies_to: [llm_inference, agent, prompt_template_store]
+  description: Adversary obtains credentials via insecure storage (e.g., API keys in system prompts or code).
+
+- id: AML.T0056
+  name: Extract LLM System Prompt
+  tactics: [AML.TA0010]
+  keywords: [system prompt leak, instruction extraction, leak instructions]
+  applies_to: [llm_inference, agent, prompt_template_store]
+  description: Adversary extracts the LLM's system prompt or hidden instructions.
+
+- id: AML.T0057
+  name: LLM Data Leakage
+  tactics: [AML.TA0010]
+  keywords: [data leak, pii leak, training data leak, output leak]
+  applies_to: [llm_inference, rag_vector_store, embedding_service]
+  description: Adversary causes the LLM to leak sensitive data via outputs.
+
+- id: AML.T0058
+  name: Publish Poisoned Models
+  tactics: [AML.TA0003]
+  keywords: [hallucinated package, fake library, slop squatting]
+  applies_to: [llm_inference, agent]
+  description: Adversary registers package names hallucinated by the LLM (slop squatting) to inject malicious code.
+
+- id: AML.T0059
+  name: Erode Dataset Integrity
+  tactics: [AML.TA0011]
+  keywords: [rag corpus tampering, dataset drift, embedding corruption]
+  applies_to: [rag_vector_store, training_pipeline, fine_tuning_pipeline]
+  description: Adversary degrades the integrity of training, fine-tuning, or RAG datasets over time.
+
+- id: AML.T0060
+  name: Publish Hallucinated Entities
+  tactics: [AML.TA0003]
+  keywords: [model fingerprint, version detect]
+  applies_to: [llm_inference]
+  description: Adversary identifies the family/version of the underlying ML model.
+
+- id: AML.T0061
+  name: LLM Prompt Self-Replication
+  tactics: [AML.TA0006]
+  keywords: [meta prompt, prompt template extraction]
+  applies_to: [prompt_template_store, llm_inference]
+  description: Adversary extracts meta-prompts or templates used by the LLM service.
+
+- id: AML.T0062
+  name: Discover LLM Hallucinations
+  tactics: [AML.TA0008]
+  keywords: [hallucination probing, capability discovery]
+  applies_to: [llm_inference]
+  description: Adversary probes the LLM to discover hallucination patterns useful for downstream attacks.

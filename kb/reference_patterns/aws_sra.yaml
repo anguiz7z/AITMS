@@ -1,0 +1,555 @@
+# AWS Security Reference Architecture (SRA) cross-walk patterns
+#
+# Reference: https://docs.aws.amazon.com/prescriptive-guidance/latest/security-reference-architecture/
+#
+# Each entry maps an ATMS mitigation to the AWS SRA pattern it implements.
+# Use this so a reviewer can answer "which AWS-SRA building block is this?"
+# rather than reading another generic security tip.
+#
+# Schema:
+#   id, display_name, framework, category, applies_to_component_types,
+#   keywords, ai_specific, url, short_summary.
+#
+# id format: AWS_SRA.<DOMAIN>.<NUMBER>
+# category   : identity | network | data | observability | governance | resilience
+
+# ─── Organizations + SCPs (governance backbone) ───────────────────────────
+- id: AWS_SRA.ORG.1
+  display_name: AWS Organizations multi-account structure with OUs
+  framework: AWS_SRA
+  category: governance
+  applies_to_component_types:
+    - iam_principal
+    - cloud_compute
+    - object_storage
+  keywords:
+    - organization
+    - ou
+    - multi-account
+    - management account
+    - landing zone
+  ai_specific: false
+  url: https://docs.aws.amazon.com/prescriptive-guidance/latest/security-reference-architecture/organizations.html
+  short_summary: |
+    Establish a multi-account AWS Organization with separate OUs for
+    Security, Infrastructure, Workloads (Prod / Non-Prod) and Sandbox.
+    This is the blast-radius boundary every other SRA control assumes.
+
+- id: AWS_SRA.ORG.2
+  display_name: Service Control Policies (SCPs) deny-by-default guardrails
+  framework: AWS_SRA
+  category: governance
+  applies_to_component_types:
+    - iam_principal
+    - llm_inference
+    - cloud_compute
+  keywords:
+    - scp
+    - service control policy
+    - deny
+    - guardrail
+    - region restriction
+  ai_specific: false
+  url: https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_scps.html
+  short_summary: |
+    SCPs restrict the maximum permissions any IAM principal in an OU may
+    exercise. Common patterns: deny root user actions, deny regions
+    outside an allow-list, deny disabling CloudTrail/GuardDuty, and deny
+    leaving the org.
+
+- id: AWS_SRA.ORG.3
+  display_name: Delegated administrator for security services
+  framework: AWS_SRA
+  category: governance
+  applies_to_component_types:
+    - siem
+    - observability_stack
+    - cspm
+  keywords:
+    - delegated admin
+    - security tooling account
+    - audit account
+  ai_specific: false
+  url: https://docs.aws.amazon.com/prescriptive-guidance/latest/security-reference-architecture/security-tooling.html
+  short_summary: |
+    Delegate administration of GuardDuty, Security Hub, Config, Macie,
+    Inspector, IAM Access Analyzer and Detective to a dedicated Security
+    Tooling account so the management account never carries day-to-day
+    workload risk.
+
+# ─── IAM + Identity Center ───────────────────────────────────────────────
+- id: AWS_SRA.IAM.1
+  display_name: IAM Identity Center federation for human access
+  framework: AWS_SRA
+  category: identity
+  applies_to_component_types:
+    - iam_principal
+    - identity_provider
+    - sso_service
+  keywords:
+    - identity center
+    - sso
+    - federation
+    - permission set
+  ai_specific: false
+  url: https://docs.aws.amazon.com/singlesignon/latest/userguide/what-is.html
+  short_summary: |
+    All human access to AWS uses IAM Identity Center federated to an
+    external IdP (Entra / Okta). Permission sets are short-lived and
+    map to OU-level roles; no long-lived IAM user credentials.
+
+- id: AWS_SRA.IAM.2
+  display_name: AssumeRole with external ID for cross-account access
+  framework: AWS_SRA
+  category: identity
+  applies_to_component_types:
+    - iam_principal
+    - external_api
+  keywords:
+    - assumerole
+    - external id
+    - cross-account
+    - sts
+  ai_specific: false
+  url: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-user_externalid.html
+  short_summary: |
+    Third-party access uses sts:AssumeRole with a per-tenant external ID
+    to prevent the confused-deputy problem. Required for any vendor or
+    SaaS integration touching customer data.
+
+- id: AWS_SRA.IAM.3
+  display_name: IAM Access Analyzer for unintended external access
+  framework: AWS_SRA
+  category: identity
+  applies_to_component_types:
+    - iam_principal
+    - object_storage
+    - secrets_vault
+  keywords:
+    - access analyzer
+    - external access
+    - resource policy review
+  ai_specific: false
+  url: https://docs.aws.amazon.com/IAM/latest/UserGuide/what-is-access-analyzer.html
+  short_summary: |
+    Continuously evaluates resource-based policies (S3, KMS, IAM roles,
+    Secrets Manager, Lambda, SQS, etc.) and flags anything reachable
+    from outside your trust boundary.
+
+- id: AWS_SRA.IAM.4
+  display_name: Permission boundaries on developer roles
+  framework: AWS_SRA
+  category: identity
+  applies_to_component_types:
+    - iam_principal
+    - ci_cd_pipeline
+  keywords:
+    - permission boundary
+    - delegated admin
+    - self-service iam
+  ai_specific: false
+  url: https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_boundaries.html
+  short_summary: |
+    Permission boundaries constrain what an entity may grant when it
+    creates other IAM principals. Used so workload teams can self-serve
+    role creation without escalating privilege.
+
+- id: AWS_SRA.IAM.5
+  display_name: Tenant-isolated IAM role per workload
+  framework: AWS_SRA
+  category: identity
+  applies_to_component_types:
+    - iam_principal
+    - llm_inference
+    - rag_vector_store
+  keywords:
+    - tenant
+    - workload role
+    - isolation
+    - per-tenant
+  ai_specific: true
+  url: https://docs.aws.amazon.com/wellarchitected/latest/saas-lens/tenant-isolation.html
+  short_summary: |
+    Each tenant assumes its own IAM role before invoking workloads
+    (Bedrock, S3, OpenSearch). Prevents one tenant's session from
+    reaching another tenant's data or model deployment.
+
+# ─── KMS + Secrets + HSM ──────────────────────────────────────────────────
+- id: AWS_SRA.CRYPTO.1
+  display_name: Customer-managed KMS keys (CMK) per workload
+  framework: AWS_SRA
+  category: data
+  applies_to_component_types:
+    - kms_key
+    - object_storage
+    - database
+    - secrets_vault
+  keywords:
+    - kms
+    - cmk
+    - customer-managed key
+    - envelope encryption
+  ai_specific: false
+  url: https://docs.aws.amazon.com/kms/latest/developerguide/concepts.html#master_keys
+  short_summary: |
+    Use customer-managed KMS keys (not AWS-managed) so key policies,
+    rotation cadence and grant lifecycles are auditable per workload.
+
+- id: AWS_SRA.CRYPTO.2
+  display_name: KMS key policy + grants for least-privilege decrypt
+  framework: AWS_SRA
+  category: data
+  applies_to_component_types:
+    - kms_key
+    - object_storage
+    - llm_inference
+  keywords:
+    - kms grant
+    - key policy
+    - viaservice
+    - decrypt
+  ai_specific: false
+  url: https://docs.aws.amazon.com/kms/latest/developerguide/key-policies.html
+  short_summary: |
+    Limit kms:Decrypt to specific principals and via kms:ViaService
+    conditions. Stops a compromised IAM role from decrypting data
+    outside its intended service path.
+
+- id: AWS_SRA.CRYPTO.3
+  display_name: Secrets Manager with automatic rotation
+  framework: AWS_SRA
+  category: data
+  applies_to_component_types:
+    - secrets_vault
+    - database
+    - external_api
+  keywords:
+    - secrets manager
+    - rotation
+    - credentials
+    - api key
+  ai_specific: false
+  url: https://docs.aws.amazon.com/secretsmanager/latest/userguide/rotating-secrets.html
+  short_summary: |
+    Store DB passwords, third-party API keys, and OAuth client secrets
+    in Secrets Manager with Lambda-backed automatic rotation. Never
+    bake secrets into AMIs or container images.
+
+- id: AWS_SRA.CRYPTO.4
+  display_name: CloudHSM for FIPS 140-2 Level 3 key custody
+  framework: AWS_SRA
+  category: data
+  applies_to_component_types:
+    - hsm
+    - kms_key
+    - certificate_manager
+  keywords:
+    - cloudhsm
+    - fips
+    - hsm
+    - hardware key
+  ai_specific: false
+  url: https://docs.aws.amazon.com/cloudhsm/latest/userguide/introduction.html
+  short_summary: |
+    Use CloudHSM clusters for regulated workloads requiring single-tenant
+    HSM custody (PCI HSM, FIPS 140-2 L3). Integrates with KMS via custom
+    key stores.
+
+# ─── Network + Connectivity ───────────────────────────────────────────────
+- id: AWS_SRA.NETWORK.1
+  display_name: Hub-and-spoke VPC via Transit Gateway
+  framework: AWS_SRA
+  category: network
+  applies_to_component_types:
+    - transit_gateway
+    - network_segment
+    - cloud_compute
+  keywords:
+    - transit gateway
+    - tgw
+    - hub-spoke
+    - inspection vpc
+  ai_specific: false
+  url: https://docs.aws.amazon.com/vpc/latest/tgw/what-is-transit-gateway.html
+  short_summary: |
+    Workload VPCs attach to a Transit Gateway in the Network account;
+    an inspection VPC with stateful firewalls (AWS Network Firewall /
+    Gateway Load Balancer) sits between spokes and egress.
+
+- id: AWS_SRA.NETWORK.2
+  display_name: VPC endpoints (Interface + Gateway) keep traffic on the AWS backbone
+  framework: AWS_SRA
+  category: network
+  applies_to_component_types:
+    - private_link
+    - object_storage
+    - llm_inference
+  keywords:
+    - vpc endpoint
+    - privatelink
+    - interface endpoint
+    - gateway endpoint
+  ai_specific: false
+  url: https://docs.aws.amazon.com/vpc/latest/privatelink/what-is-privatelink.html
+  short_summary: |
+    Provision VPC interface endpoints for service APIs (Bedrock, S3,
+    KMS, Secrets Manager, SSM, ECR, CloudWatch). Eliminates NAT egress
+    and stops data exfil via public service endpoints.
+
+- id: AWS_SRA.NETWORK.3
+  display_name: AWS Network Firewall + stateful intrusion rules
+  framework: AWS_SRA
+  category: network
+  applies_to_component_types:
+    - firewall
+    - ids_ips
+    - network_segment
+  keywords:
+    - network firewall
+    - stateful
+    - suricata
+    - egress filter
+  ai_specific: false
+  url: https://docs.aws.amazon.com/network-firewall/latest/developerguide/what-is-aws-network-firewall.html
+  short_summary: |
+    Suricata-compatible stateful rules in the inspection VPC. Block
+    known C2 domains, restrict egress to an allow-list, and detect
+    protocol anomalies (e.g. DNS tunneling, TLS SNI mismatch).
+
+- id: AWS_SRA.NETWORK.4
+  display_name: Route 53 Resolver DNS Firewall + query logging
+  framework: AWS_SRA
+  category: network
+  applies_to_component_types:
+    - dns_service
+    - firewall
+  keywords:
+    - dns firewall
+    - route 53
+    - resolver
+    - query log
+  ai_specific: false
+  url: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/resolver-dns-firewall.html
+  short_summary: |
+    DNS Firewall blocks resolution of malicious / typosquatted domains
+    and logs all queries to an S3 bucket in the Log Archive account for
+    DNS-tunneling investigation.
+
+- id: AWS_SRA.NETWORK.5
+  display_name: AWS WAF on internet-facing ALB / CloudFront / API Gateway
+  framework: AWS_SRA
+  category: network
+  applies_to_component_types:
+    - waf
+    - api_gateway
+    - cdn
+    - web_application
+  keywords:
+    - waf
+    - managed rules
+    - rate limit
+    - bot control
+  ai_specific: false
+  url: https://docs.aws.amazon.com/waf/latest/developerguide/waf-chapter.html
+  short_summary: |
+    Attach AWS WAF with AWSManagedRulesCommonRuleSet + KnownBadInputsRuleSet
+    and a rate-based rule on every internet-facing endpoint. Required for
+    any public LLM / API surface.
+
+# ─── Logging + Detection ──────────────────────────────────────────────────
+- id: AWS_SRA.LOGGING.1
+  display_name: Organization-wide CloudTrail trail to Log Archive
+  framework: AWS_SRA
+  category: observability
+  applies_to_component_types:
+    - log_aggregator
+    - siem
+    - object_storage
+  keywords:
+    - cloudtrail
+    - audit log
+    - log archive
+    - immutability
+  ai_specific: false
+  url: https://docs.aws.amazon.com/awscloudtrail/latest/userguide/creating-trail-organization.html
+  short_summary: |
+    A single org-trail captures all management-plane and data-plane
+    events (including Bedrock InvokeModel) and ships them to an S3
+    bucket in the Log Archive account with Object Lock + MFA Delete.
+
+- id: AWS_SRA.LOGGING.2
+  display_name: AWS Config conformance packs across all accounts
+  framework: AWS_SRA
+  category: governance
+  applies_to_component_types:
+    - cspm
+    - observability_stack
+  keywords:
+    - aws config
+    - conformance pack
+    - compliance baseline
+  ai_specific: false
+  url: https://docs.aws.amazon.com/config/latest/developerguide/conformance-packs.html
+  short_summary: |
+    Enable Config recorder in every account/region and deploy
+    conformance packs (NIST 800-53, PCI, CIS) via Organizations to
+    detect drift continuously.
+
+- id: AWS_SRA.LOGGING.3
+  display_name: Amazon GuardDuty across the organization
+  framework: AWS_SRA
+  category: observability
+  applies_to_component_types:
+    - siem
+    - ids_ips
+  keywords:
+    - guardduty
+    - threat detection
+    - malware
+    - kubernetes audit
+  ai_specific: false
+  url: https://docs.aws.amazon.com/guardduty/latest/ug/what-is-guardduty.html
+  short_summary: |
+    GuardDuty processes CloudTrail, VPC Flow Logs, DNS logs, EKS audit
+    logs and S3 data events. Findings stream to Security Hub in the
+    Security Tooling account for triage.
+
+- id: AWS_SRA.LOGGING.4
+  display_name: Security Hub as findings aggregation pane
+  framework: AWS_SRA
+  category: observability
+  applies_to_component_types:
+    - siem
+    - observability_stack
+  keywords:
+    - security hub
+    - asff
+    - findings aggregation
+  ai_specific: false
+  url: https://docs.aws.amazon.com/securityhub/latest/userguide/what-is-securityhub.html
+  short_summary: |
+    Aggregates findings from GuardDuty, Inspector, Macie, IAM Access
+    Analyzer and Config rules into ASFF and forwards to the SIEM /
+    SOAR for triage and ticketing.
+
+- id: AWS_SRA.LOGGING.5
+  display_name: Amazon Detective for cross-source investigation graph
+  framework: AWS_SRA
+  category: observability
+  applies_to_component_types:
+    - siem
+    - soar
+  keywords:
+    - detective
+    - investigation
+    - timeline
+    - graph
+  ai_specific: false
+  url: https://docs.aws.amazon.com/detective/latest/userguide/detective-investigation-overview.html
+  short_summary: |
+    Detective builds an entity graph from VPC Flow, CloudTrail and
+    GuardDuty for forensic root-cause analysis without manual log
+    correlation.
+
+# ─── Image + Code scanning ────────────────────────────────────────────────
+- id: AWS_SRA.IMAGE.1
+  display_name: Amazon Inspector continuous EC2 + ECR + Lambda scanning
+  framework: AWS_SRA
+  category: governance
+  applies_to_component_types:
+    - vulnerability_scanner
+    - container_registry
+    - serverless_function
+    - cloud_compute
+  keywords:
+    - inspector
+    - vulnerability
+    - cve
+    - image scan
+  ai_specific: false
+  url: https://docs.aws.amazon.com/inspector/latest/user/what-is-inspector.html
+  short_summary: |
+    Inspector v2 continuously scans EC2, ECR images and Lambda functions
+    for CVEs and network reachability findings; results land in Security
+    Hub. Use it as the CSPM/CWPP fallback for AI training nodes.
+
+- id: AWS_SRA.IMAGE.2
+  display_name: ECR image signing + enhanced scanning
+  framework: AWS_SRA
+  category: governance
+  applies_to_component_types:
+    - container_registry
+    - ci_cd_pipeline
+    - artifact_registry
+  keywords:
+    - ecr
+    - image signing
+    - sigstore
+    - notation
+    - sbom
+  ai_specific: false
+  url: https://docs.aws.amazon.com/AmazonECR/latest/userguide/image-signing.html
+  short_summary: |
+    Sign container images at build time using AWS Signer + Notation and
+    enforce signature verification on pull via admission controllers
+    (Kyverno / OPA Gatekeeper).
+
+# ─── Data + Lake Formation ────────────────────────────────────────────────
+- id: AWS_SRA.DATA.1
+  display_name: S3 bucket policies + Block Public Access (BPA) at account level
+  framework: AWS_SRA
+  category: data
+  applies_to_component_types:
+    - object_storage
+    - data_lake
+  keywords:
+    - s3
+    - block public access
+    - bucket policy
+    - aws:sourcevpce
+  ai_specific: false
+  url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-control-block-public-access.html
+  short_summary: |
+    Enable Block Public Access at the account level and use bucket
+    policies with aws:SourceVpce / aws:SourceIp / aws:PrincipalOrgID
+    conditions to limit blast radius.
+
+- id: AWS_SRA.DATA.2
+  display_name: AWS Lake Formation fine-grained access control
+  framework: AWS_SRA
+  category: data
+  applies_to_component_types:
+    - data_lake
+    - data_warehouse
+    - rag_vector_store
+  keywords:
+    - lake formation
+    - lf-tags
+    - row-level
+    - column-level
+  ai_specific: false
+  url: https://docs.aws.amazon.com/lake-formation/latest/dg/what-is-lake-formation.html
+  short_summary: |
+    LF-Tags enable row-, column- and cell-level access policies on the
+    same lake serving analytics and RAG ingestion. Critical for keeping
+    a vector store's source ACLs in sync with the lake.
+
+- id: AWS_SRA.DATA.3
+  display_name: Amazon Macie sensitive-data discovery on S3
+  framework: AWS_SRA
+  category: data
+  applies_to_component_types:
+    - dlp
+    - object_storage
+    - data_lake
+  keywords:
+    - macie
+    - pii
+    - sensitive data
+    - discovery
+  ai_specific: false
+  url: https://docs.aws.amazon.com/macie/latest/user/what-is-macie.html
+  short_summary: |
+    Macie automatically discovers PII / PHI / secrets in S3, including
+    documents staged for RAG ingestion. Findings route to Security Hub
+    and tag offending objects for redaction or restriction.

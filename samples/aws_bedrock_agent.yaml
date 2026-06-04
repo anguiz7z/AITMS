@@ -1,0 +1,339 @@
+name: AWS Bedrock Agent — Customer Support
+description: |
+  Production AWS-hosted customer-support agent. End user → CloudFront →
+  API Gateway (with WAF) → Lambda authoriser → Bedrock Agent. The agent
+  uses Bedrock Knowledge Bases (RAG over an S3 corpus) and an Action
+  Group calling Lambdas in a private VPC for ticket lookup / refund.
+  Logs to CloudWatch + a SIEM forwarder; secrets in Secrets Manager;
+  KMS-encrypted everywhere.
+business_context: |
+  ~200K monthly active users. Multi-tenant. Data classification:
+  customer chat is confidential PII; ticket history is restricted (per-user
+  scope); refund actions are state-changing (gated). Compliance: SOC 2,
+  GDPR-applicable. Bedrock model is Claude Sonnet via on-demand inference.
+
+components:
+  # ─────────────────────────── Edge / actors
+  - id: customer
+    name: End customer (web)
+    type: user
+    trust_zone: internet
+    description: External customer; auth via Cognito-issued JWT in cookie.
+
+  - id: support_agent
+    name: Support agent (corp)
+    type: user
+    trust_zone: corp_internal
+    description: Internal staffer who approves agent-suggested refunds.
+
+  - id: cloudfront
+    name: CloudFront distribution + AWS WAF
+    type: api_gateway
+    trust_zone: internet
+    description: |
+      Edge gateway with managed WAF rule groups (AWSManagedRulesCommonRuleSet,
+      bot-control). Rate-limits + size-cap before traffic reaches the API.
+
+  - id: api_gw
+    name: API Gateway (REST)
+    type: api_gateway
+    trust_zone: aws_dmz
+    description: |
+      Authoriser-protected. Custom Lambda authoriser validates the Cognito JWT
+      and per-tenant scope. Per-route throttling.
+
+  - id: cognito
+    name: Cognito User Pool
+    type: iam_principal
+    trust_zone: aws_dmz
+    description: Customer identity provider; issues short-lived JWTs.
+
+  # ─────────────────────────── Compute
+  - id: authz_lambda
+    name: Lambda — JWT authoriser
+    type: serverless_function
+    trust_zone: aws_dmz
+    description: Validates Cognito JWT, derives tenant context, returns IAM policy.
+
+  - id: orchestrator_lambda
+    name: Lambda — Bedrock Agent invoker
+    type: serverless_function
+    trust_zone: aws_dmz
+    description: Receives the validated request, calls Bedrock InvokeAgent.
+
+  - id: refund_lambda
+    name: Lambda — refund action (gated)
+    type: serverless_function
+    trust_zone: aws_internal
+    description: |
+      Action Group target. Performs refund via internal billing API, but
+      only when invoked with a per-call approval token signed by a support agent.
+
+  - id: ticket_lookup_lambda
+    name: Lambda — ticket lookup (read-only)
+    type: serverless_function
+    trust_zone: aws_internal
+    description: Action Group target; returns the calling tenant's tickets.
+
+  # ─────────────────────────── AI / Bedrock
+  - id: bedrock_agent
+    name: Bedrock Agent (Claude Sonnet)
+    type: agent
+    trust_zone: aws_managed
+    description: |
+      Managed agent runtime. Routes between RAG retrieval, Action Group calls,
+      and direct LLM completion. Configured with hardcoded max-iterations and
+      a system prompt versioned in CodeCommit.
+    metadata:
+      tool_count: 2
+      multi_tenant: true
+
+  - id: bedrock_kb
+    name: Bedrock Knowledge Base (vector index)
+    type: rag_vector_store
+    trust_zone: aws_managed
+    description: Managed vector store over the help-centre S3 corpus; OpenSearch Serverless backend.
+
+  - id: bedrock_llm
+    name: Bedrock — Claude Sonnet
+    type: llm_inference
+    trust_zone: aws_managed
+    description: Anthropic-via-Bedrock; on-demand pricing.
+
+  - id: bedrock_guardrails
+    name: Bedrock Guardrails
+    type: guardrails
+    trust_zone: aws_managed
+    description: PII-detection + topic-block + prompt-injection-classifier policy.
+
+  # ─────────────────────────── Storage / data
+  - id: kb_corpus_bucket
+    name: S3 — help-centre corpus
+    type: object_storage
+    trust_zone: aws_internal
+    description: |
+      Source documents for the Knowledge Base. Versioning + Object Lock;
+      KMS-encrypted with `kms_corpus`.
+
+  - id: agent_audit_bucket
+    name: S3 — agent action audit
+    type: object_storage
+    trust_zone: aws_internal
+    description: |
+      Append-only logs of every agent action (Object Lock compliance mode).
+      Replicated to a separate audit account.
+
+  - id: ticket_db
+    name: RDS — ticket database
+    type: data_source
+    trust_zone: aws_internal
+    description: Multi-tenant ticket store; per-tenant row-level security.
+
+  # ─────────────────────────── Identity / secrets / network
+  - id: agent_role
+    name: IAM role — orchestrator-lambda
+    type: iam_principal
+    trust_zone: aws_internal
+    description: |
+      Allows InvokeAgent on the specific Bedrock agent + KMS Decrypt on
+      `kms_corpus` only. No wildcard resources.
+
+  - id: refund_role
+    name: IAM role — refund-lambda
+    type: iam_principal
+    trust_zone: aws_internal
+    description: Permission boundary caps it to refund + RDS write on the billing schema only.
+
+  - id: secrets_vault
+    name: AWS Secrets Manager
+    type: secrets_vault
+    trust_zone: aws_internal
+    description: Holds the internal billing-API credential and the SIEM forwarder token.
+
+  - id: kms_corpus
+    name: KMS CMK — corpus encryption
+    type: kms_key
+    trust_zone: aws_internal
+    description: Customer-managed key encrypting the KB corpus + audit bucket.
+
+  - id: vpc
+    name: VPC + private subnets
+    type: network_segment
+    trust_zone: aws_internal
+    description: |
+      All Lambdas attached to private subnets. VPC endpoints to Bedrock /
+      S3 / Secrets Manager / KMS — no NAT gateway on the worker subnet.
+
+  # ─────────────────────────── Observability
+  - id: cloudwatch
+    name: CloudWatch Logs + Metrics
+    type: observability_stack
+    trust_zone: aws_internal
+    description: |
+      Structured logs from every Lambda + Bedrock; metric filters with PII
+      redaction. Forwarded via Kinesis Firehose to a SIEM in a separate
+      audit account.
+
+  - id: refund_queue
+    name: SQS — refund approvals
+    type: message_queue
+    trust_zone: aws_internal
+    description: Holds pending refunds awaiting human approval; KMS-encrypted; DLQ scoped tightly.
+
+dataflows:
+  # Edge ingress
+  - source: customer
+    target: cloudfront
+    label: chat message
+    crosses_boundary: true
+    data_classification: confidential
+  - source: cloudfront
+    target: api_gw
+    label: forwarded request
+    data_classification: confidential
+  - source: cognito
+    target: api_gw
+    label: JWT verify keys
+    data_classification: internal
+  - source: api_gw
+    target: authz_lambda
+    label: authoriser invoke
+    data_classification: internal
+  - source: authz_lambda
+    target: api_gw
+    label: IAM policy + tenant context
+    data_classification: internal
+  - source: api_gw
+    target: orchestrator_lambda
+    label: vetted request
+    data_classification: confidential
+
+  # Orchestrator → Bedrock
+  - source: orchestrator_lambda
+    target: bedrock_agent
+    label: InvokeAgent
+    data_classification: confidential
+  - source: bedrock_agent
+    target: bedrock_guardrails
+    label: input + output check
+  - source: bedrock_agent
+    target: bedrock_kb
+    label: retrieve(query)
+  - source: bedrock_kb
+    target: bedrock_agent
+    label: top-k passages (PII)
+    data_classification: confidential
+  - source: bedrock_agent
+    target: bedrock_llm
+    label: prompt + context
+    data_classification: confidential
+  - source: bedrock_llm
+    target: bedrock_agent
+    label: completion
+
+  # Bedrock Action Groups → Lambdas
+  - source: bedrock_agent
+    target: ticket_lookup_lambda
+    label: action — ticket-lookup
+  - source: ticket_lookup_lambda
+    target: ticket_db
+    label: SELECT scoped by tenant
+    data_classification: restricted
+  - source: ticket_db
+    target: ticket_lookup_lambda
+    label: tickets (PII)
+    data_classification: restricted
+  - source: ticket_lookup_lambda
+    target: bedrock_agent
+    label: tickets (PII)
+    data_classification: restricted
+
+  - source: bedrock_agent
+    target: refund_queue
+    label: enqueue refund proposal
+  - source: support_agent
+    target: refund_queue
+    label: approval token
+    data_classification: restricted
+  - source: refund_queue
+    target: refund_lambda
+    label: invoke (with approval)
+  - source: refund_lambda
+    target: ticket_db
+    label: UPDATE refund
+    data_classification: restricted
+
+  # KB ingestion
+  - source: kb_corpus_bucket
+    target: bedrock_kb
+    label: nightly sync
+    data_classification: internal
+
+  # Roles + secrets + KMS
+  - source: agent_role
+    target: orchestrator_lambda
+    label: assumed at runtime
+  - source: refund_role
+    target: refund_lambda
+    label: assumed at runtime
+  - source: secrets_vault
+    target: refund_lambda
+    label: billing-API credential
+    data_classification: restricted
+  - source: kms_corpus
+    target: kb_corpus_bucket
+    label: encrypt at rest
+  - source: kms_corpus
+    target: agent_audit_bucket
+    label: encrypt at rest
+
+  # Network — attach lambdas to VPC
+  - source: orchestrator_lambda
+    target: vpc
+    label: ENI
+  - source: refund_lambda
+    target: vpc
+    label: ENI
+  - source: ticket_lookup_lambda
+    target: vpc
+    label: ENI
+
+  # Observability
+  - source: orchestrator_lambda
+    target: cloudwatch
+    label: structured logs
+    data_classification: confidential
+  - source: bedrock_agent
+    target: cloudwatch
+    label: agent action telemetry
+    data_classification: confidential
+  - source: refund_lambda
+    target: cloudwatch
+    label: refund-action audit
+    data_classification: restricted
+  - source: bedrock_agent
+    target: agent_audit_bucket
+    label: action record
+    data_classification: confidential
+  - source: cloudwatch
+    target: customer
+    label: (none — internal only)
+
+trust_boundaries:
+  - id: tb_internet
+    type: network
+    components_inside: [customer, cloudfront]
+    components_outside: [api_gw, authz_lambda, orchestrator_lambda, refund_lambda, ticket_lookup_lambda, bedrock_agent, bedrock_kb, bedrock_llm, bedrock_guardrails, kb_corpus_bucket, agent_audit_bucket, ticket_db, agent_role, refund_role, secrets_vault, kms_corpus, vpc, cloudwatch, refund_queue, support_agent, cognito]
+    description: Public internet edge.
+
+  - id: tb_aws_managed
+    type: deployment_zone
+    components_inside: [bedrock_agent, bedrock_kb, bedrock_llm, bedrock_guardrails]
+    components_outside: [customer, cloudfront, api_gw, authz_lambda, orchestrator_lambda, refund_lambda, ticket_lookup_lambda, kb_corpus_bucket, agent_audit_bucket, ticket_db, agent_role, refund_role, secrets_vault, kms_corpus, vpc, cloudwatch, refund_queue, support_agent, cognito]
+    description: AWS-managed Bedrock service plane.
+
+  - id: tb_privileged
+    type: identity
+    components_inside: [refund_lambda, refund_role]
+    components_outside: [customer, cloudfront, api_gw, authz_lambda, orchestrator_lambda, ticket_lookup_lambda, bedrock_agent, bedrock_kb, bedrock_llm, bedrock_guardrails, kb_corpus_bucket, agent_audit_bucket, ticket_db, agent_role, secrets_vault, kms_corpus, vpc, cloudwatch, refund_queue, support_agent, cognito]
+    description: Privileged actions — only invocable with human approval token.

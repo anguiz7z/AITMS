@@ -1,0 +1,81 @@
+component_type: network_access_control
+description: |
+  Network access control / 802.1X enforcement — Cisco Identity Services
+  Engine (ISE), Aruba ClearPass, Forescout eyeSight, Portnox, FortiNAC.
+  Gates which devices and users can reach which network segments
+  (including the AI training subnet, the GPU bastion VLAN, the
+  inference workload VPN). Compromise grants free movement to
+  internal AI assets without further auth.
+threats:
+  - id: T_NAC_001
+    title: NAC bypass via MAC spoof on unused or quarantine VLAN
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    owasp_api: []
+    attack_enterprise: [T1078, T1133]
+    attack_cloud: []
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Cisco ISE / ClearPass default MAB (MAC Authentication Bypass)
+      policy lets unknown devices land in a "guest" or "remediation"
+      VLAN. An attacker spoofs a printer MAC (often allow-listed for
+      MAB) and lands in the printer VLAN, which may have lateral
+      reach to internal endpoints. Once an endpoint is owned, the
+      authenticated session of a real user is hijacked. AI training
+      data has been exfilled this way in red-team engagements.
+    mitigations:
+      - "MAB is the fallback, not the path of least resistance — limit MAB VLANs to a strict isolated network with no lateral reach"
+      - "802.1X EAP-TLS with certificate-based device identity (not username/password) for every wired and wireless port"
+      - "Profiler-based NAC (Forescout, ClearPass Profile, ISE Profiler) detects MAC spoof via OS fingerprint mismatch"
+      - "Continuous posture re-assessment: not just at admission"
+    refs: [T1078, T1133]
+
+  - id: T_NAC_002
+    title: Posture-check bypass enrolling unmanaged device into AI VLAN
+    stride_ai: [Spoofing, Information_Disclosure]
+    owasp_api: [API2:2023]
+    attack_enterprise: [T1078, T1556]
+    attack_cloud: []
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Data scientist needs urgent access to the GPU subnet, posture
+      agent fails on their MacBook. Helpdesk grants an "exemption"
+      that disables posture check for their MAC. The exemption stays
+      indefinitely. Now any device that spoofs that MAC inherits the
+      exemption. AI training subnet is reachable from a non-compliant
+      personal device.
+    mitigations:
+      - "All exemptions time-bound (max 24h) and require approver justification; auto-revert after TTL"
+      - "Posture-agent failure routes user to a quarantine VLAN with browser-based remediation, not exemption"
+      - "MFA on top of 802.1X for high-trust VLANs (AI training subnet) — the device cert isn't enough"
+      - "Weekly audit report of all current exemptions to security manager"
+    refs: [T1078, T1556]
+
+  - id: T_NAC_003
+    title: NAC outage triggers fail-open to a flat network
+    stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+    owasp_api: [API8:2023]
+    attack_enterprise: [T1499, T1078]
+    maestro: [M.L4.04, M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      ISE / ClearPass node down → switches default to "fail-open"
+      mode to maintain availability. Every device on a port hits the
+      default VLAN, which on many enterprise switches is VLAN 1 (the
+      L2 broadcast domain spanning every site). An attacker who
+      triggers the NAC outage (DoS the RADIUS endpoint, exploit a
+      controller CVE) collapses the segmentation around the AI
+      cluster.
+    mitigations:
+      - "Switch-side fail-closed mode (`authentication event server dead action authorize vlan <quarantine>`) — never default VLAN 1"
+      - "NAC HA pair across separate management VLANs; outage of one node automatically fails over without RADIUS gaps"
+      - "Periodic NAC failover drill (quarterly); validate behaviour of all switchports during simulated outage"
+      - "Alert SecOps page on RADIUS auth-failure spike (indicator of NAC outage attempted)"
+    refs: [T1499, T1078]

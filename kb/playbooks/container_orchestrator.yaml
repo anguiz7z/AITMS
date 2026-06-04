@@ -1,0 +1,71 @@
+component_type: container_orchestrator
+description: |
+  Kubernetes control plane (EKS / GKE / AKS / OpenShift / OCI OKE). Hosts AI
+  workloads, provides workload identity to pods, manages network policies +
+  admission controls.
+threats:
+  - id: T_CO_001
+    title: Service-account token over-privileged → cluster-wide compromise
+    stride_ai: [Elevation_of_Privilege]
+    owasp_agentic: [AGT09]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0055]
+    attack_cloud: [T1078.004, T1611]
+    attack_enterprise: [T1078]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      AI inference pod uses default service account or a cluster-wide RBAC
+      ClusterRole. A prompt-injection escalating to tool-shell, or a vulnerable
+      sidecar, lets the attacker exec into other pods, read all secrets, or
+      modify the workload-identity webhook config.
+    mitigations:
+      - "Per-namespace RBAC; never grant cluster-admin to AI workloads"
+      - "Disable default-token-mounted (automountServiceAccountToken: false) for inference pods"
+      - "OPA Gatekeeper / Kyverno admission policies block privileged pods"
+      - "Workload Identity (IRSA / Azure WI / GCP WI) scoped per pod"
+    refs: [AML.M0019]
+
+  - id: T_CO_002
+    title: Privileged sidecar injection via mutating webhook
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_agentic: [AGT13]
+    owasp_api: [API5:2023]
+    atlas: [AML.T0010]
+    attack_cloud: [T1611]
+    maestro: [M.L4.05]
+    likelihood: 2
+    impact: 5
+    description: |
+      A compromised admission webhook (CRD, mesh sidecar injector, observability
+      agent) mutates the AI inference pod to add a privileged sidecar with full
+      host access — a backdoor that survives pod restarts.
+    mitigations:
+      - "Pin webhook ClientConfig.CABundle in admission-policy review"
+      - "Only allow webhooks from a known signing CA"
+      - "Audit ValidatingWebhookConfiguration / MutatingWebhookConfiguration with Kyverno"
+      - "Falco / Cilium policies alert on unexpected sidecar injection"
+    refs: [AML.M0019]
+
+  - id: T_CO_003
+    title: etcd compromise → all secrets + AI model artifacts exfil
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM03:2025]
+    owasp_api: [API2:2023]
+    atlas: [AML.T0024, AML.T0040]
+    attack_cloud: [T1552]
+    attack_enterprise: [T1003]
+    maestro: [M.L4.06]
+    likelihood: 1
+    impact: 5
+    description: |
+      Cluster etcd holds every Secret object. A compromised control-plane node,
+      stolen kubeconfig, or unencrypted etcd backup gives the attacker every
+      AI model registry credential, Bedrock token, and prompt-template store
+      credential in the cluster.
+    mitigations:
+      - "etcd encryption-at-rest with KMS provider + envelope encryption"
+      - "Sealed Secrets / external-secrets pulling from per-tenant Vault, never from etcd directly"
+      - "etcd backups encrypted + access-controlled separately from cluster admin"
+    refs: [AML.M0023]

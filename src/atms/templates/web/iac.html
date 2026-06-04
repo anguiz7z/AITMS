@@ -1,0 +1,42 @@
+{% extends "web/base.html" %}
+{% block title %}IaC ingest{% endblock %}
+{% block content %}
+<h1>Infrastructure-as-Code ingest
+  <span style="color:var(--muted);font-weight:400;font-size:14px;">
+    docker-compose or Terraform → draft System YAML
+  </span>
+</h1>
+<p class="muted" style="max-width:820px;">
+Upload a <code>docker-compose.yml</code> or a Terraform <code>.tf</code> file
+and ATMS produces a draft System YAML that you can review in the editor
+before running analysis. Service / resource types are heuristically
+mapped to ATMS component types; vendor / image / version travel into
+<code>component.metadata</code> so the device-catalog and evidence
+matchers light up immediately.
+</p>
+
+{% if error %}
+<div class="alert alert-error"><strong>Error:</strong> {{ error }}</div>
+{% endif %}
+
+<form method="post" action="/iac/ingest" enctype="multipart/form-data" style="margin-bottom: 20px;">
+  <div class="row">
+    <label>IaC file (.yml / .yaml docker-compose, .tf Terraform)</label>
+    <input type="file" name="iac_file" accept=".yml,.yaml,.tf" required>
+  </div>
+  <div class="actions">
+    <button type="submit">Convert to System YAML</button>
+    <a class="btn btn-secondary" href="/editor">Editor</a>
+    <a class="btn btn-secondary" href="/">Analyse YAML</a>
+  </div>
+</form>
+
+<h2>What ATMS recognises</h2>
+<ul>
+  <li><strong>docker-compose</strong>: services → components, networks → trust zones, depends_on → dataflows, host-mapped ports → user-facing edge. Vendor / image / version sniffed from the image tag.</li>
+  <li><strong>Terraform</strong>: AWS / Azure / GCP resource types → components. depends_on + cross-resource interpolations → dataflows. Modules + count/for_each may need a <code>terraform show -json</code> expansion first.</li>
+</ul>
+<p class="muted">
+After conversion, drop the YAML into the <a href="/editor">Editor</a> to fix anything classified as <code>other</code> and to assign a vendor / product / version per component (which lets the v0.12 evidence matcher light up KEV CVEs automatically).
+</p>
+{% endblock %}

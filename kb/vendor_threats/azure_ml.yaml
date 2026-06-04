@@ -1,0 +1,284 @@
+# Azure Machine Learning vendor-threat overlay (v0.16.5)
+# Covers Azure ML Workspace, Compute Instances / Clusters, Managed
+# Online / Offline Endpoints, Data Assets, Pipelines, and Model
+# Registry. Augments ml_pipeline_orchestrator / ml_inference_endpoint
+# / training_pipeline playbooks. Separate from azure_foundry.yaml
+# which targets the AI Foundry agent / project surface.
+# Public references:
+#   - https://learn.microsoft.com/en-us/azure/machine-learning/concept-enterprise-security
+#   - https://learn.microsoft.com/en-us/azure/machine-learning/how-to-secure-online-endpoint
+#   - https://learn.microsoft.com/en-us/azure/machine-learning/how-to-managed-network
+#   - https://www.tenable.com/blog/microsoft-azure-ai-aml-vulnerabilities (Tenable 2024 advisories)
+#   - https://orca.security/resources/blog/sapn-attack-azure-ml-cross-tenant/ (Orca SAPN cross-tenant)
+#   - https://research.checkpoint.com/2024/azure-machine-learning-vulnerability/
+#   - https://learn.microsoft.com/en-us/azure/machine-learning/concept-data
+
+- id: T_AZURE_ML_001
+  title: Azure ML Workspace system-assigned managed identity shared across projects → role spread
+  description: |
+    Azure ML Workspaces commonly use a system-assigned managed identity
+    for the workspace itself, plus user-assigned managed identities
+    attached to Compute Instances / Online Endpoints. Tenants
+    frequently grant the workspace MI broad RBAC (e.g. `Storage Blob
+    Data Contributor` on the project's storage account, `AcrPull` on
+    the ACR, sometimes `Key Vault Secrets User` on a shared Key Vault).
+    When that same workspace identity is referenced across multiple ML
+    projects (the recommended Microsoft pattern is one workspace per
+    project, but operational reality is shared workspaces) every user
+    with `Microsoft.MachineLearningServices/workspaces/*/read` can
+    invoke compute / pipelines that inherit the workspace MI's
+    permissions — pivoting across projects via the shared identity.
+    Tenable's 2024 advisory (multiple CVEs) on Azure ML and Orca
+    Security's "SAPN" cross-tenant escalation documented this pattern
+    landing cross-tenant data access in some configurations.
+    Mapped to ATT&CK T1078.004 (Cloud Accounts) and T1098.001
+    (Account Manipulation: Additional Cloud Credentials).
+  stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+  owasp_llm: [LLM06:2025]
+  owasp_agentic: [AGT09, AGT03]
+  owasp_api: [API5:2023]
+  atlas: [AML.T0055, AML.T0024, AML.T0011]
+  attack_cloud: [T1078.004, T1098.001, T1098.003]
+  attack_enterprise: []
+  nist_ai_100_2: [NIST_GAI_DATA_PRIVACY]
+  maestro: [M.X.03, M.L7.03]
+  csa_singapore: [CSA_AI.DEPLOY.01]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "One Azure ML Workspace per project / tenant boundary; never share workspaces across business-units that have data-isolation requirements"
+    - "Use user-assigned managed identities scoped to a single compute target — not the workspace's system-assigned MI — for jobs and endpoints (`identity.type: UserAssigned`)"
+    - "Scope RBAC at the Storage Account *container* level, not account level — `Storage Blob Data Contributor` on `containers/<team>` only via `dataActions` ABAC"
+    - "Enable Workspace's Managed Virtual Network (Allow Only Approved Outbound) — outbound from any compute is restricted to declared endpoints, breaking the cross-project pivot"
+    - "Azure Policy `audit-aml-workspace-uses-user-assigned-mi` on the workspace; deny `system_assigned` for production tier"
+    - "Detective: Azure Monitor query joining `MachineLearningServices` activity logs with `Microsoft.Storage` data-plane logs by managed-identity OID; alert on cross-project access patterns"
+  refs: [AML.M0019, AML.M0023]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [ml_workspace, ml_compute, azure_ml, azureml, ml_endpoints, ml_pipelines]
+    component_type: [ml_pipeline_orchestrator, iam_principal, identity_provider]
+  applies_to_ai_workflows: true
+
+- id: T_AZURE_ML_002
+  title: Compute Instance public IP enabled by default — direct SSH / Jupyter exposure
+  description: |
+    Azure ML Compute Instances default to a public IP unless the
+    workspace's "No Public IP" feature is enabled at workspace
+    creation. The public IP exposes SSH (default port 22, can be
+    disabled but is on by default for the workspace owner) and the
+    JupyterLab proxy (HTTPS, 8888). A compromised Microsoft Entra ID
+    account with `Microsoft.MachineLearningServices/workspaces/computes/
+    write` can re-target the compute's NSG, downgrade auth (SSH password
+    is configurable instead of public key), and pivot into the customer
+    VNet.
+    Tenable disclosed two CVEs in mid-2024 (CVE-2024-37325 and related)
+    on Azure ML Compute Instance HTTP endpoints. Checkpoint Research
+    independently documented public-IP misconfigs leading to cluster
+    takeover.
+    The workspace-creation Quickstart in the Azure Portal does NOT
+    enforce No-Public-IP; CLI / Terraform similarly default to public.
+  stride_ai: [Elevation_of_Privilege, Spoofing, Information_Disclosure]
+  owasp_llm: []
+  owasp_agentic: [AGT09]
+  owasp_api: [API2:2023, API5:2023]
+  atlas: [AML.T0055, AML.T0011]
+  attack_cloud: [T1078.004, T1133]
+  attack_enterprise: [T1078, T1133, T1133.001]
+  nist_ai_100_2: []
+  maestro: [M.L4.06, M.X.03]
+  csa_singapore: [CSA_AI.DEPLOY.01]
+  likelihood: 4
+  impact: 4
+  mitigations:
+    - "Enable Workspace 'Managed Virtual Network — Allow Only Approved Outbound' at workspace creation (one-time, irreversible) → all compute instances launch without public IP"
+    - "Azure Policy `audit-aml-compute-no-public-ip` and `deny-aml-compute-without-vnet`: enforce `no_public_ip=true` and `subnet_resource_id` on every compute create"
+    - "Compute creation only via approved IaC pipeline (Bicep / Terraform) using service principals; SCP-equivalent via Azure Policy DenyAction"
+    - "SSH key-pair only (`ssh_settings.ssh_public_access=Disabled`); never password auth; rotate compute SSH keys every 90 days via automation"
+    - "Just-in-Time access via Azure Bastion + Conditional Access (require compliant device, MFA) for any interactive compute session"
+    - "Detective: Azure Defender for Cloud workbook 'Compute Instance Exposure' + Sentinel alert on any public IP appearing on `Microsoft.MachineLearningServices/computes`"
+  refs: [AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [ml_workspace, ml_compute, azure_ml, azureml]
+    component_type: [ml_pipeline_orchestrator, container_runtime, cloud_compute]
+  applies_to_ai_workflows: true
+
+- id: T_AZURE_ML_003
+  title: Managed Online Endpoint missing per-deployment authentication / quotas → exfil + cost-DoW
+  description: |
+    Azure ML Managed Online Endpoints expose a stable HTTPS URL
+    (`<endpoint>.<region>.inference.ml.azure.com/score`). Authentication
+    is configured per *endpoint*, not per *deployment* — and supports
+    three modes: `Key` (long-lived static), `AMLToken` (Azure AD), or
+    `Anonymous` (rare, but selectable). The `Key` mode is the default
+    suggested by the Studio "Deploy" wizard. Static keys are stored in
+    Key Vault but routinely surface in pipeline configs, app settings,
+    and Slack messages — same blast radius as a leaked OpenAI key.
+    Worse, online-endpoint quotas (request_settings, instance_count,
+    autoscale rules) are configured per-deployment and have no native
+    cost ceiling — autoscale can scale to the workspace's compute quota
+    (default 24 cores in many regions) under sustained load. A leaked
+    `Key` + a malicious load-driver → both an inference-extraction
+    attack AND a wallet-drain via runaway autoscale.
+    Microsoft's "Secure online endpoint" doc recommends Microsoft Entra
+    ID auth + Managed Identity; the Studio default does not enforce it.
+  stride_ai: [Information_Disclosure, Denial_of_Service, Spoofing]
+  owasp_llm: [LLM02:2025, LLM10:2025, LLM07:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API2:2023, API4:2023, API8:2023]
+  atlas: [AML.T0024, AML.T0029, AML.T0034]
+  attack_cloud: [T1078.004, T1552]
+  attack_enterprise: []
+  nist_ai_100_2: [NIST_GAI_AVAILABILITY, NIST_GAI_INTELLECTUAL_PROPERTY]
+  maestro: [M.L4.06, M.L1.04, M.L7.03]
+  csa_singapore: [CSA_AI.DEPLOY.04]
+  likelihood: 4
+  impact: 4
+  mitigations:
+    - "Endpoint `auth_mode: aml_token` (Microsoft Entra ID) — short-lived tokens, integrates with Conditional Access; never `key` for production"
+    - "Hard autoscale ceiling: set `instance_count` `max_instances` to a budget-aware value; combine with Azure Cost Alerts at 25/50/80% of monthly budget per endpoint"
+    - "Managed online endpoint Private Endpoint + customer VNet — disable public network access (`public_network_access: disabled`)"
+    - "Front the endpoint with API Management (APIM) for per-key quota, rate-limit, IP allowlist, and JWT validation; never expose the raw `.inference.ml.azure.com` URL"
+    - "Rotate `Key` mode credentials weekly via Key Vault rotation; alert on any process retrieving the key outside the approved set of principals"
+    - "Detective: Application Insights queries on the endpoint — alert on >2× baseline invocations/hr or >2× p99 latency (suggests extraction probe)"
+  refs: [AML.M0015, AML.M0019, AML.M0029]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [ml_endpoints, ml_workspace, azure_ml, azureml]
+    component_type: [ml_inference_endpoint, llm_inference]
+  applies_to_ai_workflows: true
+
+- id: T_AZURE_ML_004
+  title: Mounted Data Asset cross-project leakage via shared storage account + datastore registration
+  description: |
+    Azure ML Data Assets reference Datastores, which wrap Azure Storage
+    accounts (blob / ADLS Gen2). Many tenants centralise on a single
+    "data-lake" storage account and register multiple Datastores against
+    different containers / paths. The Datastore registration carries
+    *the storage credential* (account key, SAS, or service principal),
+    so the workspace has read access to whatever the credential permits
+    — often the whole storage account, not just the registered path.
+    A user with `Microsoft.MachineLearningServices/workspaces/datastores/
+    listSecrets` can extract that credential and read containers other
+    than their own. Mounted Data Assets in compute jobs further leak
+    because `azureml://datastores/<x>/paths/<y>` resolves at runtime
+    using the workspace's stored credential — a compromised job can
+    pivot by mounting paths it shouldn't have access to.
+    Documented in the Microsoft enterprise-security doc; the
+    recommendation is per-Datastore identity-based access (managed
+    identity at the workspace), not shared keys — but legacy workspaces
+    almost universally use shared keys.
+  stride_ai: [Information_Disclosure, Spoofing]
+  owasp_llm: [LLM02:2025, LLM04:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API5:2023, API8:2023]
+  atlas: [AML.T0024, AML.T0019, AML.T0007]
+  attack_cloud: [T1530, T1552, T1078.004]
+  attack_enterprise: []
+  nist_ai_100_2: [NIST_GAI_DATA_PRIVACY, NIST_GAI_INTELLECTUAL_PROPERTY]
+  maestro: [M.L1.03, M.X.03]
+  csa_singapore: [CSA_AI.DEPLOY.03]
+  likelihood: 4
+  impact: 4
+  mitigations:
+    - "Datastore registration with `credentialless` mode (identity-based access using workspace MI) — never shared keys / SAS tokens"
+    - "Per-team storage accounts; never share a single storage account across multiple unrelated ML projects"
+    - "ABAC RBAC at the Blob container level — `Storage Blob Data Reader` scoped via `@Resource[Microsoft.Storage/storageAccounts/blobServices/containers]` conditions"
+    - "Azure Policy `audit-aml-datastore-uses-identity` + `deny-aml-datastore-with-key-credential` workspace-wide"
+    - "Storage account firewall: VNet rule only; managed-identity-based access from the workspace MVnet; deny public access"
+    - "Detective: Microsoft Defender for Storage alerts on anomalous access from unrelated principals; Sentinel hunt on `Microsoft.MachineLearningServices/workspaces/datastores/listSecrets` events"
+  refs: [AML.M0019, AML.M0029]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [ml_workspace, azure_ml, azureml, ml_pipelines]
+    component_type: [ml_pipeline_orchestrator, data_lake, object_storage]
+  applies_to_ai_workflows: true
+
+- id: T_AZURE_ML_005
+  title: Pipeline SDK auth token reuse + persistent run history leaks secrets in logs
+  description: |
+    The `azureml` Python SDK v2 acquires an Azure AD token via
+    `DefaultAzureCredential` and reuses it across `ml_client` calls.
+    Long-running pipeline scripts that print debug info routinely leak
+    the token-bearer header into stdout (e.g. `requests` libraries with
+    `verbose=True`, third-party SDKs that log the entire request
+    object), and Azure ML's run-history captures stdout for every step
+    indefinitely — accessible to any user with workspace `read` access.
+    The captured tokens (`Bearer eyJ...`) are valid for the lifetime of
+    the Azure AD assertion (often 60-90 min) and replayable from any IP
+    unless Conditional Access binding is enforced. Pipelines also
+    persist `pip install` output containing PAT URLs (artifact feed
+    secrets), HuggingFace tokens passed via `huggingface_hub.login`, and
+    OpenAI / Anthropic keys env-injected at step start.
+    Run-history retention is 18 months by default — a forgotten log
+    line from a year ago can leak active tokens.
+  stride_ai: [Information_Disclosure, Spoofing]
+  owasp_llm: [LLM10:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API2:2023, API8:2023]
+  atlas: [AML.T0011, AML.T0024]
+  attack_cloud: [T1552, T1078.004, T1550]
+  attack_enterprise: [T1552.001, T1550.001]
+  nist_ai_100_2: [NIST_GAI_DATA_PRIVACY]
+  maestro: [M.L7.03, M.L4.05]
+  csa_singapore: [CSA_AI.DEPLOY.01, CSA_AI.MONITOR.01]
+  likelihood: 4
+  impact: 4
+  mitigations:
+    - "Inject secrets via Key Vault references in the pipeline `environment_variables` block — values resolved at step launch but never logged; require `secret: true` flag"
+    - "Run-history retention policy on the workspace's Log Analytics: max 30 days for run-stdout; longer retention only for sanitised metrics, not raw logs"
+    - "Pipeline-step DLP wrapper: wrap step entrypoints with a stdout filter that strips `Bearer`, `sk-`, `hf_`, `ghp_` patterns before lines are flushed to run history"
+    - "Conditional Access binding on the workspace SP: require `compliant device` + IP ranges → leaked tokens fail to replay outside trusted network"
+    - "Disable `verbose` / debug logging on third-party SDKs (`requests`, `azure-identity`, `huggingface_hub`) in production pipeline images via environment variables"
+    - "Detective: Microsoft Sentinel scheduled query against Log Analytics for token patterns in `AmlRunStatusChangedEvent` / step logs; auto-revoke + alert"
+  refs: [AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [ml_workspace, ml_pipelines, azure_ml, azureml]
+    component_type: [ml_pipeline_orchestrator, training_pipeline, log_aggregator]
+  applies_to_ai_workflows: true
+
+- id: T_AZURE_ML_006
+  title: Compute Cluster shared with multiple pipelines — cross-job filesystem leak via /tmp persistence
+  description: |
+    Azure ML Compute Clusters (`AmlCompute` SKU) are persistent
+    multi-node pools shared across pipelines and users in the same
+    workspace. Jobs run in containers but the underlying VM filesystem
+    (`/mnt/`, `/tmp/`, the docker layer cache) persists between job
+    invocations on the same node. A job that writes secrets, training
+    artifacts, or partial model weights to `/tmp/` can leak that data
+    to the *next* job that lands on the same node — which may belong
+    to a different user.
+    Azure's documentation acknowledges this and recommends `clean_tmp=
+    true` (not the default) and per-job ephemeral compute targets, but
+    the Studio Quickstart suggests "shared cluster for cost efficiency."
+    The `IdleSecondsBeforeScaleDown` parameter (default 1800s) keeps
+    nodes warm specifically to amortise startup — which means the
+    cross-job leakage window is by-design.
+    The vulnerability is less about CVEs and more about the platform's
+    default trust model: same-workspace == same-tenant of trust.
+  stride_ai: [Information_Disclosure, Tampering]
+  owasp_llm: [LLM02:2025, LLM04:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API3:2023]
+  atlas: [AML.T0007, AML.T0024, AML.T0011]
+  attack_cloud: [T1552, T1078.004]
+  attack_enterprise: []
+  nist_ai_100_2: [NIST_GAI_DATA_PRIVACY]
+  maestro: [M.L1.03, M.X.03]
+  csa_singapore: [CSA_AI.DEPLOY.01, CSA_AI.DEPLOY.03]
+  likelihood: 3
+  impact: 3
+  mitigations:
+    - "Use Compute *Instance* (single-tenant) or per-pipeline ephemeral Compute Cluster for sensitive workloads; never share with general-purpose data science clusters"
+    - "Set `IdleSecondsBeforeScaleDown=120` and `MinNodes=0` on shared clusters so nodes are reclaimed quickly — limits cross-job persistence window"
+    - "Job code MUST write only to designated output mount (`/outputs`); CI lint rejects pipeline steps that write to `/tmp/`, `/home/`, `/mnt/` outside specific patterns"
+    - "Container image hardening: image entrypoint clears `/tmp` and the relevant scratch directories on every container start"
+    - "Disk encryption at rest with customer-managed key — leaked data on the node's disk is unreadable to attackers without the CMK (defence-in-depth)"
+    - "Detective: Azure Monitor query on Compute Cluster node-id + tenant assignment over time; flag nodes whose tenant changed >5x in 24h (high cross-job churn)"
+  refs: [AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [azure, microsoft]
+    metadata.product: [ml_workspace, ml_compute, azure_ml, azureml]
+    component_type: [ml_pipeline_orchestrator, training_pipeline, container_runtime]
+  applies_to_ai_workflows: true

@@ -1,0 +1,53 @@
+# MAESTRO — Multi-Agent Environment, Security, Threat, Risk, and Outcome
+# Cloud Security Alliance, February 2025 (publication: 2025-02-06).
+# Source: https://cloudsecurityalliance.org/blog/2025/02/06/agentic-ai-threat-modeling-framework-maestro
+#
+# 7-layer reference architecture for agentic AI systems. Each ATMS component
+# in a system can be tagged with one or more MAESTRO layer IDs; the engine
+# uses these tags to drive cross-layer threat enrichment.
+
+- id: M.L1
+  name: Foundation Models
+  short: foundation_models
+  description: Core AI model on which an agent is built (LLM or other ML).
+  example_components: [llm_inference, model_registry, fine_tuning_pipeline]
+
+- id: M.L2
+  name: Data Operations
+  short: data_operations
+  description: Where data is processed, prepared, embedded, retrieved, and stored for AI agents.
+  example_components: [rag_vector_store, embedding_service, data_source, training_pipeline]
+
+- id: M.L3
+  name: Agent Frameworks
+  short: agent_frameworks
+  description: Toolkits and libraries used to build agents (e.g., LangGraph, AutoGen, CrewAI, A2A).
+  example_components: [agent, tool, prompt_template_store]
+
+- id: M.L4
+  name: Deployment & Infrastructure
+  short: deployment_infrastructure
+  description: Infrastructure on which agents run (cloud, on-prem, container orchestration, IaC).
+  example_components: [external_api, mcp_server]
+
+- id: M.L5
+  name: Evaluation & Observability
+  short: evaluation_observability
+  description: Tools and processes for evaluating, monitoring, and tracing agent performance and behaviour.
+  example_components: [output_filter, guardrails]
+
+- id: M.L6
+  name: Security & Compliance
+  short: security_compliance
+  description: |
+    Cross-cutting security controls including AI-driven security agents themselves. Vertical
+    layer that intersects all other layers.
+  example_components: [guardrails, output_filter]
+
+- id: M.L7
+  name: Agent Ecosystem
+  short: agent_ecosystem
+  description: |
+    Marketplace and integration layer where agents discover, register, and interact with other
+    agents, users, applications, and external services (incl. MCP/A2A protocols).
+  example_components: [user, mcp_server, external_api, agent]

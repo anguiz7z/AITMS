@@ -1,0 +1,283 @@
+# OWASP Agentic AI — Threats and Mitigations
+# Published by the OWASP Gen AI Security Project — Agentic Security Initiative
+# (ASI), February 2025.
+# Source: https://genai.owasp.org/resource/agentic-ai-threats-and-mitigations/
+#
+# AGT01..AGT15 are the canonical OWASP threats T1..T15 — the publication defines
+# exactly fifteen. AGT16 and AGT17 are ATMS EXTENSIONS (standing: atms_extension)
+# — NOT part of the OWASP T1..T15 list — retained because they capture real
+# agentic risks that are anchored to OTHER published frameworks (see each
+# extension entry's `note`). Verified against the source on 2026-05-30.
+
+- id: AGT01
+  ref: T1
+  title: Memory Poisoning
+  short: memory_poisoning
+  description: |
+    Memory Poisoning involves exploiting an AI's memory systems, both short and long-term, to
+    introduce malicious or false data and exploit the agent's context. This can lead to altered
+    decision-making and unauthorized operations.
+  applies_to: [agent, prompt_template_store, rag_vector_store]
+  stride_ai: [Tampering, Spoofing]
+  keywords: [memory poisoning, context tamper, agent memory]
+  mitigations:
+    - "Memory content validation; session isolation; robust auth on memory access"
+    - "Anomaly detection on memory state; periodic memory sanitization"
+    - "AI-generated memory snapshots for forensic rollback"
+
+- id: AGT02
+  ref: T2
+  title: Tool Misuse
+  short: tool_misuse
+  description: |
+    Attackers manipulate AI agents to abuse their integrated tools through deceptive prompts or
+    commands within authorized permissions. Includes Agent Hijacking — agent ingests adversarial
+    data and executes unintended tool actions.
+  applies_to: [agent, tool, mcp_server]
+  stride_ai: [Elevation_of_Privilege, Tampering]
+  keywords: [tool misuse, agent hijack, unauthorized tool call]
+  mitigations:
+    - "Strict tool access verification; pre-execution validation"
+    - "Tool rate-limiting; pattern monitoring"
+    - "Validate agent instructions; clear operational boundaries"
+    - "Execution logs of every tool call for anomaly detection"
+
+- id: AGT03
+  ref: T3
+  title: Privilege Compromise
+  short: privilege_compromise
+  description: |
+    Attackers exploit weaknesses in permission management to perform unauthorized actions, often
+    via dynamic role inheritance or misconfigurations.
+  applies_to: [agent, tool, mcp_server]
+  stride_ai: [Elevation_of_Privilege]
+  keywords: [privilege compromise, role inheritance, permission misconfiguration]
+  mitigations:
+    - "Granular permission controls; dynamic access validation"
+    - "Monitor role changes; audit elevated-privilege operations"
+    - "Block cross-agent privilege delegation unless explicitly authorized"
+
+- id: AGT04
+  ref: T4
+  title: Resource Overload
+  short: resource_overload
+  description: |
+    Attacks targeting computational, memory, and service capacity of AI systems to degrade
+    performance or cause failures.
+  applies_to: [agent, llm_inference, tool, mcp_server, embedding_service]
+  stride_ai: [Denial_of_Service]
+  keywords: [resource overload, dos, capacity exhaustion]
+  mitigations:
+    - "Resource management controls; adaptive scaling"
+    - "Per-session and per-agent quotas; real-time load monitoring"
+    - "AI rate-limiting policies for high-frequency request bursts"
+
+- id: AGT05
+  ref: T5
+  title: Cascading Hallucination Attacks
+  short: cascading_hallucinations
+  description: |
+    Exploit an AI's tendency to generate plausible but false information, which can propagate
+    through systems and disrupt downstream decision-making and tool invocation.
+  applies_to: [agent, llm_inference, output_filter]
+  stride_ai: [Repudiation, Tampering]
+  keywords: [hallucination, cascading hallucination, false context]
+  mitigations:
+    - "Output validation mechanisms; behavioral constraints"
+    - "Multi-source validation; feedback loops for continual correction"
+    - "Secondary validation before AI output drives critical decisions"
+
+- id: AGT06
+  ref: T6
+  title: Intent Breaking and Goal Manipulation
+  short: goal_manipulation
+  description: |
+    Exploits vulnerabilities in agent planning and goal-setting capabilities — attackers
+    redirect or rewrite the agent's objectives, often via prompt injection or compromised data
+    sources. Especially severe in ReAct-style adaptive agents.
+  applies_to: [agent]
+  stride_ai: [Tampering, Elevation_of_Privilege]
+  keywords: [goal manipulation, intent break, plan injection]
+  mitigations:
+    - "Planning-validation frameworks; boundary management for reflection processes"
+    - "Dynamic goal-alignment protection; AI behavioural auditing by a separate model"
+    - "Flag significant goal deviations for human review"
+
+- id: AGT07
+  ref: T7
+  title: Misaligned and Deceptive Behaviors
+  short: misalignment_deception
+  description: |
+    AI agents execute harmful or disallowed actions via deceptive reasoning or misinterpreting
+    goals. Distinct from hallucinations — emerges from advanced reasoning rather than random
+    error.
+  applies_to: [agent]
+  stride_ai: [Repudiation, Tampering]
+  keywords: [deception, misalignment, scheming]
+  mitigations:
+    - "Train models to recognize and refuse harmful tasks; enforce policy restrictions"
+    - "Human confirmation for high-risk actions; comprehensive logging and monitoring"
+    - "Behavioural consistency analysis; truthfulness-verification models; adversarial red team"
+
+- id: AGT08
+  ref: T8
+  title: Repudiation and Untraceability
+  short: repudiation_untraceability
+  description: |
+    Actions performed by AI agents cannot be traced back or accounted for due to insufficient
+    logging or transparency in decision-making.
+  applies_to: [agent, tool, mcp_server]
+  stride_ai: [Repudiation]
+  keywords: [repudiation, untraceability, no audit trail]
+  mitigations:
+    - "Comprehensive logging with enriched metadata; cryptographic signing of logs"
+    - "Real-time monitoring; immutable audit trail for regulatory compliance"
+
+- id: AGT09
+  ref: T9
+  title: Identity Spoofing and Impersonation
+  short: identity_spoofing
+  description: |
+    Attackers exploit authentication mechanisms to impersonate AI agents or users. Includes
+    theft of formal persistent agent identities (e.g., Microsoft Entra Agent ID) enabling
+    privileged long-term API access bypassing conversational guardrails.
+  applies_to: [agent, mcp_server, user]
+  stride_ai: [Spoofing, Elevation_of_Privilege]
+  keywords: [identity spoofing, agent identity, impersonation]
+  mitigations:
+    - "Comprehensive identity validation; trust-boundary enforcement"
+    - "Least-privilege access; continuous monitoring for impersonation"
+    - "Behavioural profiling via secondary model to detect activity deviation"
+
+- id: AGT10
+  ref: T10
+  title: Overwhelming Human in the Loop
+  short: overwhelm_hitl
+  description: |
+    Targets systems with human oversight by exploiting cognitive limits or compromising the
+    human-AI interaction surface to push past safety gates.
+  applies_to: [agent, output_filter, guardrails, user]
+  stride_ai: [Denial_of_Service, Defense_Evasion]
+  keywords: [overwhelm hitl, alert fatigue, human bypass]
+  mitigations:
+    - "Adaptive trust mechanisms; dynamic intervention thresholds"
+    - "Hierarchical AI-human collaboration — automate low-risk, gate high-risk"
+    - "Workload smoothing; ensure reviewer can't be overrun by agent volume"
+
+- id: AGT11
+  ref: T11
+  title: Unexpected RCE and Code Attacks
+  short: unexpected_rce
+  description: |
+    Attackers exploit AI-generated execution environments to inject malicious code, trigger
+    unintended system behaviors, or execute unauthorized scripts.
+  applies_to: [agent, tool, mcp_server]
+  stride_ai: [Elevation_of_Privilege, Tampering]
+  keywords: [rce, code execution, ai-generated code abuse]
+  mitigations:
+    - "Restrict AI code-generation permissions; sandbox execution"
+    - "Monitor AI-generated scripts; flag elevated-privilege code for manual review"
+
+- id: AGT12
+  ref: T12
+  title: Agent Communication Poisoning
+  short: agent_comm_poisoning
+  description: |
+    Attackers manipulate communication channels between AI agents to spread false information,
+    disrupt workflows, or influence multi-agent decision-making.
+  applies_to: [agent, mcp_server]
+  stride_ai: [Tampering, Spoofing]
+  keywords: [agent communication, message poisoning, a2a abuse]
+  mitigations:
+    - "Cryptographic message authentication between agents"
+    - "Communication validation policies; inter-agent anomaly detection"
+    - "Multi-agent consensus verification for mission-critical decisions"
+
+- id: AGT13
+  ref: T13
+  title: Rogue Agents in Multi-Agent Systems
+  short: rogue_agent
+  description: |
+    Malicious or compromised AI agents operate outside normal monitoring boundaries, executing
+    unauthorized actions or exfiltrating data. Includes 'infectious backdoors' where one
+    compromised agent spreads malicious logic to others.
+  applies_to: [agent, mcp_server]
+  stride_ai: [Tampering, Elevation_of_Privilege]
+  keywords: [rogue agent, infectious backdoor, multi-agent compromise]
+  mitigations:
+    - "Restrict agent autonomy via policy constraints"
+    - "Continuous behavioural monitoring; controlled hosting environments"
+    - "Regular AI red-teaming; input/output anomaly detection"
+
+- id: AGT14
+  ref: T14
+  title: Human Attacks on Multi-Agent Systems
+  short: human_attacks_mas
+  description: |
+    Adversaries exploit inter-agent delegation, trust relationships, and workflow dependencies
+    to escalate privileges or manipulate AI-driven operations.
+  applies_to: [agent, mcp_server, tool]
+  stride_ai: [Elevation_of_Privilege, Tampering]
+  keywords: [delegation abuse, trust relationship, workflow manipulation]
+  mitigations:
+    - "Restrict agent delegation; enforce inter-agent authentication"
+    - "Multi-agent task segmentation to prevent privilege escalation across agents"
+    - "Behavioural monitoring across the delegation graph"
+
+- id: AGT15
+  ref: T15
+  title: Human Manipulation
+  short: human_manipulation
+  description: |
+    Trust between user and conversational agent reduces user skepticism; attackers coerce
+    agents to manipulate users, spread misinformation, or take covert actions on the user's
+    behalf.
+  applies_to: [agent, output_filter, guardrails, user]
+  stride_ai: [Spoofing, Tampering]
+  keywords: [human manipulation, user trust abuse, social engineering via agent]
+  mitigations:
+    - "Monitor agent behaviour vs defined role"
+    - "Restrict tool access to minimize attack surface"
+    - "Limit agent ability to print clickable links"
+    - "Validate manipulated responses with guardrails / moderation API / second model"
+
+- id: AGT16
+  ref: T16
+  title: Insecure Inter-Agent Protocol Abuse
+  short: protocol_abuse
+  standing: atms_extension
+  note: >-
+    ATMS extension — NOT one of the OWASP Agentic T1..T15. Anchored to the OWASP
+    Multi-Agentic System (MAS) Threat Modeling Guide v1.0 (2025) and CSA MAESTRO
+    inter-agent / A2A protocol threats.
+  description: |
+    Attacks on protocols like MCP or A2A — consent bypass, context hijacking — leading to
+    unauthorized agent actions.
+  applies_to: [mcp_server, agent]
+  stride_ai: [Spoofing, Elevation_of_Privilege]
+  keywords: [mcp abuse, a2a abuse, protocol abuse, consent bypass]
+  mitigations:
+    - "Strong inter-agent authentication; sanitize and validate all protocol-level data"
+    - "Restrict agent-to-agent delegation to tightly scoped functions"
+    - "Log all inter-agent communications; encrypt to prevent adversary-in-the-middle"
+
+- id: AGT17
+  ref: T17
+  title: Supply Chain Compromise (Agentic)
+  short: agentic_supply_chain
+  standing: atms_extension
+  note: >-
+    ATMS extension — NOT one of the OWASP Agentic T1..T15. Anchored to MITRE
+    ATLAS AML.T0010 (AI Supply Chain Compromise) and OWASP LLM03:2025 (Supply
+    Chain).
+  description: |
+    Compromised supply chain results in vulnerable, malicious, outdated, or otherwise harmful
+    components in the agent — models, libraries, tools, poisoned build environments.
+  applies_to: [agent, tool, mcp_server, model_registry, fine_tuning_pipeline, training_pipeline]
+  stride_ai: [Tampering]
+  keywords: [supply chain, sbom, aibom, agent sbom, dependency compromise]
+  mitigations:
+    - "Digitally sign artifacts; use verifiable AIBOM / Agent SBOM"
+    - "Enforce strong authentication across the supply chain"
+    - "Sandboxed isolated agents; restrict untrusted tool installation"
+    - "Continuously monitor for drift; red-team with simulated supply chain attacks"

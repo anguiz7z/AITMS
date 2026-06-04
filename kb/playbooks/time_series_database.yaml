@@ -1,0 +1,96 @@
+component_type: time_series_database
+description: |
+  Purpose-built time-series store — AWS Timestream, Azure Data
+  Explorer (Kusto / Synapse Data Explorer), InfluxDB Cloud, TimescaleDB
+  managed, Google Cloud Bigtable for IoT TSDB patterns. Stores high-
+  cardinality, high-velocity telemetry that ML pipelines train on
+  (predictive maintenance, anomaly detection, time-series forecasting)
+  and that AI agents query for situational context.
+threats:
+  - id: T_TSDB_001
+    title: Anomaly-detection model evaded by gradual data poisoning
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM04:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0018, AML.T0020, AML.T0031, AML.T0043]
+    attack_cloud: [T1565.001]
+    attack_enterprise: [T1565]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA, NIST_PAI_EVASION]
+    owasp_ml: [ML02:2023, ML01:2023]
+    maestro: [M.L2.01, M.L1.04]
+    csa_singapore: [CSA_AI.DEVELOP.01, CSA_AI.OPERATE.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Time-series anomaly-detection models retrain on a rolling window
+      of recent telemetry. An attacker who controls the ingestion path
+      (compromised IoT device, malicious publisher) slowly drifts the
+      "normal" distribution over weeks — small enough to evade
+      data-quality alerts but enough that, on retrain, the model
+      accepts the attacker's eventual high-impact action as "normal."
+      Frog-in-pot poisoning. The Tesla-2023 BMS / Industroyer
+      patterns. TSDBs amplify this because they store the *training
+      window* — poisoning the data and poisoning the model are the
+      same operation.
+    mitigations:
+      - "Authenticated, signed ingestion: every publisher writes via mTLS with rotating short-lived credentials"
+      - "Out-of-band parallel statistical baseline (separate ingestion path with different auth) compared daily to TSDB stats — drift alert"
+      - "Trim outlier injection: TSDB ingestion drops values outside dynamic confidence interval; ML retraining uses only validated data"
+      - "Snapshot-isolation of training windows: training runs against immutable point-in-time snapshots, not live data"
+    refs: [AML.M0007, AML.M0008]
+
+  - id: T_TSDB_002
+    title: High-cardinality / unbounded-tag injection DoS
+    stride_ai: [Denial_of_Service]
+    owasp_api: [API4:2023]
+    atlas: []
+    attack_cloud: [T1499]
+    attack_enterprise: [T1499.004]
+    maestro: [M.L4.04]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      Time-series engines (InfluxDB, Timescale, Timestream, ADX) suffer
+      catastrophic write/query performance when tag cardinality
+      explodes. An attacker with write access to a public ingestion
+      endpoint (think IoT API gateway → Timestream) injects metrics
+      with per-request unique tags (`request_id=`, `session_id=`),
+      blowing past the millions-of-series mark. Memtables thrash,
+      ingestion lag balloons, the downstream AI/forecasting workload
+      stops getting fresh data — a partial-outage that's hard to
+      diagnose because the system stays "up."
+    mitigations:
+      - "Schema gate at ingestion: allow-list of tag keys; reject writes with unregistered tags"
+      - "Per-tenant cardinality quota (InfluxDB `max-series-per-database`, Timestream table-level quota, ADX retention/cache policies)"
+      - "Tag values cardinality monitoring + alert at 80% of quota"
+      - "Compaction-lag SLO + auto-scaling memory tier (Timestream memory store retention; ADX hot-cache sizing)"
+    refs: [AML.M0023]
+
+  - id: T_TSDB_003
+    title: Long-retention raw telemetry enabling re-identification
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024]
+    attack_cloud: [T1213, T1530]
+    linddun: [I_001, I_002, NC_001]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_INVERSION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      TSDBs default to long-retention because compressed time-series
+      data is cheap. Years of GPS pings, heartbeat sensor readings, or
+      keystroke-cadence data uniquely identify the human or device
+      they came from (the "your gait is your identity" research line).
+      Trained-AI models then expose that identifying pattern when
+      queried. Especially severe for fleet management, wearable, or
+      typing-cadence-based AI use cases.
+    mitigations:
+      - "Tiered retention: raw → hot (7 days), aggregated → warm (90 days), aggregated-only → cold archive"
+      - "Pseudonymisation at ingest: device IDs hashed with rotating per-quarter salt"
+      - "Differential-privacy noise on aggregations served to ML training pipelines"
+      - "Quarterly re-identification audit by privacy team"
+    refs: [AML.M0012, AML.M0019]

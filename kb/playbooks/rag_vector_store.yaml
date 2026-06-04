@@ -1,0 +1,127 @@
+component_type: rag_vector_store
+description: |
+  A retrieval-augmented generation system: document ingestion, embedding, vector storage, and
+  retrieval into prompts. Includes pgvector, Pinecone, Weaviate, Chroma, FAISS, etc.
+threats:
+  - id: T_RAG_001
+    title: Indirect prompt injection via retrieved content
+    stride_ai: [Spoofing, Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM01:2025]
+    atlas: [AML.T0051, AML.T0051.001]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 5
+    impact: 5
+    description: |
+      Documents in the corpus contain instructions that the LLM follows when retrieved. Especially
+      severe in public-facing RAG (any user can submit poisoned content) or web-scraping RAG.
+    mitigations:
+      - "Treat retrieved content as untrusted data; wrap in clear delimiters"
+      - "Provenance and integrity checks on every ingested document"
+      - "Restrict ingestion to allowlisted sources; require approval workflow"
+      - "Prompt-injection scanner on retrieved chunks before composition"
+    refs: [AML.M0007, AML.M0015]
+
+  - id: T_RAG_002
+    title: Cross-tenant data leakage
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM08:2025, LLM02:2025]
+    atlas: [AML.T0057]
+    linddun: [I_001, D_001, DD_003]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      Multi-tenant RAG without proper partitioning surfaces other tenants' documents in
+      retrieval results.
+    mitigations:
+      - "Per-tenant indices or strict partition filters at retrieval time"
+      - "Authorization check on every retrieval (not just at API entry)"
+      - "Audit logs of every retrieval with tenant identity"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_RAG_003
+    title: RAG corpus poisoning
+    stride_ai: [Tampering]
+    owasp_llm: [LLM04:2025]
+    atlas: [AML.T0019, AML.T0020, AML.T0059]
+    nist_ai_100_2: [NIST_PAI_POISONING_DATA, NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    owasp_ml: [ML02:2023]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Adversary submits adversarial documents that win retrieval and influence outputs (bias,
+      misinformation, prompt injection).
+    mitigations:
+      - "Source allowlist and reputation scoring for ingestion"
+      - "Anomaly detection on embedding distributions"
+      - "Periodic integrity tests with canary queries"
+      - "Human review for new corpora and high-impact updates"
+    refs: [AML.M0007, AML.M0008]
+
+  - id: T_RAG_004
+    title: Embedding inversion (data reconstruction from vectors)
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM08:2025]
+    atlas: [AML.T0024.001]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_INVERSION]
+    owasp_ml: [ML03:2023]
+    linddun: [I_002, I_001]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      Adversary with access to embeddings reconstructs the source text, exposing PII or
+      proprietary content.
+    mitigations:
+      - "Encrypt embeddings at rest; access controls on the vector store"
+      - "Avoid storing raw embeddings of highly sensitive PII; tokenize first"
+      - "Limit embedding model exposure; don't expose embedding API publicly"
+    refs: [AML.M0012, AML.M0019]
+
+  - id: T_RAG_005
+    title: Stale or unrevoked content surfaces
+    stride_ai: [Information_Disclosure, Repudiation]
+    owasp_llm: [LLM08:2025]
+    atlas: [AML.T0057]
+    linddun: [NC_002, DD_002]
+    csa_singapore: [CSA_AI.OPERATE.03]
+    likelihood: 3
+    impact: 3
+    description: |
+      Deletion in source-of-truth doesn't propagate to embeddings; deleted content remains
+      retrievable.
+    mitigations:
+      - "Deletion propagation pipeline with verification"
+      - "Periodic audit: spot-check embeddings vs source-of-truth"
+      - "TTL on embeddings; require re-validation"
+    refs: [AML.M0023]
+
+  - id: T_RAG_006
+    title: Identity-propagation failure into RAG grounding (OBO / Entra group claim drift)
+    stride_ai: [Information_Disclosure, Spoofing]
+    owasp_llm: [LLM02:2025, LLM07:2025]
+    owasp_agentic: [AGT09]
+    owasp_api: [API1:2023, API5:2023]
+    atlas: [AML.T0057]
+    attack_cloud: [T1078.004, T1213]
+    maestro: [M.L4.06]
+    linddun: [I_001, DD_001]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      The agent / chat backend authenticates the end user but uses its own
+      workload identity (Managed Identity, SA, or stored API key) to query the
+      vector store. Per-user authorisation is never re-checked at the
+      retrieval layer. Users see RAG snippets from documents they wouldn't
+      normally have access to. Common pattern: SharePoint / Drive / Confluence
+      indexed into a single vector store; original ACLs not carried forward
+      into embedding metadata.
+    mitigations:
+      - "Per-document ACL stored in embedding metadata; filter at query time by caller's group claims"
+      - "On-Behalf-Of (OBO) flow: agent backend uses the end-user's OAuth token, not its own MI, against the index"
+      - "Re-validate Entra / Okta / AAD group membership on every query (not just at login)"
+      - "Periodic ACL drift audit between vector store + source-of-truth"
+    refs: [AML.M0019]

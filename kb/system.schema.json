@@ -1,0 +1,121 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/anguiz7z/AITMS/blob/main/kb/system.schema.json",
+  "title": "ATMS System",
+  "description": "ATMS System input — describes an AI / cloud / IT / OT / network architecture for threat modelling. Validate your system YAML against this schema before running atms analyze in CI.",
+  "type": "object",
+  "required": ["name", "components"],
+  "additionalProperties": true,
+  "properties": {
+    "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "description": { "type": "string", "maxLength": 2000 },
+    "business_context": { "type": "string", "maxLength": 2000 },
+    "components": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/component" }
+    },
+    "dataflows": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/dataflow" }
+    },
+    "trust_boundaries": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/trust_boundary" }
+    }
+  },
+  "definitions": {
+    "component_type": {
+      "type": "string",
+      "enum": [
+        "llm_inference", "rag_vector_store", "agent", "tool", "mcp_server",
+        "training_pipeline", "fine_tuning_pipeline", "embedding_service",
+        "prompt_template_store", "model_registry", "guardrails", "output_filter",
+        "data_source", "external_api", "user",
+        "iam_principal", "secrets_vault", "object_storage", "network_segment",
+        "serverless_function", "api_gateway", "container_runtime", "kms_key",
+        "message_queue", "observability_stack",
+        "database", "firewall", "directory_service", "web_application", "endpoint",
+        "legacy_mainframe", "plc", "scada", "iot_device", "load_balancer",
+        "vpn_gateway", "network_switch", "email_server", "mfa_service",
+        "industrial_protocol",
+        "other"
+      ]
+    },
+    "component": {
+      "type": "object",
+      "required": ["id", "name", "type"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64,
+                "pattern": "^[A-Za-z0-9_.-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "type": { "$ref": "#/definitions/component_type" },
+        "description": { "type": "string", "maxLength": 1000 },
+        "trust_zone": { "type": "string", "maxLength": 64 },
+        "maestro_layers": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^M\\.L[1-7]$" }
+        },
+        "controls": {
+          "type": "array",
+          "description": "Controls already deployed on this component (lower likelihood for matching threats).",
+          "items": { "type": "string", "maxLength": 64 }
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Free-form. Recognised keys: vendor, product, version, hostname, ip, fqdn, cpe, purl.",
+          "additionalProperties": true,
+          "properties": {
+            "vendor": { "type": "string", "maxLength": 200 },
+            "product": { "type": "string", "maxLength": 200 },
+            "version": { "type": "string", "maxLength": 200 },
+            "hostname": { "type": "string", "maxLength": 200 },
+            "ip": { "type": "string", "maxLength": 45 },
+            "fqdn": { "type": "string", "maxLength": 200 },
+            "cpe": { "type": "string", "maxLength": 200,
+                     "description": "CPE 2.3 string e.g. cpe:2.3:a:apache:log4j:2.14.1:*:*:*:*:*:*:*" },
+            "purl": { "type": "string", "maxLength": 200,
+                      "description": "Package URL e.g. pkg:pypi/requests@2.31.0" }
+          }
+        }
+      }
+    },
+    "dataflow": {
+      "type": "object",
+      "required": ["source", "target"],
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "maxLength": 200 },
+        "crosses_boundary": { "type": "boolean" },
+        "data_classification": {
+          "type": "string",
+          "enum": ["public", "internal", "confidential", "restricted"]
+        }
+      }
+    },
+    "trust_boundary": {
+      "type": "object",
+      "required": ["id", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "type": {
+          "type": "string",
+          "enum": ["network", "identity", "data_classification", "tenancy", "deployment_zone"]
+        },
+        "components_inside": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "components_outside": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "description": { "type": "string", "maxLength": 1000 }
+      }
+    }
+  }
+}

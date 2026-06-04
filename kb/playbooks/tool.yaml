@@ -1,0 +1,64 @@
+component_type: tool
+description: |
+  A function/API the LLM agent can call (search, file read, code execution, HTTP fetch, send
+  email, database query, etc.).
+threats:
+  - id: T_TOOL_001
+    title: Tool privilege escalation via crafted arguments
+    stride_ai: [Elevation_of_Privilege, Tampering]
+    owasp_llm: [LLM05:2025, LLM06:2025]
+    owasp_agentic: [AGT02, AGT03, AGT11]
+    atlas: [AML.T0049, AML.T0050]
+    maestro: [M.L3.03, M.L7.04]
+    csa_singapore: [CSA_AI.HUMAN.01, CSA_AI.DEPLOY.01]
+    likelihood: 4
+    impact: 5
+    description: |
+      Tool implementation accepts LLM-generated arguments without strict validation; LLM
+      generates arguments that exploit injection vulnerabilities (path traversal, SQLi, command
+      injection, SSRF).
+    mitigations:
+      - "Strict input schema validation; allowlist of arg shapes per tool"
+      - "Run tools with least privilege; chroot / container sandbox"
+      - "Egress allowlist for HTTP-fetching tools"
+      - "Parameterize queries; never shell=True with LLM args"
+    refs: [AML.M0015]
+
+  - id: T_TOOL_002
+    title: Tool returns adversarial content (indirect injection vector)
+    stride_ai: [Spoofing, Tampering]
+    owasp_llm: [LLM01:2025]
+    owasp_agentic: [AGT01, AGT02]
+    atlas: [AML.T0051.001]
+    maestro: [M.L3.03, M.L7.04]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 5
+    impact: 4
+    description: |
+      Tool fetches content from a hostile source (web page, document, DB row); the content
+      contains injected instructions the LLM will follow.
+    mitigations:
+      - "Wrap tool output in untrusted-data delimiters"
+      - "Strip / detect instruction patterns in tool output"
+      - "Limit tool output size; truncate before re-prompting"
+    refs: [AML.M0015]
+
+  - id: T_TOOL_003
+    title: Tool quota / cost abuse
+    stride_ai: [Denial_of_Service]
+    owasp_llm: [LLM10:2025]
+    owasp_agentic: [AGT04]
+    atlas: [AML.T0029, AML.T0034]
+    maestro: [M.L4.04, M.L3.05]
+    nist_ai_100_2: [NIST_GAI_DENIAL_OF_SERVICE]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 3
+    description: |
+      Agent calls expensive tool (paid API, large compute) repeatedly due to looping or
+      adversarial prompts.
+    mitigations:
+      - "Per-tool, per-run, per-user quotas"
+      - "Cost-bearing tools require explicit budget allocation"
+    refs: [AML.M0004]

@@ -1,0 +1,128 @@
+component_type: build_runner
+description: |
+  CI/CD build runner / agent — the worker process that executes
+  pipeline steps. Examples: self-hosted GitHub Actions runner,
+  GitLab Runner (shared or specific), Jenkins agent, Buildkite
+  agent, CircleCI self-hosted runner, AWS CodeBuild compute,
+  Azure DevOps self-hosted agent. Holds repo-checkout secrets,
+  cloud deployment credentials, container registry push tokens
+  during job execution.
+threats:
+  - id: T_BLDRUN_001
+    title: Untrusted-PR build runs attacker-controlled code with privileged tokens
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1195, T1059]
+    attack_cloud: [T1078.004, T1525]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 4
+    impact: 5
+    description: |
+      A pull request from an outside fork runs the CI pipeline. The
+      runner has GITHUB_TOKEN write, cloud OIDC role, container-push
+      tokens. Attacker submits a PR that modifies the build script
+      to exfiltrate the token / push a backdoored container / commit
+      to the protected branch. Exploited dozens of times since 2022
+      across major OSS projects.
+    mitigations:
+      - "Default-deny pull_request_target on workflows; only manually-approved untrusted PRs run"
+      - "Per-PR scoped tokens with read-only on untrusted-PR jobs"
+      - "Repository-policy: GITHUB_TOKEN permissions: read-all by default"
+      - "Separate runner pools for trusted vs untrusted workflows"
+    refs: [AML.M0007, T1195]
+
+  - id: T_BLDRUN_002
+    title: Self-hosted runner persistence / runner-as-pivot
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1543, T1078.004]
+    attack_cloud: [T1078.004]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Self-hosted runner is a long-lived VM that handles jobs from
+      many repos / orgs. A malicious job (T_BLDRUN_001) plants
+      persistence — cron / service / SSH key — surviving job
+      cleanup. Subsequent privileged jobs run on the same host
+      with persistence active.
+    mitigations:
+      - "Ephemeral runners: VM destroyed after every job (GitHub ARC, GitLab ephemeral runner)"
+      - "Isolated runner-per-repo / per-org; no cross-repo job-sharing"
+      - "Hardened runner image with read-only OS"
+      - "Network egress allowlist on runners; alert on novel destinations"
+    refs: [T1543, AML.M0019]
+
+  - id: T_BLDRUN_003
+    title: Cached-credential / Docker-socket exposure in workspace
+    stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+    attack_enterprise: [T1552.001, T1552.005]
+    attack_cloud: [T1552.001]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Build steps leave Docker daemon socket mounted (RCE-as-root
+      shortcut), aws-cli profile in `~/.aws/`, kubeconfig in
+      `~/.kube/`, npm token in `~/.npmrc`. Subsequent untrusted
+      step on the same runner reads them.
+    mitigations:
+      - "No Docker-socket mount; use Sysbox / Kaniko / BuildKit rootless"
+      - "Per-step credential isolation; env-vars cleared between steps"
+      - "Runner reset between jobs (or use ephemeral)"
+      - "SBOM + secret-scan on workspace after each job"
+    refs: [T1552, AML.M0019]
+
+  - id: T_BLDRUN_004
+    title: Malicious build action / plugin from marketplace
+    stride_ai: [Tampering]
+    attack_enterprise: [T1195.002]
+    maestro: [M.L7.11]
+    likelihood: 3
+    impact: 4
+    description: |
+      Workflow uses `uses: third-party/action@main` — third party
+      pushes a malicious commit, every workflow referencing main
+      ingests it immediately. tj-actions/changed-files (2024) and
+      ua-parser-js (2021) precedent.
+    mitigations:
+      - "Pin every action to commit SHA, not tag/branch"
+      - "Internal mirror / proxy of allowlisted actions"
+      - "Continuous SBOM-watch on action dependencies"
+      - "Allowlist of approved publisher orgs"
+    refs: [AML.M0007, T1195]
+
+  - id: T_BLDRUN_005
+    title: Runner-VM OS / kernel CVE exploited by build job
+    stride_ai: [Elevation_of_Privilege]
+    attack_enterprise: [T1068]
+    maestro: [M.X.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Self-hosted runner host OS lags Patch SLA. A malicious build
+      job exploits kernel CVE to escape any container sandbox to
+      runner host root.
+    mitigations:
+      - "Patch SLA <14d for runners"
+      - "Hardened container runtime (gVisor / Kata / Firecracker)"
+      - "Periodic image refresh — every commit on golden image"
+      - "Runtime security monitoring (Falco / Aqua) on runner host"
+    refs: [T1068, AML.M0007]
+
+  - id: T_BLDRUN_006
+    title: Cryptomining hijack of runner capacity
+    stride_ai: [Denial_of_Service]
+    attack_enterprise: [T1496]
+    maestro: [M.L4.04]
+    likelihood: 4
+    impact: 2
+    description: |
+      Attacker submits crafted PR / forks public repos to use the
+      org's CI minutes for mining. GitHub-hosted minutes free
+      tier and self-hosted runner capacity both targeted.
+    mitigations:
+      - "Default-deny CI for forks from non-collaborators"
+      - "Per-PR resource quotas"
+      - "Cost/usage anomaly alerting"
+      - "Egress-block known mining-pool destinations"
+    refs: [T1496, AML.M0019]

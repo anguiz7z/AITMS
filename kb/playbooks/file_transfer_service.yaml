@@ -1,0 +1,110 @@
+component_type: file_transfer_service
+description: |
+  Managed file-transfer / SFTP service — handles B2B file exchange
+  with partners, customers, or external suppliers. Examples: AWS
+  Transfer Family, Azure Blob SFTP, GoAnywhere MFT, MOVEit Transfer,
+  IBM Sterling File Gateway, Cleo VLTrader, JSCAPE, SolarWinds Serv-U.
+  Often the network-perimeter integration point for sensitive
+  customer / regulatory data. MOVEit 2023, GoAnywhere 2023 demonstrated
+  catastrophic impact when these are compromised.
+threats:
+  - id: T_FXFR_001
+    title: Pre-auth RCE in MFT product (MOVEit / GoAnywhere class CVE)
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190, T1059]
+    maestro: [M.X.01]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      MFT products have a pattern of critical pre-auth RCE CVEs
+      (MOVEit CVE-2023-34362, GoAnywhere CVE-2023-0669, Cleo
+      CVE-2024-50623). Attacker reaches the web-facing UI, exploits,
+      walks out with every file ever transferred. Cl0p ransomware
+      group has weaponised these at scale, hitting hundreds of
+      orgs simultaneously.
+    mitigations:
+      - "Patch SLA <72h for critical CVE on MFT products"
+      - "Internet-facing only when justified; prefer Private/VPN access"
+      - "WAF + virtual-patching in front of MFT UI"
+      - "External attack-surface monitoring with MFT-CVE-aware signatures"
+    refs: [T1190, AML.M0007]
+
+  - id: T_FXFR_002
+    title: Credential abuse / weak SFTP account exfiltrates partner data
+    stride_ai: [Spoofing, Information_Disclosure]
+    attack_enterprise: [T1110, T1078, T1530]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Per-partner SFTP credentials get reused across many systems,
+      embedded in partner scripts, leaked in past partner breach.
+      Compromised partner credentials allow attacker to list and
+      download every file in the partner's drop folder — often
+      including others' files due to share-folder misconfig.
+    mitigations:
+      - "Per-partner credentials with strict folder-level chroot"
+      - "Public-key-only authentication on SFTP (no password fallback)"
+      - "MFA where the protocol supports it (less common in SFTP)"
+      - "Audit-log of every file list/download per credential"
+    refs: [T1078, AML.M0019]
+
+  - id: T_FXFR_003
+    title: Malicious file uploaded for downstream processing pipeline
+    stride_ai: [Tampering]
+    attack_enterprise: [T1105, T1059]
+    maestro: [M.L1.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      Files dropped by partners feed into downstream ETL / DLP /
+      ML pipelines. A crafted PDF / DOCX / CSV / XML weaponised
+      for the parser (CVE-2023-21716 docx-class, billion-laughs
+      XML, formula-injection in CSV) attacks the downstream
+      processor.
+    mitigations:
+      - "AV / sandbox scanning of every inbound file before downstream pickup"
+      - "Strict file-type allowlist per partner"
+      - "Quarantine area for new partners / new file types"
+      - "Parser-hardening (libxml2 entity expansion limits, etc.)"
+    refs: [T1059, AML.M0019]
+
+  - id: T_FXFR_004
+    title: Outbound data exfiltration via misuse of legitimate SFTP egress
+    stride_ai: [Information_Disclosure, Defense_Evasion]
+    attack_enterprise: [T1567, T1041]
+    attack_cloud: [T1567]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Insider or compromised app uses the sanctioned SFTP egress
+      path to exfiltrate customer database extracts to an
+      attacker-controlled partner account. DLP rarely inspects
+      SFTP at scale; the destination looks legitimate.
+    mitigations:
+      - "DLP inspection on SFTP egress; pattern-match sensitive data"
+      - "Per-destination allowlist; alert on new partners or sudden volume change"
+      - "Outbound file-volume baselining per partner"
+      - "Approval workflow for net-new outbound destinations"
+    refs: [T1567, AML.M0019]
+
+  - id: T_FXFR_005
+    title: Audit-log retention insufficient for breach investigation
+    stride_ai: [Repudiation]
+    attack_enterprise: [T1562, T1070]
+    maestro: [M.L5.05]
+    likelihood: 3
+    impact: 3
+    description: |
+      MFT product's local audit log rotates after 30 days; SIEM
+      forwarding is misconfigured; in the post-MOVEit incident
+      response the org cannot determine which files were exfiltrated.
+      Often surfaced only after the breach is public.
+    mitigations:
+      - "Forward MFT logs to SIEM in real-time with >1yr retention"
+      - "WORM storage for audit logs"
+      - "Quarterly DR-test that includes log-query simulation"
+      - "Per-file access log granularity (who downloaded what when)"
+    refs: [T1070, AML.M0019]

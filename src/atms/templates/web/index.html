@@ -1,0 +1,104 @@
+{% extends "web/base.html" %}
+{% block title %}Analyze{% endblock %}
+{% block content %}
+<h1>Analyze an AI system</h1>
+<p class="muted">Paste a system YAML below or load one of the bundled <a href="/samples">samples</a>. ATMS evaluates <strong>AI-induced risk</strong> across the full architecture — it considers every component (firewalls, databases, switches…) but only emits threats that exist <em>because of</em> AI integration. Maps each threat to OWASP LLM Top 10 (2025), OWASP Agentic AI, MITRE ATLAS, CSA MAESTRO, NIST AI 600-1, and the Singapore CSA Guidelines on Securing AI Systems. Systems with no AI components are rejected.</p>
+
+{% if error %}
+<div class="alert alert-error">
+  <strong>Error:</strong> {{ error }}
+  {% if yaml_text %}
+  <div style="margin-top: 8px;">
+    <strong>What you can do:</strong>
+    <ul style="margin: 4px 0;">
+      <li>Edit the YAML below and click <em>Analyze</em> again.</li>
+      <li>Or load it into the visual <a href="/editor">Editor</a> and fix it there with dropdowns.</li>
+      <li>Or pick from <a href="/samples">bundled samples</a> and start fresh.</li>
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% if notice %}
+<div class="alert"><strong>{{ notice }}</strong></div>
+{% endif %}
+{% if needs_review %}
+<div class="alert alert-error">
+  <strong>Review needed.</strong> {{ needs_review|length }} component(s) classified as <code>other</code> — edit each <code>type:</code> in the YAML below before clicking Analyze.
+  <ul style="margin: 6px 0;">
+    {% for c in needs_review %}<li><code>{{ c.id }}</code> — {{ c.name }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% if vague_flows %}
+<div class="alert">
+  <strong>Vague connector labels.</strong> {{ vague_flows|length }} dataflow(s) have empty or generic labels — adding a verb-phrase label (e.g. <code>"user prompt"</code>, <code>"PII lookup"</code>) lets ATMS auto-tag data classification:
+  <ul style="margin: 6px 0;">
+    {% for d in vague_flows %}<li><code>{{ d.source }}</code> &rarr; <code>{{ d.target }}</code></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<h2 style="margin-top: 8px;">Upload a diagram (.drawio, .mermaid, .vsdx, .md, .png, .jpg)</h2>
+<p class="muted">Upload an existing architecture diagram and ATMS will produce a draft System YAML in the box below — components, dataflows and trust boundaries auto-classified — review and edit before clicking <em>Analyze</em>.</p>
+<ul class="muted" style="margin-top: -6px;">
+  <li><strong>.drawio / .xml</strong> (diagrams.net): deterministic. 110+ AWS / Azure / GCP stencil prefixes auto-recognised; VPC / subnet / DMZ containers become trust boundaries; crossings auto-flagged on dataflows. <em>(v0.17.4)</em></li>
+  <li><strong>.mmd / .mermaid / .md</strong> (Mermaid flowchart): deterministic. Markdown files have their first <code>```mermaid</code> fence extracted. Shape semantics encoded (cylinder→database, circle→user, hexagon→agent, …); subgraphs labelled VPC/DMZ/etc. become trust boundaries. <em>(new in v0.18.1)</em></li>
+  <li><strong>.vsdx</strong> (Visio): deterministic. Extracts shapes + connectors, classifies by keyword. (Legacy <code>.vsd</code> not supported — re-save as <code>.vsdx</code> in Visio first.)</li>
+  <li><strong>.png / .jpg / .webp</strong>: opt-in vision. Requires <code>ANTHROPIC_API_KEY</code> + the <code>[vision]</code> extra. The shipped <code>.exe</code> doesn't bundle the vision module — install with <code>pip install atms[vision]</code> if you need image ingestion.</li>
+</ul>
+<form method="post" action="/ingest" enctype="multipart/form-data" style="margin-bottom: 20px;">
+  <div style="display: flex; gap: 8px; align-items: end;">
+    <div style="flex: 1;">
+      <label>Diagram file</label>
+      <input type="file" name="diagram" accept=".drawio,.xml,.mmd,.mermaid,.md,.vsdx,.png,.jpg,.jpeg,.webp" required>
+    </div>
+    <button type="submit" class="btn btn-secondary">Parse diagram</button>
+    <button type="submit" name="auto_analyze" value="true" class="btn" title="Parse the diagram and run the full threat analysis in one step. New in v0.18.2.">Parse &amp; analyse</button>
+  </div>
+</form>
+
+<h2>System YAML</h2>
+<form method="post" action="/analyze">
+  <div class="row">
+    <label for="yaml">Edit YAML, then click Analyze</label>
+    <textarea name="yaml" id="yaml" required>{{ yaml_text or "" }}</textarea>
+  </div>
+  <div class="row" style="display: flex; gap: 8px; align-items: end;">
+    <div style="width: 320px;">
+      <label for="methodology">Methodology</label>
+      <select name="methodology" id="methodology">
+        <option value="stride-ai" selected>AI-native threat model (full pipeline)</option>
+        <option value="pasta">PASTA (attacker-simulation lens)</option>
+        <option value="linddun">LINDDUN (privacy lens)</option>
+      </select>
+    </div>
+    <div style="flex: 1; color: var(--muted); font-size: 13px;">
+      <em>AI-native (full pipeline)</em>: enumerates AI-specific threats per component, mapped to OWASP LLM Top 10, OWASP Agentic (T1–T15), MITRE ATLAS, CSA MAESTRO &amp; the Singapore CSA AI guidelines — then classified with extended STRIDE-for-AI categories and cross-referenced to OWASP API, ATT&amp;CK Cloud/Enterprise, LINDDUN &amp; NIST AI 100-2.
+      <em>PASTA</em>: keep only threats in attack paths or with likelihood ≥ 4.
+      <em>LINDDUN</em>: filter to privacy-only threats.
+    </div>
+  </div>
+  <div class="actions">
+    <button type="submit">Analyze</button>
+    <a class="btn btn-secondary" href="/editor" title="Visual editor with type dropdowns and drag-and-drop dataflows">Open visual editor</a>
+    <a class="btn btn-secondary" href="/samples">Load a sample</a>
+    <a class="btn btn-secondary" href="/playbooks">Browse playbooks</a>
+  </div>
+  <p class="muted" style="margin-top: 6px; font-size: 13px;">
+    Tip: editing raw YAML is fragile (typing <code>IoT Device</code> instead of <code>iot_device</code> will reject the analysis). The
+    <a href="/editor">visual editor</a> uses dropdowns so you can't pick an invalid component type.
+  </p>
+</form>
+
+<h2>What ATMS does</h2>
+<ol>
+  <li>Identifies AI primary components and traces the dataflow blast radius — non-AI components reached by an AI primary become "AI-adjacent" and pick up provenance-tagged threats. Components outside the radius emit none.</li>
+  <li>Emits structured threats with STRIDE for AI, OWASP LLM Top 10, OWASP Agentic AI (T1–T15), MITRE ATLAS, CSA MAESTRO, and Singapore CSA Guidelines — no hallucinations.</li>
+  <li>Builds an attack-path graph honoring ATLAS tactic ordering.</li>
+  <li>Scores each threat (likelihood × impact, DREAD-derived 0–100 scale).</li>
+  <li>Recommends mitigations from ATLAS Mitigations + OWASP LLM + OWASP Agentic + inline.</li>
+  <li>Exports Markdown, HTML, STIX 2.1, ATLAS Navigator JSON, and CSV.</li>
+</ol>
+<p class="muted">No LLM call is required — this is deterministic Python over a curated knowledge base. Optional vision-based diagram parsing can be enabled if you set <code>ANTHROPIC_API_KEY</code>.</p>
+{% endblock %}

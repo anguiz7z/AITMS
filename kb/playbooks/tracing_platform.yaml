@@ -1,0 +1,87 @@
+component_type: tracing_platform
+description: |
+  Distributed tracing — AWS X-Ray, Azure Application Insights traces,
+  GCP Cloud Trace, Datadog APM, New Relic, Honeycomb, Lightstep,
+  OpenTelemetry Collector. In AI architectures, traces span the full
+  call chain (user → API gateway → agent → LLM → tool → DB), often
+  carrying prompt content, tool arguments, and tool outputs as span
+  attributes. The same telemetry that makes the system debuggable
+  makes it leakable.
+threats:
+  - id: T_TRACE_001
+    title: Prompt / tool-arg content captured in span attributes leaking PII
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM07:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024, AML.T0056]
+    attack_cloud: [T1530, T1213]
+    linddun: [DD_003, I_001]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L5.05]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 5
+    impact: 4
+    description: |
+      OpenTelemetry GenAI semantic conventions (`gen_ai.prompt`,
+      `gen_ai.completion`, `gen_ai.tool.input`) attach prompt and
+      completion text directly to spans. Engineers debug from the
+      tracing UI weeks later and read customer-PII in plaintext.
+      Tracing backends are typically a tier-1 dev-team SaaS (Datadog,
+      Honeycomb) with read access far wider than the production DB —
+      effectively a parallel PII store nobody classified.
+    mitigations:
+      - "Span-attribute redaction at the SDK boundary (OpenTelemetry processor with Presidio integration or vendor PII-redact)"
+      - "Trace sampling: full-fidelity prompt only on `error` spans, 100% rejected otherwise; production sampling rate < 1% with redacted attributes"
+      - "Per-environment trace destination: prod traces flow to a stricter-IAM tier than non-prod"
+      - "Audit trace storage IAM quarterly; remove dev / unrelated team access"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_TRACE_002
+    title: Trace-context propagation header used as attack channel
+    stride_ai: [Tampering, Spoofing]
+    owasp_api: [API1:2023, API8:2023]
+    atlas: []
+    attack_cloud: [T1190]
+    attack_enterprise: [T1190]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 2
+    impact: 3
+    description: |
+      Some tracing SDK implementations read `traceparent` / `tracestate`
+      headers from untrusted callers and reflect them into log fields
+      and downstream HTTP calls. An attacker injects a malicious
+      tracestate value that ends up in a SQL-LIKE query against the
+      trace UI (where engineers search by trace ID), enabling stored
+      XSS or log-injection. Niche but published (Datadog trace-context
+      injection 2022).
+    mitigations:
+      - "Strict validation of inbound trace-context headers; drop non-W3C-conformant values"
+      - "Trace UI rendering treats span attributes as untrusted user input (proper escaping in dashboards)"
+      - "Outbound propagation: regenerate trace context for cross-trust-boundary calls; never blindly forward attacker-controlled IDs"
+      - "Penetration test of the tracing UI itself as part of platform security testing"
+    refs: []
+
+  - id: T_TRACE_003
+    title: Trace volume DoS exhausting backend quota during attack
+    stride_ai: [Denial_of_Service]
+    owasp_api: [API4:2023]
+    atlas: [AML.T0034]
+    attack_cloud: [T1499]
+    maestro: [M.L4.04, M.L5.05]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 3
+    impact: 3
+    description: |
+      Attacker triggers a flood of failed AI agent requests (cheap to
+      generate, expensive to trace). The tracing backend hits ingest
+      quota and starts dropping spans. The real attack progress is
+      now invisible because the spans documenting it were among the
+      dropped. The "blind during attack" failure mode is the actual
+      goal — not the cost.
+    mitigations:
+      - "Head-based sampling at the collector with priority tiers: error / security-flagged spans always sampled, info / debug throttled under pressure"
+      - "Separate tracing backend / quota for AI workloads vs general-purpose so a flood doesn't take down both"
+      - "Alert on ingest-quota approaching limit (80%); auto-scale or shed lower-priority traces"
+      - "Retention: even after sampling, persist trace metadata + error spans for at least 90 days for incident review"
+    refs: [AML.M0023]

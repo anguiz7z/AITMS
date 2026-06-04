@@ -1,0 +1,84 @@
+component_type: sdwan_edge
+description: |
+  Software-defined WAN edge device — VMware VeloCloud, Cisco Viptela /
+  Catalyst SD-WAN, HPE Aruba EdgeConnect (Silver Peak), Fortinet Secure
+  SD-WAN, Palo Alto Prisma SD-WAN. Sits between branch / DC and the
+  rest of the WAN + cloud onramps. In AI estates often the path for
+  branch-to-cloud AI inference calls and the enforcement layer where
+  branch-level data exfiltration via AI tools would be blocked.
+threats:
+  - id: T_SDWAN_001
+    title: Branch-edge compromise via known CVE (Fortinet / Cisco SD-WAN)
+    stride_ai: [Elevation_of_Privilege]
+    owasp_api: [API2:2023]
+    atlas: []
+    attack_enterprise: [T1190, T1133, T1542]
+    attack_cloud: [T1190]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 4
+    impact: 5
+    description: |
+      Fortinet FortiOS CVE-2024-21762, Cisco Viptela vManage
+      CVE-2022-20696, Palo Alto PAN-OS CVE-2024-3400 — all SD-WAN /
+      gateway edge devices, all CISA-KEV, all exploited at scale.
+      Volt Typhoon and similar advanced threat actors specifically
+      target SD-WAN edges as their initial-access path. Once owned,
+      attacker has visibility of the AI traffic flowing branch →
+      cloud and a foothold in the corporate WAN fabric.
+    mitigations:
+      - "Mandatory KEV-tagged patching SLA: 7 days for SD-WAN edges, 0 days for active-exploit advisories"
+      - "Management plane (vManage / FortiManager / Panorama) accessible only via VPN + MFA + IP-allowlist"
+      - "Disable SSL VPN / IPsec public-facing features that aren't used by the deployment"
+      - "Out-of-band monitoring: independent NetFlow / IPFIX export to a separately-administered collector — detect attacker beaconing even if device logs are tampered"
+    refs: [T1190, T1133, T1542]
+
+  - id: T_SDWAN_002
+    title: Application-aware routing policy exposing AI traffic in plaintext
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API8:2023]
+    attack_enterprise: [T1040, T1573]
+    attack_cloud: [T1040]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      SD-WAN's application-aware routing classifies "OpenAI", "Bedrock",
+      "Azure OpenAI" as a known app and routes via direct internet
+      (DIA / "local breakout"). The branch's DIA path doesn't traverse
+      the corporate proxy / DLP stack. Branch users uploading customer
+      PII to ChatGPT now bypass every corporate control. Faster, but
+      DLP-blind.
+    mitigations:
+      - "Force AI-app traffic via the regional cloud-onramp / SSE (Zscaler ZIA, Netskope, Microsoft Entra Internet Access) — never local breakout for AI apps"
+      - "SD-WAN policy: app-category 'AI-SaaS' explicitly routes to corporate-mediated tunnel"
+      - "Allow-list of approved AI endpoints reachable via direct breakout (only sanctioned ones); else corporate path"
+      - "Quarterly review of app-aware-routing policy with security team"
+    refs: [T1040, T1573, API8:2023]
+
+  - id: T_SDWAN_003
+    title: Controller compromise propagates malicious config to all edges
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_api: [API5:2023, API8:2023]
+    attack_enterprise: [T1543, T1133]
+    attack_cloud: [T1525]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 5
+    description: |
+      vManage / vOrchestrator / Prisma SD-WAN controller is the
+      single point of push-config to every edge in the WAN. Compromise
+      = simultaneous compromise of every branch + DC edge. The
+      attacker pushes a "patch" that opens reverse-tunnels home, or
+      adds an ACL exception that exposes the AI cluster. Few orgs
+      threat-model the controller because "it's behind the corp
+      firewall." Realistically it's reachable from any compromised
+      laptop on the LAN.
+    mitigations:
+      - "Controller isolated in its own management VRF / VPC; no general-LAN reach"
+      - "MFA + just-in-time PIM for all controller admin access; emergency-break-glass with auditable two-person approval"
+      - "Config-change approval workflow: all template pushes require PR + signed approval; controller cannot push without that artifact"
+      - "Per-edge config-integrity verification (controller-pushed config hash matches what's installed); alert on mismatch"
+    refs: [T1543, T1133, T1525]

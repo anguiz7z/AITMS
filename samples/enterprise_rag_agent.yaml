@@ -1,0 +1,287 @@
+name: Enterprise RAG + Agentic Assistant
+description: |
+  Customer-facing AI assistant deployed at an enterprise SaaS. Combines retrieval-augmented
+  generation over the corp knowledge base with an autonomous tool-using agent for ticket
+  workflows. Includes a separate weekly fine-tune pipeline that produces a domain-tuned model
+  shipped to the production serving stack.
+business_context: |
+  ~120K monthly active users across 800 customer organisations. Multi-tenant: one shared model,
+  per-tenant vector partitions, per-tenant ticket scope. Help-center docs are public; ticket
+  data is confidential PII; the fine-tune corpus is anonymised support transcripts. Outputs are
+  trusted by support agents (sometimes auto-applied) and shown to end users with a "AI suggested"
+  banner.
+
+components:
+  # ─────────────────────────── External actors / edge
+  - id: customer
+    name: End customer (web)
+    type: user
+    trust_zone: internet
+    description: External user of the customer organisation; chats via the in-app widget.
+
+  - id: support_agent
+    name: Support agent (corp employee)
+    type: user
+    trust_zone: corp_internal
+    description: Internal staffer who reviews / approves agent-suggested actions on tickets.
+
+  - id: api_gw
+    name: Public API gateway
+    type: external_api
+    trust_zone: internet
+    description: Cloudflare-fronted edge gateway; rate-limits, auth, request shaping.
+
+  - id: auth_svc
+    name: Auth service (OIDC)
+    type: external_api
+    trust_zone: corp_dmz
+    description: Validates JWTs from customers and staff; issues per-request scoped tokens.
+
+  # ─────────────────────────── Orchestration / agent
+  - id: orchestrator
+    name: Support Assistant orchestrator
+    type: agent
+    trust_zone: corp_dmz
+    description: |
+      LangGraph agent. Routes between RAG retrieval, ticket tools, and direct LLM completion.
+      Has a 6-step max iteration limit and human-in-the-loop on irreversible actions.
+    metadata:
+      tool_count: 5
+      multi_tenant: true
+
+  - id: prompt_store
+    name: System prompt + few-shot store (Git)
+    type: prompt_template_store
+    trust_zone: corp_internal
+    description: Versioned in the platform repo; signed tags; CI checks for embedded secrets.
+
+  # ─────────────────────────── Models (production)
+  - id: prod_llm
+    name: Production LLM (Claude Sonnet)
+    type: llm_inference
+    trust_zone: external_provider
+    description: Anthropic-hosted production model used by the orchestrator.
+
+  - id: model_registry
+    name: Internal model registry (MLflow)
+    type: model_registry
+    trust_zone: corp_internal
+    description: Stores signed fine-tune artifacts; gated by code-review for promotion.
+
+  # ─────────────────────────── Retrieval / embeddings
+  - id: embed_svc
+    name: Embedding service (sentence-transformers)
+    type: embedding_service
+    trust_zone: corp_dmz
+    description: Internal embedding endpoint; per-tenant key in cache namespace.
+
+  - id: vector_store
+    name: RAG vector store (pgvector)
+    type: rag_vector_store
+    trust_zone: corp_dmz
+    description: Multi-tenant store; per-tenant partition filter at retrieval time.
+
+  - id: kb_corpus
+    name: Help-center corpus (S3)
+    type: data_source
+    trust_zone: corp_internal
+    description: Source of truth for help articles; nightly sync into the vector store.
+
+  # ─────────────────────────── Tools / MCP
+  - id: ticket_mcp
+    name: Tickets MCP server
+    type: mcp_server
+    trust_zone: corp_internal
+    description: |
+      Exposes ticket-lookup, comment-add, and gated status-change tools. State-changing tools
+      require a human-issued approval token.
+
+  - id: ticket_lookup
+    name: Ticket lookup (read-only)
+    type: tool
+    trust_zone: corp_internal
+    description: Reads tickets scoped to the calling tenant.
+
+  - id: ticket_comment
+    name: Ticket comment add (gated)
+    type: tool
+    trust_zone: corp_internal
+    description: Posts a customer-visible comment; per-call human approval required.
+
+  - id: kb_search
+    name: KB full-text search tool
+    type: tool
+    trust_zone: corp_dmz
+    description: Bing-style fallback search over the help-center corpus when retrieval misses.
+
+  # ─────────────────────────── Safety / observability
+  - id: input_guard
+    name: Input guardrail (Llama Guard 3)
+    type: guardrails
+    trust_zone: corp_dmz
+    description: Pre-LLM classifier blocking prompt injection and disallowed content.
+
+  - id: output_filter
+    name: Output filter (PII + brand)
+    type: output_filter
+    trust_zone: corp_dmz
+    description: Presidio + brand-safety regex; redact + block.
+
+  - id: audit_sink
+    name: Audit log (append-only Postgres)
+    type: data_source
+    trust_zone: corp_internal
+    description: Cryptographically-signed records of every tool invocation and approval.
+
+  # ─────────────────────────── Fine-tune pipeline (separate zone)
+  - id: ft_corpus
+    name: Anonymised transcripts (S3)
+    type: data_source
+    trust_zone: training_vpc
+    description: Weekly export from the support DB, redacted via Presidio.
+
+  - id: ft_pipeline
+    name: LoRA fine-tune pipeline
+    type: fine_tuning_pipeline
+    trust_zone: training_vpc
+    description: PEFT job on a GPU cluster; output gates through eval-harness before promotion.
+
+dataflows:
+  # Edge ingress
+  - source: customer
+    target: api_gw
+    label: chat message
+    crosses_boundary: true
+    data_classification: confidential
+  - source: api_gw
+    target: auth_svc
+    label: validate JWT
+    data_classification: internal
+  - source: auth_svc
+    target: api_gw
+    label: scoped token
+    data_classification: internal
+  - source: api_gw
+    target: input_guard
+    label: user prompt
+    data_classification: confidential
+  - source: input_guard
+    target: orchestrator
+    label: vetted prompt
+    data_classification: confidential
+
+  # Orchestrator <-> retrieval
+  - source: orchestrator
+    target: embed_svc
+    label: embed query
+    data_classification: confidential
+  - source: embed_svc
+    target: vector_store
+    label: vector
+  - source: vector_store
+    target: orchestrator
+    label: top-k passages (PII)
+    data_classification: confidential
+
+  # Orchestrator <-> tools via MCP
+  - source: orchestrator
+    target: ticket_mcp
+    label: tool call
+  - source: ticket_mcp
+    target: ticket_lookup
+    label: invoke (read)
+  - source: ticket_mcp
+    target: ticket_comment
+    label: invoke (gated)
+  - source: ticket_mcp
+    target: kb_search
+    label: invoke (read)
+  - source: ticket_lookup
+    target: orchestrator
+    label: customer ticket history (PII)
+    data_classification: confidential
+  - source: support_agent
+    target: ticket_mcp
+    label: approval token
+    data_classification: restricted
+
+  # Orchestrator <-> LLM
+  - source: orchestrator
+    target: prompt_store
+    label: load system prompt
+  - source: prompt_store
+    target: orchestrator
+    label: system prompt
+  - source: orchestrator
+    target: prod_llm
+    label: prompt + context
+    crosses_boundary: true
+    data_classification: confidential
+  - source: prod_llm
+    target: orchestrator
+    label: completion
+    crosses_boundary: true
+  - source: orchestrator
+    target: output_filter
+    label: draft response
+  - source: output_filter
+    target: api_gw
+    label: filtered response
+  - source: api_gw
+    target: customer
+    label: reply
+    crosses_boundary: true
+
+  # Audit (every interesting action)
+  - source: orchestrator
+    target: audit_sink
+    label: action record
+    data_classification: confidential
+  - source: ticket_mcp
+    target: audit_sink
+    label: tool record
+    data_classification: confidential
+
+  # Fine-tune pipeline
+  - source: ft_corpus
+    target: ft_pipeline
+    label: redacted transcripts
+    data_classification: confidential
+  - source: model_registry
+    target: ft_pipeline
+    label: base model weights
+    data_classification: internal
+  - source: ft_pipeline
+    target: model_registry
+    label: signed LoRA artifact
+    data_classification: confidential
+  - source: model_registry
+    target: prod_llm
+    label: weights pull
+    crosses_boundary: true
+    data_classification: internal
+
+  # KB sync
+  - source: kb_corpus
+    target: embed_svc
+    label: nightly sync
+    data_classification: internal
+
+trust_boundaries:
+  - id: tb_internet
+    type: network
+    components_inside: [customer, api_gw]
+    components_outside: [auth_svc, input_guard, orchestrator, prod_llm, output_filter, vector_store, embed_svc, ticket_mcp, ticket_lookup, ticket_comment, kb_search, prompt_store, model_registry, audit_sink, ft_corpus, ft_pipeline, support_agent, kb_corpus]
+    description: Public internet ingress.
+
+  - id: tb_provider
+    type: network
+    components_inside: [prod_llm]
+    components_outside: [customer, api_gw, auth_svc, input_guard, orchestrator, output_filter, vector_store, embed_svc, ticket_mcp, ticket_lookup, ticket_comment, kb_search, prompt_store, model_registry, audit_sink, ft_corpus, ft_pipeline, support_agent, kb_corpus]
+    description: Egress to external LLM provider.
+
+  - id: tb_training
+    type: deployment_zone
+    components_inside: [ft_corpus, ft_pipeline]
+    components_outside: [customer, api_gw, auth_svc, input_guard, orchestrator, prod_llm, output_filter, vector_store, embed_svc, ticket_mcp, ticket_lookup, ticket_comment, kb_search, prompt_store, model_registry, audit_sink, support_agent, kb_corpus]
+    description: Training VPC isolated from prod.

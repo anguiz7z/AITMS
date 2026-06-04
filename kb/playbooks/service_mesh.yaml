@@ -1,0 +1,92 @@
+component_type: service_mesh
+description: |
+  Service mesh control plane + sidecar proxies — AWS App Mesh, Istio,
+  Linkerd, HashiCorp Consul Connect, Cilium Service Mesh. Provides
+  mTLS, traffic-shaping, retry / timeout, and observability between
+  microservices. In AI architectures it usually sits between the agent
+  orchestrator, the LLM inference services, the tool services, the
+  RAG retriever, and the guardrails — so its compromise is a
+  pass-through to every AI control loop.
+threats:
+  - id: T_MESH_001
+    title: Sidecar misconfiguration disables mTLS for AI inference traffic
+    stride_ai: [Spoofing, Information_Disclosure, Tampering]
+    owasp_llm: [LLM02:2025, LLM07:2025]
+    owasp_agentic: [AGT09]
+    owasp_api: [API2:2023, API8:2023]
+    atlas: [AML.T0049, AML.T0044]
+    attack_cloud: [T1557, T1040]
+    attack_enterprise: [T1557, T1040]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Istio `PeerAuthentication` mode set to `PERMISSIVE` (default in
+      many installs) or App Mesh virtual node `tlsValidation` not
+      enforced means inference traffic falls back to plaintext if the
+      caller doesn't present a cert. An attacker who lands on a single
+      pod in the mesh observes prompts + responses (high-value PII +
+      proprietary system prompts) in cleartext via `tcpdump`, or
+      injects spoofed responses from a workload pretending to be the
+      LLM endpoint.
+    mitigations:
+      - "PeerAuthentication mode = STRICT mesh-wide; deny non-mTLS namespace exceptions in admission control"
+      - "App Mesh virtual node enforces TLS validation with SDS-provided certs"
+      - "Mesh-policy CI gate: any change loosening mTLS requires platform-security approval"
+      - "Network-policy backup: even if mesh fails open, k8s NetworkPolicy denies non-mTLS service ports"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_MESH_002
+    title: AuthorizationPolicy gap permits agent to call non-allowlisted tools
+    stride_ai: [Elevation_of_Privilege]
+    owasp_llm: [LLM06:2025, LLM05:2025]
+    owasp_agentic: [AGT01, AGT04, AGT12]
+    owasp_api: [API1:2023, API5:2023]
+    atlas: [AML.T0048, AML.T0053]
+    attack_cloud: [T1078.004]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 4
+    impact: 5
+    description: |
+      Service mesh authorization (Istio `AuthorizationPolicy`, App Mesh
+      route-level RBAC) defines which services can call which. AI
+      agents need this rigour because compromised agent containers
+      will try to reach tools they weren't supposed to (the
+      ConfusedDeputy → ExcessiveAgency pattern). Default-allow
+      between any two services in the mesh lets the agent escalate
+      from "summarise emails" to "wire money" by calling a service
+      that should have been segmented away.
+    mitigations:
+      - "Default-deny AuthorizationPolicy at the mesh; explicit allow per (source-SA, dest-SA, HTTP path/method)"
+      - "Tool service callers identified by Kubernetes SA → SPIFFE ID; policy keyed on SA, not network position"
+      - "Agent SA reduced privileges (one SA per agent flavour); platform-team owns mesh policy"
+      - "Drift detection: weekly diff of effective policy vs declared YAML"
+    refs: [AML.M0019]
+
+  - id: T_MESH_003
+    title: Compromised mesh control plane backdoors every sidecar
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0010, AML.T0011]
+    attack_cloud: [T1525, T1554]
+    attack_enterprise: [T1543]
+    maestro: [M.L7.11]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      Istio `istiod`, App Mesh control-plane, Linkerd controller is
+      compromised (RBAC misconfig in the mesh namespace, supply-chain
+      compromise of istiod image). Attacker pushes a malicious
+      EnvoyFilter / Wasm plugin to all sidecars — instantly all
+      service-to-service traffic in the mesh is interceptable. For an
+      AI workload, that means every prompt, every tool call, every
+      RAG retrieval is observed and mutable from one breach.
+    mitigations:
+      - "Mesh control plane in its own namespace with restrictive RBAC; no human user has direct write to mesh CRDs in prod"
+      - "EnvoyFilter / Wasm plugin admission control via GitOps + signed-config (Argo CD + Cosign verification)"
+      - "Sigstore / Notary verification on istiod / sidecar images at admission"
+      - "Audit alerts on every CRD `EnvoyFilter` / `WasmPlugin` write; require two-person approval in prod"
+    refs: [AML.M0007, AML.M0023]

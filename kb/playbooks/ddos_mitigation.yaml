@@ -1,0 +1,89 @@
+component_type: ddos_mitigation
+description: |
+  Volumetric / application DDoS mitigation — AWS Shield Advanced (with
+  Shield Response Team), Azure DDoS Protection Standard, GCP Cloud
+  Armor (Adaptive Protection), Cloudflare Magic Transit, Akamai Prolexic.
+  Critical for AI inference endpoints because per-request cost is
+  high (LLM invocations, vector lookups), so even modest application-
+  layer DoS produces outsized cost-impact and capacity-starvation.
+threats:
+  - id: T_DDOS_001
+    title: Application-layer DoS on LLM endpoint causing cost-DoS
+    stride_ai: [Denial_of_Service]
+    owasp_llm: [LLM10:2025, LLM05:2025]
+    owasp_api: [API4:2023]
+    atlas: [AML.T0034]
+    attack_cloud: [T1498, T1499]
+    attack_enterprise: [T1498, T1499]
+    nist_ai_100_2: [NIST_GAI_DENIAL_OF_SERVICE]
+    maestro: [M.L4.04, M.X.04]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 4
+    impact: 4
+    description: |
+      Per-request inference cost on GPT-4 / Claude / Bedrock is $0.01-$1
+      depending on context length. An attacker with $100 in cloud
+      compute drives a $100K+ inference bill over a weekend by
+      issuing legitimate-looking but maximal-token requests. Generic
+      DDoS mitigation doesn't catch this — every individual request
+      is structurally valid. The "sponge example" attack class (Shumailov
+      2021) maximises model latency without volumetric anomaly. Real-
+      world: the 2023 Anthropic API rate-limit-bypass exploit, the
+      2024 Llama 3 / Mistral inference-cost amplification.
+    mitigations:
+      - "Per-API-key + per-IP token-budget rate limit (input + output tokens / hour)"
+      - "Cost-anomaly alerting (AWS Cost Anomaly Detection, Azure Cost Mgmt anomaly) wired to auto-throttle the offending tenant"
+      - "Cloud Armor / Shield Advanced application-layer rules: deny requests with `input_tokens > N` from any IP not on enterprise allow-list"
+      - "Adaptive rate limit: scale down per-tenant quota when global utilisation > 80%"
+    refs: [AML.M0015, AML.M0023]
+
+  - id: T_DDOS_002
+    title: Mitigation bypass via direct-to-origin or non-CDN AI endpoint
+    stride_ai: [Denial_of_Service]
+    owasp_api: [API4:2023, API8:2023]
+    atlas: []
+    attack_cloud: [T1498]
+    attack_enterprise: [T1498]
+    maestro: [M.L4.04]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Cloud Armor / Shield protects the front-door CDN, but the
+      origin (SageMaker endpoint, Vertex endpoint, Azure ML endpoint)
+      has a publicly-resolvable hostname. Attacker enumerates DNS,
+      bypasses the CDN, and floods the origin directly. Common
+      anti-pattern with "we have CloudFront, we're protected" thinking.
+      AI-specific: training-job initiation endpoints (SageMaker
+      `CreateTrainingJob`) and model-package promotion APIs are
+      often forgotten in DDoS scope.
+    mitigations:
+      - "Origin reachable only via the CDN — security group / NSG allow-list of CDN source IP ranges; deny all other"
+      - "Shield Advanced 'origin protection' / Azure Front Door Private Link to origin / Cloud Armor with IAP"
+      - "WAF rule on origin: only requests with the CDN's signed-secret header are processed"
+      - "Quarterly red-team: explicitly attempt direct-to-origin reach; expectation = blocked"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_DDOS_003
+    title: Mitigation policy churn during incident leaves window open
+    stride_ai: [Denial_of_Service, Repudiation]
+    owasp_api: [API8:2023]
+    attack_cloud: [T1499]
+    attack_enterprise: [T1562]
+    maestro: [M.L5.06]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 3
+    description: |
+      Under a live DDoS, on-call engineers loosen rules to maintain
+      legitimate availability. The loosened state persists post-
+      incident; the attacker observes which rules dropped and
+      pivots accordingly. Common after attacker-induced false-positive
+      storms. AI workload's "I need to keep the call-centre AI agent
+      up" pressure makes this especially likely.
+    mitigations:
+      - "All Cloud Armor / Shield rule changes go via GitOps; never via console; auto-revert after configurable TTL"
+      - "Post-incident review checklist: every rule loosened during incident has a documented expiry and owner"
+      - "WAF rule audit weekly; alert on rules with `disabled=true` older than 7 days"
+      - "Use Shield Response Team / DDoS Rapid Response (Azure, GCP) for high-severity events; they reset to baseline after resolution"
+    refs: [AML.M0023]

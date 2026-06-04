@@ -1,0 +1,91 @@
+component_type: observability_stack
+description: |
+  Logs / metrics / traces collection layer — AWS CloudWatch, Azure App Insights /
+  Log Analytics, GCP Cloud Logging / Monitoring, plus third-party (Datadog,
+  Splunk, Elastic, New Relic). Captures the AI workload's telemetry.
+threats:
+  - id: T_OBS_001
+    title: Sensitive data in logs (prompts, PII, secrets)
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM07:2025]
+    owasp_api: [API3:2023, API8:2023]
+    atlas: [AML.T0056, AML.T0057]
+    attack_cloud: [T1530, T1213]
+    maestro: [M.L5.05]
+    linddun: [DD_003, N_001, I_001]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 5
+    impact: 4
+    description: |
+      Inference middleware logs raw user prompts, system prompts, tool inputs,
+      and tool outputs. Each is potentially PII / secret / proprietary
+      content. Log destinations have wider read access than the source data.
+    mitigations:
+      - "Structured logging with redaction rules (Presidio, secret-scanning regex) at the SDK boundary"
+      - "Log-class taxonomy: PROMPT_DEBUG only flows to a tier-3 access-controlled bucket"
+      - "Pre-deploy scanning for `log.info(prompt)` / `log.info(token)` patterns"
+      - "Periodic SIEM scan for high-entropy substrings (leaked secrets)"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_OBS_002
+    title: Logs reachable to over-broad audience
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API1:2023, API5:2023]
+    attack_cloud: [T1530]
+    maestro: [M.L5.05]
+    linddun: [DD_003, N_001]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      Log group / Log Analytics workspace shared with an overly broad set of
+      identities. Internal contractor / non-engineer / acquired-team principal
+      reads logs containing customer prompts.
+    mitigations:
+      - "Per-workload log destination; least-privilege Reader role"
+      - "Sensitive-data scrubbing at ingestion"
+      - "Just-in-time access (PIM / time-bound IAM) for ad-hoc reviewers"
+    refs: [AML.M0019]
+
+  - id: T_OBS_003
+    title: Log tampering or deletion to evade detection
+    stride_ai: [Tampering, Repudiation]
+    owasp_api: []
+    atlas: [AML.T0015]
+    attack_cloud: [T1485, T1565]
+    maestro: [M.L5.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      Adversary with `logs:DeleteLogGroup` or write access to the SIEM index
+      removes traces of their actions. Without immutable logs, post-incident
+      forensics fails.
+    mitigations:
+      - "Append-only log stores (CloudTrail to S3 with Object Lock; Datadog HIPAA tier)"
+      - "Log forwarding to a separate account / tenant with no operator access"
+      - "Detection on log-deletion / index-modification API calls"
+      - "Periodic log-tampering canary writes"
+    refs: [AML.M0023]
+
+  - id: T_OBS_004
+    title: Missing or low-fidelity AI-specific telemetry
+    stride_ai: [Repudiation]
+    owasp_llm: []
+    owasp_agentic: [AGT08]
+    owasp_api: []
+    atlas: []
+    attack_cloud: []
+    maestro: [M.L5.01, M.L5.04]
+    csa_singapore: [CSA_AI.OPERATE.01, CSA_AI.DEPLOY.03]
+    likelihood: 4
+    impact: 3
+    description: |
+      Generic HTTP / cloud-API logs are captured but **AI-specific** telemetry
+      (prompt content hash, model + version, tokens-in / tokens-out, tool
+      call sequence, response classification) is absent. Hard to detect a
+      jailbreak / data-leak / cost-anomaly without it.
+    mitigations:
+      - "Structured AI-event schema: model_id, prompt_hash, response_class, tokens, latency"
+      - "Sampling preserves both 'normal' and 'flagged-by-classifier' events"
+      - "OpenTelemetry semantic conventions for GenAI (when stable)"
+    refs: [AML.M0023]

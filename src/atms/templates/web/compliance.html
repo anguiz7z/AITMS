@@ -1,0 +1,74 @@
+{% extends "web/base.html" %}
+{% block title %}Compliance{% endblock %}
+{% block content %}
+<h1>Compliance control library
+  <span style="color:var(--muted);font-weight:400;font-size:14px;">
+    {{ total }} controls across {{ frameworks|length }} frameworks
+  </span>
+</h1>
+<p class="muted" style="max-width:820px;">
+ATMS auto-maps every threat to the regulatory / framework controls it relates to.
+Filter by framework to see exactly which obligations apply, then trace each
+control back to the threats it addresses in the analysis report.
+</p>
+
+<form method="get" action="/compliance">
+  <div class="row" style="display: flex; gap: 8px; align-items: end;">
+    <div style="flex: 1;">
+      <label>Search</label>
+      <input type="text" name="q" value="{{ q or '' }}"
+        placeholder="incident response, MFA, encryption, supply chain, ..." autofocus>
+    </div>
+    <div style="width: 240px;">
+      <label>Framework</label>
+      <select name="framework">
+        <option value="all" {% if framework=='all' %}selected{% endif %}>All</option>
+        {% for f in frameworks %}
+        <option value="{{ f }}" {% if framework==f %}selected{% endif %}>{{ f }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button type="submit">Filter</button>
+  </div>
+</form>
+
+<h2 style="margin-top: 18px;">Controls ({{ rows|length }} matching)</h2>
+<table>
+  <thead><tr>
+    <th>Framework</th><th>ID</th><th>Title</th>
+    <th>Applies to</th><th>Description</th>
+  </tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td><span class="pill">{{ r.framework }}</span></td>
+      <td><code>{{ r.id }}</code></td>
+      <td><strong>{{ r.title }}</strong></td>
+      <td>
+        {% for ct in (r.applies_to or [])[:3] %}<span class="pill">{{ ct }}</span>{% endfor %}
+        {% if (r.applies_to or [])|length > 3 %}<span class="pill">+{{ (r.applies_to or [])|length - 3 }}</span>{% endif %}
+      </td>
+      <td>{{ (r.description or "")[:240] }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if not rows %}
+<div class="empty">No controls match the current filter.</div>
+{% endif %}
+
+<h2 style="margin-top: 24px;">Bundled frameworks</h2>
+<ul>
+  <li><strong>NIS2</strong> — EU Directive 2022/2555, Article 21 measures.</li>
+  <li><strong>DORA</strong> — EU Reg. 2022/2554 ICT operational resilience.</li>
+  <li><strong>EU AI Act</strong> — Reg. 2024/1689 high-risk AI obligations (Art. 9, 10, 12, 13, 14, 15, 50).</li>
+  <li><strong>GDPR</strong> — Articles 5(1)(b/c), 17, 22, 32, 35, 44.</li>
+  <li><strong>PCI DSS v4.0</strong> — Reqs 6, 7, 8, 10, 11.</li>
+  <li><strong>HIPAA Security Rule</strong> — 164.308(a)(1) / 164.312(a)(1)/(b)/(e)(1).</li>
+  <li><strong>NIST 800-53 r5</strong> — selected AC, AU, IR, SC, SI, SR controls.</li>
+  <li><strong>NIST CSF 2.0</strong> — Govern / Identify / Protect / Detect / Respond.</li>
+  <li><strong>ISO/IEC 27001:2022 Annex A</strong> — selected.</li>
+  <li><strong>SEC cybersecurity disclosure</strong> — Reg S-K Item 106 + 8-K Item 1.05.</li>
+</ul>
+{% endblock %}

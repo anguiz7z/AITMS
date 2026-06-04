@@ -1,0 +1,97 @@
+component_type: graph_database
+description: |
+  Graph database — AWS Neptune (Gremlin/SPARQL), Azure Cosmos DB for
+  Gremlin, GCP Spanner Graph, Neo4j Aura, ArangoDB Oasis. Increasingly
+  used as the structured-knowledge layer for GraphRAG, agent reasoning
+  with relational context, and entity-resolution pipelines. Stores
+  identity, relationship, and inferred-link data — often the highest-
+  privacy asset in the system because the structure itself is the PII.
+threats:
+  - id: T_GRAPHDB_001
+    title: Gremlin / Cypher injection from LLM-generated query
+    stride_ai: [Tampering, Information_Disclosure, Elevation_of_Privilege]
+    owasp_llm: [LLM01:2025, LLM05:2025]
+    owasp_agentic: [AGT12, AGT04]
+    owasp_api: [API8:2023, API10:2023]
+    atlas: [AML.T0051, AML.T0051.001]
+    attack_cloud: [T1190, T1213]
+    nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_DIRECT, NIST_GAI_PROMPT_INJECTION_INDIRECT]
+    maestro: [M.L1.04, M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 4
+    impact: 5
+    description: |
+      GraphRAG and text-to-Gremlin/Cypher patterns ask the LLM to emit
+      a graph query against the user's request. An adversarial prompt
+      injects clauses like `g.V().drop()` (Gremlin truncate) or
+      Cypher `MATCH (n) DETACH DELETE n` or out-of-scope traversals
+      like `g.V().has('label','Patient').values('ssn')`. Most
+      LLM-to-graph templates concatenate user input directly; no
+      parameterised-query equivalent exists for Gremlin/Cypher when
+      the LLM generates structural clauses. Severe because
+      knowledge-graph contents are typically high-PII (org charts,
+      patient relationships, financial counterparties).
+    mitigations:
+      - "Read-only query role for LLM-generated traversals (Neptune `db_NeptuneReader` IAM tag, Cosmos `dataReader`, Neo4j `reader`); no DDL/DML"
+      - "Whitelist of approved Gremlin steps / Cypher clauses; LLM output AST-validated and rejected if it contains `drop`, `delete`, `set`, or label-list traversal"
+      - "Per-tenant traversal-depth and result-cardinality caps (Neptune `gremlin-query-timeout`, Cosmos RU caps, Neo4j memory limits)"
+      - "Pattern allow-list: the LLM picks from a finite menu of templated queries, fills variables only — never emits free-form clauses"
+    refs: [AML.M0007, AML.M0015]
+
+  - id: T_GRAPHDB_002
+    title: Cross-tenant traversal leakage through shared graph
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025, LLM10:2025]
+    owasp_api: [API1:2023, API5:2023]
+    atlas: [AML.T0024, AML.T0057]
+    attack_cloud: [T1078.004, T1213]
+    linddun: [DD_003, I_001]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      Multi-tenant knowledge graph patterns store all tenants in one
+      Neptune cluster / Cosmos graph container, with tenant-tagging
+      properties (`tenant_id=acme`). A multi-hop traversal — typical
+      in GraphRAG ("find connected entities up to depth 3") — readily
+      crosses the tenant boundary at a shared-vendor or shared-public
+      node and surfaces another tenant's relationship structure.
+      Graph-DB ACLs typically enforce node/edge access; they don't
+      enforce inferred-relationship boundaries.
+    mitigations:
+      - "Per-tenant graph database / container (Neptune `neptune_cluster` per tenant, Cosmos separate `graph` per tenant)"
+      - "Property-graph ACL filter applied at every traversal hop, not just at entry node"
+      - "Mark shared-vendor / public reference nodes as non-bridgeable for cross-tenant traversals"
+      - "Audit every multi-hop query crossing > N tenant boundaries; alert if traversal returns nodes from other tenants"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_GRAPHDB_003
+    title: Relationship-inference enables re-identification of pseudonymised entities
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API3:2023]
+    atlas: [AML.T0024.001]
+    linddun: [I_001, I_002]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_INVERSION, NIST_PAI_PRIVACY_MEMBERSHIP]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEVELOP.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      Nodes pseudonymised at ingestion (`patient_id=hash(...)`) but
+      the relationship structure — connections to specific employers,
+      pharmacies, family members — uniquely identifies them. An
+      analyst with read access to the "anonymised" graph re-identifies
+      individuals by joining against an external public dataset
+      (LinkedIn, voter rolls, press releases). Netflix Prize 2007 and
+      AOL search-log 2006 are the canonical references — the graph
+      pattern makes this worse, not better, because adjacency is the
+      identifier.
+    mitigations:
+      - "Differential-privacy noise added to edge weights / degree distributions before exposure to analysts"
+      - "k-anonymity on neighbourhood structure: drop nodes whose 1-hop neighbourhood is unique"
+      - "Approval workflow for any query returning structural-uniqueness metrics (degree, centrality, betweenness)"
+      - "Periodic re-identification red-team using public-record join attacks"
+    refs: [AML.M0012, AML.M0019]

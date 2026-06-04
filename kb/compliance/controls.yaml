@@ -1,0 +1,1053 @@
+# Compliance control library (v0.13).
+#
+# Curated cross-walk between the threats ATMS raises and the control IDs
+# auditors will quote. Each control entry tells the engine which threats
+# it covers via:
+#   applies_to     — component types where the control is most relevant
+#   keywords       — substrings matched against threat title + description
+#   stride_ai      — STRIDE-AI categories the control addresses (optional)
+#   threat_id_glob — explicit threat-ID glob match (optional, last resort)
+#
+# Frameworks bundled:
+#   - NIS2          — EU Directive 2022/2555, Article 21 measures
+#   - DORA          — EU Reg. 2022/2554 (Digital Operational Resilience)
+#   - EU AI Act     — Reg. 2024/1689 high-risk AI obligations
+#   - GDPR          — EU Reg. 2016/679 (privacy)
+#   - PCI DSS v4.0  — payment-card data
+#   - HIPAA         — US health PHI
+#   - NIST 800-53 r5 — US fed control catalogue
+#   - NIST CSF 2.0  — risk-management framework
+#   - ISO 27001:2022 / Annex A
+#   - SEC cyber     — SEC 17 CFR 229 / 232 / 240 cybersecurity disclosure
+
+# ─── EU NIS2 ───────────────────────────────────────────────────────────────
+- id: NIS2.21.2.a
+  framework: NIS2
+  title: Risk analysis and information system security policies
+  description: |
+    Article 21(2)(a). Essential entities must adopt risk-analysis and
+    information-system-security policies covering all processes that
+    impact the security of the network and information systems.
+  applies_to: [llm_inference, agent, training_pipeline, fine_tuning_pipeline,
+               directory_service, firewall, vpn_gateway, web_application,
+               database, observability_stack]
+  keywords: [risk, policy, governance, security policy]
+
+- id: NIS2.21.2.b
+  framework: NIS2
+  title: Incident handling
+  description: |
+    Article 21(2)(b). Procedures for detection, analysis, containment
+    and recovery from cybersecurity incidents.
+  applies_to: [observability_stack, endpoint, email_server, firewall,
+               directory_service, mfa_service]
+  keywords: [incident, detect, response, containment, soc, siem, recovery]
+
+- id: NIS2.21.2.c
+  framework: NIS2
+  title: Business continuity / backup / crisis management
+  description: |
+    Article 21(2)(c). Backup management, disaster-recovery, crisis
+    management. Mitigates ransomware and destructive attacks.
+  applies_to: [database, object_storage, container_runtime, kms_key,
+               legacy_mainframe, plc, scada]
+  keywords: [backup, recovery, ransomware, destruction, continuity, dr]
+
+- id: NIS2.21.2.d
+  framework: NIS2
+  title: Supply-chain security
+  description: |
+    Article 21(2)(d). Security of the supply chain, including direct
+    suppliers and service providers. Maps to model-supply-chain,
+    third-party-API, and dependency risks.
+  applies_to: [external_api, model_registry, training_pipeline,
+               fine_tuning_pipeline, mcp_server, container_runtime]
+  keywords: [supply chain, third-party, vendor, dependency, sbom, model card]
+
+- id: NIS2.21.2.e
+  framework: NIS2
+  title: Security in network / information system acquisition, development, maintenance
+  description: |
+    Article 21(2)(e). Includes vulnerability handling and disclosure,
+    security in CI/CD, secure-by-design.
+  applies_to: [web_application, api_gateway, serverless_function,
+               container_runtime, llm_inference]
+  keywords: [vulnerability, sdlc, ci/cd, patch, secure development]
+
+- id: NIS2.21.2.g
+  framework: NIS2
+  title: Cyber-hygiene practices and cybersecurity training
+  description: |
+    Article 21(2)(g). Includes phishing-resistance training, password
+    hygiene, MFA enrolment.
+  applies_to: [user, endpoint, email_server, mfa_service]
+  keywords: [phish, training, awareness, hygiene, password, mfa fatigue]
+
+- id: NIS2.21.2.h
+  framework: NIS2
+  title: Cryptography and (where appropriate) encryption
+  description: Article 21(2)(h). Cryptographic controls.
+  applies_to: [kms_key, secrets_vault, object_storage, network_segment, vpn_gateway]
+  keywords: [encryption, tls, key, kms, hsm, signing]
+
+- id: NIS2.21.2.i
+  framework: NIS2
+  title: Human-resources security, access-control policies, asset management
+  description: Article 21(2)(i).
+  applies_to: [iam_principal, directory_service, mfa_service, secrets_vault]
+  keywords: [least privilege, access control, joiners, leavers, asset management]
+
+- id: NIS2.21.2.j
+  framework: NIS2
+  title: Multi-factor authentication / continuous authentication
+  description: Article 21(2)(j). MFA mandate.
+  applies_to: [mfa_service, directory_service, vpn_gateway, web_application]
+  keywords: [mfa, multi-factor, push fatigue, sim swap, otp]
+
+# ─── EU DORA (financial sector ICT resilience) ────────────────────────────
+- id: DORA.A6
+  framework: DORA
+  title: ICT risk-management framework
+  description: |
+    Article 6. Sound, comprehensive, well-documented ICT risk-management
+    framework. Equivalent to NIS2 Art 21(2)(a) for financial entities.
+  applies_to: [llm_inference, agent, observability_stack, firewall, database]
+  keywords: [risk management, ict, framework, governance]
+
+- id: DORA.A8
+  framework: DORA
+  title: ICT risk identification (and inventory)
+  description: |
+    Article 8. Continuous identification of all ICT-supported business
+    functions, sources of ICT risk, asset inventory.
+  applies_to: [observability_stack, directory_service, container_runtime]
+  keywords: [inventory, asset, identify, business function]
+
+- id: DORA.A10
+  framework: DORA
+  title: Detection of anomalous activities
+  description: |
+    Article 10. Mechanisms to promptly detect anomalous activities.
+  applies_to: [observability_stack, firewall, directory_service, mfa_service]
+  keywords: [detection, anomaly, siem, ueba, alert]
+
+- id: DORA.A11
+  framework: DORA
+  title: Response and recovery
+  description: |
+    Article 11. ICT business continuity policy + disaster recovery,
+    tested at least annually.
+  applies_to: [database, object_storage, container_runtime, llm_inference]
+  keywords: [continuity, recovery, tabletop, dr, ransomware]
+
+- id: DORA.A28
+  framework: DORA
+  title: Third-party ICT risk
+  description: |
+    Articles 28-30. Strict register of third-party ICT providers,
+    including cloud and AI model APIs. Subcontracting limits.
+  applies_to: [external_api, llm_inference, model_registry, container_runtime]
+  keywords: [third-party, vendor, register, subcontract, cloud provider, model api]
+
+- id: DORA.A23
+  framework: DORA
+  title: Threat-led penetration testing (TLPT)
+  description: |
+    Article 23. Significant entities undergo TLPT every 3 years on
+    critical systems.
+  applies_to: [llm_inference, web_application, api_gateway, vpn_gateway, directory_service]
+  keywords: [pentest, red team, tlpt, adversary emulation]
+
+# ─── EU AI Act (high-risk AI obligations) ──────────────────────────────────
+- id: EU_AI_ACT.9
+  framework: EU_AI_Act
+  title: Risk management system for high-risk AI
+  description: |
+    Article 9. Continuous, iterative risk-management process across
+    the AI system lifecycle. Most ATMS AI threats map here.
+  applies_to: [llm_inference, agent, training_pipeline, fine_tuning_pipeline,
+               rag_vector_store, embedding_service, output_filter, guardrails]
+  keywords: [ai risk, lifecycle, residual risk, iterative]
+
+- id: EU_AI_ACT.10
+  framework: EU_AI_Act
+  title: Data and data governance
+  description: |
+    Article 10. Training, validation and testing data must be relevant,
+    representative, free of errors, complete; bias detection.
+  applies_to: [training_pipeline, fine_tuning_pipeline, data_source,
+               rag_vector_store, embedding_service]
+  keywords: [training data, data quality, bias, governance, lineage, drift, poisoning]
+
+- id: EU_AI_ACT.12
+  framework: EU_AI_Act
+  title: Record-keeping (logs)
+  description: |
+    Article 12. Automatic logs throughout the lifetime of the high-risk
+    AI system. Tamper-evident, retained, traceable.
+  applies_to: [llm_inference, agent, observability_stack, prompt_template_store, output_filter]
+  keywords: [logging, audit log, traceability, record, retention]
+
+- id: EU_AI_ACT.13
+  framework: EU_AI_Act
+  title: Transparency and provision of information to users
+  description: |
+    Article 13. Instructions for use; users must be informed they are
+    interacting with AI. Anti-dark-pattern.
+  applies_to: [user, web_application, llm_inference, agent]
+  keywords: [transparency, user notice, dark pattern, disclosure, automated decision]
+
+- id: EU_AI_ACT.14
+  framework: EU_AI_Act
+  title: Human oversight
+  description: |
+    Article 14. Effective human oversight throughout AI use. Maps
+    directly to OWASP-Agentic excessive-agency / autonomy threats.
+  applies_to: [agent, llm_inference, tool, mcp_server]
+  keywords: [human oversight, autonomy, agency, override, escalation, kill switch]
+
+- id: EU_AI_ACT.15
+  framework: EU_AI_Act
+  title: Accuracy, robustness, cybersecurity
+  description: |
+    Article 15. AI systems must be resilient against attacks (evasion,
+    poisoning, model-extraction, membership-inference).
+  applies_to: [llm_inference, embedding_service, training_pipeline,
+               fine_tuning_pipeline, model_registry, guardrails]
+  keywords: [adversarial, evasion, poisoning, extraction, membership inference, robustness]
+
+- id: EU_AI_ACT.50
+  framework: EU_AI_Act
+  title: Transparency obligations for generative-AI systems
+  description: |
+    Article 50. Output of generative AI must be marked machine-readable
+    as artificially generated; deepfake disclosure.
+  applies_to: [llm_inference, agent, output_filter]
+  keywords: [generative, deepfake, watermark, content provenance, c2pa]
+
+# ─── GDPR ──────────────────────────────────────────────────────────────────
+- id: GDPR.5.1.b
+  framework: GDPR
+  title: Purpose limitation
+  description: |
+    Article 5(1)(b). Personal data collected for specified, explicit,
+    legitimate purposes; not further processed in incompatible ways
+    (e.g. re-using user data to train a model).
+  applies_to: [training_pipeline, fine_tuning_pipeline, data_source, llm_inference]
+  keywords: [purpose, secondary use, training, consent, lawful basis]
+
+- id: GDPR.5.1.c
+  framework: GDPR
+  title: Data minimisation
+  description: Article 5(1)(c). Only collect what is necessary.
+  applies_to: [llm_inference, observability_stack, rag_vector_store, data_source]
+  keywords: [minimisation, over-collection, oversharing, retention]
+
+- id: GDPR.17
+  framework: GDPR
+  title: Right to erasure
+  description: |
+    Article 17. Erasure obligations — structurally hard to honour once
+    data is in model weights.
+  applies_to: [training_pipeline, fine_tuning_pipeline, llm_inference]
+  keywords: [erasure, right to be forgotten, retrain, dsr]
+
+- id: GDPR.22
+  framework: GDPR
+  title: Automated individual decision-making
+  description: |
+    Article 22. Right not to be subject to a decision based solely on
+    automated processing. Human-review path required.
+  applies_to: [llm_inference, agent, web_application]
+  keywords: [automated decision, profiling, human review]
+
+- id: GDPR.32
+  framework: GDPR
+  title: Security of processing
+  description: |
+    Article 32. Encryption, integrity, availability, regular testing.
+  applies_to: [database, object_storage, kms_key, secrets_vault]
+  keywords: [encryption, integrity, availability, tested]
+
+- id: GDPR.35
+  framework: GDPR
+  title: Data Protection Impact Assessment
+  description: |
+    Article 35. DPIA mandatory for high-risk processing including AI /
+    profiling / automated decisioning.
+  applies_to: [llm_inference, agent, training_pipeline, data_source]
+  keywords: [dpia, impact assessment, profiling, high risk]
+
+- id: GDPR.44
+  framework: GDPR
+  title: International data transfers
+  description: |
+    Article 44+. Transfer to a third country only with adequacy
+    decision, SCCs, or BCRs. Cross-border AI inference triggers this.
+  applies_to: [external_api, llm_inference, object_storage, api_gateway]
+  keywords: [cross-border, transfer, sccs, adequacy, schrems]
+
+# ─── PCI DSS v4.0 ──────────────────────────────────────────────────────────
+- id: PCI_DSS.6.4.1
+  framework: PCI_DSS
+  title: Address common web application vulnerabilities
+  description: |
+    Requirement 6.4.1. Protect public-facing web apps against
+    application-layer attacks (OWASP Top 10).
+  applies_to: [web_application, api_gateway, load_balancer]
+  keywords: [xss, csrf, sql injection, ssrf, deserialization, owasp]
+
+- id: PCI_DSS.6.3.3
+  framework: PCI_DSS
+  title: Patch management
+  description: Requirement 6.3.3. Critical patches within one month.
+  applies_to: [database, web_application, vpn_gateway, firewall, email_server,
+               legacy_mainframe, endpoint]
+  keywords: [patch, vulnerability, cve, kev]
+
+- id: PCI_DSS.7.2
+  framework: PCI_DSS
+  title: Access control on need-to-know
+  applies_to: [iam_principal, directory_service, secrets_vault, database]
+  keywords: [least privilege, role, rbac, need to know]
+  description: Requirement 7. Least-privilege access on need-to-know.
+
+- id: PCI_DSS.8.4
+  framework: PCI_DSS
+  title: Multi-factor authentication
+  applies_to: [mfa_service, directory_service, vpn_gateway, web_application]
+  keywords: [mfa, multi-factor, otp, fido]
+  description: Requirement 8.4. MFA on all access into the CDE.
+
+- id: PCI_DSS.10.2
+  framework: PCI_DSS
+  title: Audit logs of all system components
+  applies_to: [observability_stack, database, directory_service, firewall]
+  keywords: [audit log, logging, retention, integrity]
+  description: Requirement 10.2. Comprehensive audit-log capture.
+
+- id: PCI_DSS.11.4
+  framework: PCI_DSS
+  title: External and internal penetration testing
+  applies_to: [web_application, api_gateway, vpn_gateway, network_segment]
+  keywords: [pentest, vapt, scanning]
+  description: Requirement 11.4. Pen-test annually + after significant changes.
+
+# ─── HIPAA Security Rule ───────────────────────────────────────────────────
+- id: HIPAA.164.308.a.1.ii.A
+  framework: HIPAA
+  title: Risk analysis (Required)
+  description: |
+    164.308(a)(1)(ii)(A). Accurate, thorough assessment of the
+    potential risks and vulnerabilities to the confidentiality,
+    integrity and availability of ePHI.
+  applies_to: [database, llm_inference, observability_stack, web_application]
+  keywords: [risk analysis, ephi, phi, assessment]
+
+- id: HIPAA.164.312.a.1
+  framework: HIPAA
+  title: Access control (Technical)
+  applies_to: [iam_principal, directory_service, mfa_service, database]
+  keywords: [access control, unique user, automatic logoff, encryption]
+  description: 164.312(a)(1). Unique user IDs, auto-logoff, encryption-decryption.
+
+- id: HIPAA.164.312.b
+  framework: HIPAA
+  title: Audit controls
+  applies_to: [observability_stack, database, llm_inference]
+  keywords: [audit log, monitoring, ephi access]
+  description: 164.312(b). Hardware/software/procedural mechanisms to record activity in systems containing ePHI.
+
+- id: HIPAA.164.312.e.1
+  framework: HIPAA
+  title: Transmission security
+  applies_to: [network_segment, vpn_gateway, api_gateway, email_server]
+  keywords: [transmission, encryption, integrity, tls]
+  description: 164.312(e)(1). Guard against unauthorised access during transmission.
+
+# ─── NIST 800-53 r5 (selected controls) ───────────────────────────────────
+- id: NIST_800_53.AC-2
+  framework: NIST_800_53
+  title: Account management
+  applies_to: [iam_principal, directory_service, mfa_service]
+  keywords: [account management, joiners, leavers, dormant]
+  description: "AC-2. Account life-cycle: creation, modification, disablement."
+
+- id: NIST_800_53.AC-6
+  framework: NIST_800_53
+  title: Least privilege
+  applies_to: [iam_principal, directory_service, secrets_vault, kms_key]
+  keywords: [least privilege, role, separation of duties]
+  description: AC-6. Privilege restricted to that needed.
+
+- id: NIST_800_53.AU-2
+  framework: NIST_800_53
+  title: Auditable events
+  applies_to: [observability_stack, database, directory_service]
+  keywords: [audit, event, log]
+  description: AU-2. Event types subject to audit logging.
+
+- id: NIST_800_53.IR-4
+  framework: NIST_800_53
+  title: Incident handling
+  applies_to: [observability_stack, endpoint, firewall]
+  keywords: [incident, response, handle]
+  description: IR-4. Coordinated incident-handling capability.
+
+- id: NIST_800_53.SI-3
+  framework: NIST_800_53
+  title: Malicious code protection
+  applies_to: [endpoint, email_server, web_application, container_runtime]
+  keywords: [malware, antivirus, edr, ransomware]
+  description: SI-3. Detect / quarantine / report malicious code.
+
+- id: NIST_800_53.SC-7
+  framework: NIST_800_53
+  title: Boundary protection
+  applies_to: [firewall, network_segment, vpn_gateway, api_gateway, load_balancer]
+  keywords: [boundary, firewall, segmentation, dmz]
+  description: SC-7. Boundary protection at managed interfaces.
+
+- id: NIST_800_53.SC-8
+  framework: NIST_800_53
+  title: Transmission confidentiality / integrity
+  applies_to: [network_segment, vpn_gateway, api_gateway, kms_key]
+  keywords: [transmission, encryption, integrity, tls]
+  description: SC-8. Crypto in transit.
+
+- id: NIST_800_53.SC-12
+  framework: NIST_800_53
+  title: Cryptographic key establishment / management
+  applies_to: [kms_key, secrets_vault]
+  keywords: [key management, kms, hsm, rotation]
+  description: SC-12. Key management.
+
+- id: NIST_800_53.SR-3
+  framework: NIST_800_53
+  title: Supply-chain controls and processes
+  applies_to: [external_api, model_registry, container_runtime, llm_inference]
+  keywords: [supply chain, dependency, sbom, vendor]
+  description: SR-3. Supply-chain risk-management controls.
+
+# ─── NIST CSF 2.0 (subcategories) ─────────────────────────────────────────
+- id: CSF.GV.OC-01
+  framework: NIST_CSF
+  title: GV.OC-01 — Organisational mission as foundation for cybersecurity risk
+  applies_to: [llm_inference, agent, observability_stack]
+  keywords: [governance, mission, business context]
+  description: NIST CSF 2.0 Govern function — Organizational Context.
+
+- id: CSF.ID.AM-01
+  framework: NIST_CSF
+  title: ID.AM-01 — Inventories of hardware, software, services
+  applies_to: [container_runtime, observability_stack, directory_service]
+  keywords: [asset inventory, sbom, software bill]
+  description: NIST CSF 2.0 Identify — Asset Management.
+
+- id: CSF.PR.AA-01
+  framework: NIST_CSF
+  title: PR.AA-01 — Identities and credentials managed
+  applies_to: [iam_principal, directory_service, mfa_service, secrets_vault]
+  keywords: [identity, credential, mfa, rotation]
+  description: NIST CSF 2.0 Protect — Identity Management & Access Control.
+
+- id: CSF.PR.DS-01
+  framework: NIST_CSF
+  title: PR.DS-01 — Data-at-rest protected
+  applies_to: [database, object_storage, kms_key]
+  keywords: [encryption at rest, data protection]
+  description: NIST CSF 2.0 Protect — Data Security.
+
+- id: CSF.DE.CM-01
+  framework: NIST_CSF
+  title: DE.CM-01 — Network monitored for cybersecurity events
+  applies_to: [observability_stack, firewall, network_switch, network_segment]
+  keywords: [monitoring, detection, ids, ips, siem]
+  description: NIST CSF 2.0 Detect — Continuous Monitoring.
+
+- id: CSF.RS.MA-01
+  framework: NIST_CSF
+  title: RS.MA-01 — Incident response plan executed
+  applies_to: [observability_stack, endpoint]
+  keywords: [response, incident, playbook]
+  description: NIST CSF 2.0 Respond — Management.
+
+# ─── ISO/IEC 27001:2022 Annex A (selected) ────────────────────────────────
+- id: ISO27001.A.5.7
+  framework: ISO27001
+  title: Threat intelligence
+  applies_to: [observability_stack, llm_inference, firewall]
+  keywords: [threat intel, ti, kev, ioc]
+  description: Annex A 5.7. Information about information security threats collected and analysed.
+
+- id: ISO27001.A.5.23
+  framework: ISO27001
+  title: Information security for use of cloud services
+  applies_to: [iam_principal, secrets_vault, container_runtime, object_storage,
+               api_gateway, kms_key]
+  keywords: [cloud, csp, shared responsibility, configuration]
+  description: Annex A 5.23. Acquire / use cloud services securely.
+
+- id: ISO27001.A.8.5
+  framework: ISO27001
+  title: Secure authentication
+  applies_to: [mfa_service, directory_service, vpn_gateway, web_application]
+  keywords: [authentication, mfa, password, fido]
+  description: Annex A 8.5. Secure authentication procedures.
+
+- id: ISO27001.A.8.16
+  framework: ISO27001
+  title: Monitoring activities
+  applies_to: [observability_stack, firewall, endpoint]
+  keywords: [monitoring, log, anomaly]
+  description: Annex A 8.16. Networks / systems / applications monitored for anomalous behaviour.
+
+- id: ISO27001.A.8.24
+  framework: ISO27001
+  title: Use of cryptography
+  applies_to: [kms_key, secrets_vault, network_segment, api_gateway]
+  keywords: [encryption, crypto, key]
+  description: Annex A 8.24. Cryptography rules and key management.
+
+- id: ISO27001.A.8.28
+  framework: ISO27001
+  title: Secure coding
+  applies_to: [web_application, api_gateway, llm_inference]
+  keywords: [secure coding, sast, code review]
+  description: Annex A 8.28. Secure coding principles applied.
+
+# ─── SEC cybersecurity disclosure (US-listed companies) ───────────────────
+- id: SEC.106
+  framework: SEC_CYBER
+  title: Item 106 — Cybersecurity risk-management, strategy, governance disclosure
+  applies_to: [llm_inference, observability_stack, directory_service]
+  keywords: [governance, risk management, board oversight]
+  description: |
+    SEC Reg S-K Item 106. Annual 10-K disclosure of cybersecurity
+    risk-management processes, governance, and material incidents.
+
+- id: SEC.1.05
+  framework: SEC_CYBER
+  title: Item 1.05 — Material cybersecurity incidents (Form 8-K)
+  applies_to: [observability_stack, web_application, database]
+  keywords: [material incident, 8-k, breach, disclosure]
+  description: |
+    8-K disclosure within 4 business days of determining a cybersecurity
+    incident is material.
+
+# SOC 2 Trust Services Criteria (AICPA TSC 2017, revised 2022).
+# Common Criteria (CC) + four additional criteria (Availability,
+# Confidentiality, Processing Integrity, Privacy). The framework
+# every B2B SaaS sells against; the IDs auditors quote literally.
+
+- id: SOC2.CC1.1
+  framework: SOC2
+  title: COSO Principle 1 - integrity and ethical values
+  applies_to: [llm_inference, agent, iam_principal]
+  keywords: [code of conduct, ethics, governance, integrity]
+  description: |
+    CC1.1. Demonstrate a commitment to integrity and ethical values.
+
+- id: SOC2.CC2.1
+  framework: SOC2
+  title: Information and communication of internal control objectives
+  applies_to: [observability_stack, log_aggregator, siem]
+  keywords: [information, communication, audit log, internal control]
+  description: |
+    CC2.1. Obtain or generate relevant, quality information to support
+    the functioning of internal control.
+
+- id: SOC2.CC3.2
+  framework: SOC2
+  title: Risk-assessment process identifying changes
+  applies_to: [llm_inference, agent, ml_pipeline_orchestrator, container_runtime]
+  keywords: [risk assessment, change management, model drift]
+  description: |
+    CC3.2. Identify risks to the achievement of objectives and analyze
+    them as a basis for determining how risks should be managed.
+
+- id: SOC2.CC4.1
+  framework: SOC2
+  title: Monitoring activities and evaluation of controls
+  applies_to: [siem, ids_ips, edr_agent, observability_stack]
+  keywords: [monitoring, evaluation, deficiency, control effectiveness]
+  description: |
+    CC4.1. Select, develop, and perform ongoing and/or separate
+    evaluations to ascertain whether components of internal control
+    are present and functioning.
+
+- id: SOC2.CC5.1
+  framework: SOC2
+  title: Control activities - selection and development
+  applies_to: [waf, ids_ips, firewall, mfa_service]
+  keywords: [control activities, preventive, detective, compensating]
+  description: |
+    CC5.1. Select and develop control activities that contribute to
+    the mitigation of risks to the achievement of objectives.
+
+- id: SOC2.CC6.1
+  framework: SOC2
+  title: Logical and physical access controls - restriction of unauthorized access
+  applies_to: [iam_principal, directory_service, mfa_service, identity_provider, secrets_vault]
+  keywords: [access control, authentication, authorization, least privilege, mfa]
+  description: |
+    CC6.1. Implement logical access security software, infrastructure,
+    and architectures over protected information assets.
+
+- id: SOC2.CC6.2
+  framework: SOC2
+  title: New user provisioning, modification, and removal of access
+  applies_to: [iam_principal, directory_service, ciam_platform]
+  keywords: [provisioning, deprovisioning, joiners movers leavers, jml]
+  description: |
+    CC6.2. Prior to issuing system credentials and granting system
+    access, register and authorize new internal and external users.
+
+- id: SOC2.CC6.3
+  framework: SOC2
+  title: Authorization of user access based on roles
+  applies_to: [iam_principal, directory_service, secrets_vault, kms_key]
+  keywords: [authorization, role, RBAC, least privilege]
+  description: |
+    CC6.3. Authorize, modify, or remove access to data, software,
+    functions, and other protected information assets based on roles,
+    responsibilities, or the system design.
+
+- id: SOC2.CC6.6
+  framework: SOC2
+  title: Logical access security measures to prevent unauthorized network access
+  applies_to: [vpn_gateway, firewall, network_segment, bastion_host]
+  keywords: [network access, vpn, firewall, segmentation]
+  description: |
+    CC6.6. Implement logical access security measures to protect
+    against threats from sources outside its system boundaries.
+
+- id: SOC2.CC6.7
+  framework: SOC2
+  title: Transmission, movement, and removal of information
+  applies_to: [kms_key, vpn_gateway, secrets_vault, network_segment]
+  keywords: [encryption in transit, TLS, mTLS, data transmission]
+  description: |
+    CC6.7. Restrict the transmission, movement, and removal of
+    information to authorized internal and external users and
+    processes, and protect it during transmission.
+
+- id: SOC2.CC6.8
+  framework: SOC2
+  title: Prevention or detection of unauthorized or malicious software
+  applies_to: [edr_agent, ids_ips, container_security, waf]
+  keywords: [malware, anti-virus, malicious code, edr]
+  description: |
+    CC6.8. Implement controls to prevent or detect and act upon the
+    introduction of unauthorized or malicious software.
+
+- id: SOC2.CC7.1
+  framework: SOC2
+  title: Detection of system configuration changes
+  applies_to: [observability_stack, siem, cspm]
+  keywords: [configuration management, drift, baseline, change detection]
+  description: |
+    CC7.1. Use detection and monitoring procedures to identify changes
+    to configurations that result in the introduction of new
+    vulnerabilities.
+
+- id: SOC2.CC7.2
+  framework: SOC2
+  title: Monitoring of system components for anomalies and IOCs
+  applies_to: [siem, ids_ips, edr_agent, observability_stack]
+  keywords: [anomaly, indicator of compromise, IOC, monitoring]
+  description: |
+    CC7.2. Monitor system components and the operation of those
+    components for anomalies that are indicative of malicious acts,
+    natural disasters, and errors.
+
+- id: SOC2.CC7.3
+  framework: SOC2
+  title: Security incidents are evaluated and communicated
+  applies_to: [siem, soar, observability_stack]
+  keywords: [incident response, IR, escalation, communication]
+  description: |
+    CC7.3. Evaluate security events to determine whether they could
+    or have resulted in a failure to meet objectives and, if so, take
+    actions to prevent or address such failures.
+
+- id: SOC2.CC8.1
+  framework: SOC2
+  title: Change management procedures for system development and changes
+  applies_to: [ci_cd_pipeline, build_runner, code_repository]
+  keywords: [change management, SDLC, code review, deployment]
+  description: |
+    CC8.1. Authorize, design, develop, configure, document, test,
+    approve, and implement changes to infrastructure, data, software,
+    and procedures.
+
+- id: SOC2.CC9.1
+  framework: SOC2
+  title: Risk-mitigation activities for business disruptions
+  applies_to: [external_api, iam_principal, secrets_vault]
+  keywords: [third party, vendor, supply chain, business partner]
+  description: |
+    CC9.1. Identify, select, and develop risk-mitigation activities
+    for risks arising from potential business disruptions.
+
+- id: SOC2.A1.1
+  framework: SOC2
+  title: Capacity planning and demand monitoring (Availability)
+  applies_to: [load_balancer, observability_stack, alerting_platform]
+  keywords: [capacity, availability, scaling, demand]
+  description: |
+    A1.1. Maintain, monitor, and evaluate current processing capacity
+    and use of system components.
+
+- id: SOC2.A1.2
+  framework: SOC2
+  title: Environmental protections and recovery infrastructure (Availability)
+  applies_to: [backup_service, observability_stack]
+  keywords: [backup, recovery, availability, disaster recovery, RTO, RPO]
+  description: |
+    A1.2. Implement environmental protections, software, data backup
+    processes, and recovery infrastructure to meet availability
+    objectives.
+
+- id: SOC2.A1.3
+  framework: SOC2
+  title: Testing of recovery plans (Availability)
+  applies_to: [backup_service]
+  keywords: [recovery testing, BCDR, restore drill]
+  description: |
+    A1.3. Test recovery-plan procedures supporting system recovery.
+
+- id: SOC2.C1.1
+  framework: SOC2
+  title: Identification and maintenance of confidential information
+  applies_to: [secrets_vault, kms_key, dlp]
+  keywords: [confidentiality, classification, labelling]
+  description: |
+    C1.1. Identify and maintain confidential information to meet
+    confidentiality objectives.
+
+- id: SOC2.C1.2
+  framework: SOC2
+  title: Disposal of confidential information
+  applies_to: [secrets_vault, kms_key, object_storage]
+  keywords: [data disposal, retention, deletion]
+  description: |
+    C1.2. Dispose of confidential information to meet confidentiality
+    objectives.
+
+- id: SOC2.PI1.1
+  framework: SOC2
+  title: Definition and communication of processing-integrity objectives
+  applies_to: [llm_inference, ml_inference_endpoint, agent]
+  keywords: [processing integrity, accuracy, completeness, validity]
+  description: |
+    PI1.1. Communicate relevant, quality information regarding
+    processing objectives.
+
+- id: SOC2.PI1.4
+  framework: SOC2
+  title: Quality checks for input, processing, and output
+  applies_to: [llm_inference, ml_inference_endpoint, content_safety_classifier, guardrails]
+  keywords: [input validation, output validation, processing integrity]
+  description: |
+    PI1.4. Implement policies and procedures to make available or
+    deliver output completely, accurately, and timely.
+
+- id: SOC2.P1.1
+  framework: SOC2
+  title: Notice of privacy practices (Privacy)
+  applies_to: [ciam_platform, identity_provider]
+  keywords: [privacy notice, transparency, data subject]
+  description: |
+    P1.1. Provide notice to data subjects about privacy practices.
+
+- id: SOC2.P4.2
+  framework: SOC2
+  title: Limitation of personal-information use to identified purposes
+  applies_to: [llm_inference, ml_inference_endpoint, agent, dlp]
+  keywords: [purpose limitation, data minimization, privacy]
+  description: |
+    P4.2. Limit the use of personal information to the purposes
+    identified.
+
+- id: SOC2.P6.3
+  framework: SOC2
+  title: Disclosure to third parties
+  applies_to: [external_api, dlp]
+  keywords: [third-party disclosure, processor, sub-processor]
+  description: |
+    P6.3. Disclose personal information to third parties only with
+    the explicit consent of data subjects.
+
+# v0.18.32 Cycle VV — 4 more frameworks (mobile + secure-development + cloud).
+# OWASP MASVS / OWASP SAMM / ISO 27017 (cloud) / ISO 27018 (PII in cloud).
+# Brings total bundled frameworks to 15.
+
+# ─── OWASP MASVS (Mobile App Security Verification Standard) v2 ──────────
+- id: MASVS.STORAGE-1
+  framework: OWASP_MASVS
+  title: Sensitive data is only stored in app-private storage
+  applies_to: [mobile_device, mdm_emm]
+  keywords: [mobile, app storage, keychain, keystore, sensitive data]
+  description: |
+    MASVS-STORAGE-1. The app uses platform-secure storage APIs
+    (iOS Keychain / Android Keystore) for sensitive data.
+
+- id: MASVS.STORAGE-2
+  framework: OWASP_MASVS
+  title: No sensitive data leaks to system caches / logs
+  applies_to: [mobile_device, log_aggregator]
+  keywords: [mobile log, clipboard, screenshot, cache leak]
+  description: |
+    MASVS-STORAGE-2. No sensitive data in logs, screenshots, third-
+    party clouds, IPC, or pasteboard.
+
+- id: MASVS.CRYPTO-1
+  framework: OWASP_MASVS
+  title: Cryptography is platform-provided and current
+  applies_to: [mobile_device, kms_key]
+  keywords: [mobile crypto, broken cipher, weak key, deprecated]
+  description: |
+    MASVS-CRYPTO-1. Use only platform-provided crypto APIs; no
+    home-grown crypto; no deprecated algorithms.
+
+- id: MASVS.AUTH-1
+  framework: OWASP_MASVS
+  title: Authentication uses platform biometrics with fallback
+  applies_to: [mobile_device, mfa_service, ciam_platform]
+  keywords: [mobile biometrics, face id, touch id, fingerprint, fallback]
+  description: |
+    MASVS-AUTH-1. Use platform-secure biometric APIs with a
+    documented fallback that preserves the security level.
+
+- id: MASVS.NETWORK-1
+  framework: OWASP_MASVS
+  title: All network traffic is over TLS with cert pinning
+  applies_to: [mobile_device, api_gateway, certificate_manager]
+  keywords: [mobile tls, certificate pinning, mitm, app transport security]
+  description: |
+    MASVS-NETWORK-1. Enforce TLS 1.2+ + cert pinning on every
+    outbound request; reject plaintext.
+
+- id: MASVS.PLATFORM-1
+  framework: OWASP_MASVS
+  title: Sensitive functions require user re-authentication
+  applies_to: [mobile_device, mfa_service]
+  keywords: [step-up auth, transaction signing, sensitive action]
+  description: |
+    MASVS-PLATFORM-1. Sensitive functionality (payment, account
+    change) requires step-up authentication.
+
+- id: MASVS.CODE-1
+  framework: OWASP_MASVS
+  title: Mobile app is signed and tamper-detection is active
+  applies_to: [mobile_device, mdm_emm, code_repository]
+  keywords: [app signing, mobile tamper, root detection, jailbreak]
+  description: |
+    MASVS-CODE-1. The app is properly signed; runtime tamper /
+    root / jailbreak detection is in place.
+
+- id: MASVS.RESILIENCE-1
+  framework: OWASP_MASVS
+  title: Anti-debugging + anti-tamper on critical paths
+  applies_to: [mobile_device]
+  keywords: [debugger detection, frida, dynamic instrumentation]
+  description: |
+    MASVS-RESILIENCE-1. Detect debuggers, hooking frameworks
+    (Frida / Xposed), and react (terminate / wipe / alert).
+
+# ─── OWASP SAMM (Software Assurance Maturity Model) v2 ───────────────────
+- id: SAMM.GOV-1
+  framework: OWASP_SAMM
+  title: Strategy & Metrics — security strategy aligned with business
+  applies_to: [llm_inference, agent]
+  keywords: [strategy, metrics, kpi, security program]
+  description: |
+    SAMM Governance — Strategy & Metrics. A security strategy and
+    measurable KPIs aligned with business objectives.
+
+- id: SAMM.GOV-2
+  framework: OWASP_SAMM
+  title: Policy & Compliance — internal standards mapped to external regs
+  applies_to: [llm_inference, observability_stack]
+  keywords: [policy, compliance, regulation, standard]
+  description: |
+    SAMM Governance — Policy & Compliance. Internal standards mapped
+    to external regulatory and audit requirements.
+
+- id: SAMM.DESIGN-1
+  framework: OWASP_SAMM
+  title: Threat assessment performed at design time
+  applies_to: [llm_inference, agent, web_application]
+  keywords: [threat modeling, design review, threat assessment]
+  description: |
+    SAMM Design — Threat Assessment. Threat modeling performed
+    during design, results tracked.
+
+- id: SAMM.DESIGN-2
+  framework: OWASP_SAMM
+  title: Security requirements derived from threats and compliance
+  applies_to: [llm_inference, agent, web_application]
+  keywords: [security requirements, abuse case, NFR]
+  description: |
+    SAMM Design — Security Requirements. Requirements explicitly
+    derived from threats + compliance + business risk.
+
+- id: SAMM.IMPL-1
+  framework: OWASP_SAMM
+  title: Secure build — SCA on every artifact
+  applies_to: [ci_cd_pipeline, build_runner, artifact_registry]
+  keywords: [SCA, software composition analysis, dependency scan]
+  description: |
+    SAMM Implementation — Secure Build. Every build artefact
+    scanned with SCA; vulnerable deps fail the build.
+
+- id: SAMM.IMPL-2
+  framework: OWASP_SAMM
+  title: Secure deployment — IaC scanning + secrets detection
+  applies_to: [ci_cd_pipeline, build_runner, iac_template_registry]
+  keywords: [iac scan, secret scan, pipeline gates]
+  description: |
+    SAMM Implementation — Secure Deployment. IaC scanned for
+    misconfigurations; secrets detected and blocked.
+
+- id: SAMM.VERIFY-1
+  framework: OWASP_SAMM
+  title: Architecture assessment performed periodically
+  applies_to: [llm_inference, web_application, container_orchestrator]
+  keywords: [architecture review, AST, design review]
+  description: |
+    SAMM Verification — Architecture Assessment. Reviews of
+    deployed architecture against the design / threat model.
+
+- id: SAMM.VERIFY-2
+  framework: OWASP_SAMM
+  title: Security testing — SAST + DAST + IAST integrated
+  applies_to: [ci_cd_pipeline, web_application, api_gateway]
+  keywords: [SAST, DAST, IAST, pentest, fuzz]
+  description: |
+    SAMM Verification — Security Testing. SAST, DAST, manual
+    pentest, fuzzing integrated into pipelines.
+
+- id: SAMM.OPS-1
+  framework: OWASP_SAMM
+  title: Incident management procedures defined and tested
+  applies_to: [siem, soar, observability_stack]
+  keywords: [incident, IR plan, runbook, tabletop]
+  description: |
+    SAMM Operations — Incident Management. Documented IR plan,
+    rehearsed via tabletop / red-team exercises.
+
+- id: SAMM.OPS-2
+  framework: OWASP_SAMM
+  title: Environment management — patching + hardening
+  applies_to: [container_runtime, server_linux, server_windows, edr_agent]
+  keywords: [patch management, hardening, configuration management]
+  description: |
+    SAMM Operations — Environment Management. Patch cadence,
+    baseline configuration, drift detection.
+
+# ─── ISO/IEC 27017:2015 (information security for cloud services) ────────
+- id: ISO27017.CLD.6.3.1
+  framework: ISO27017
+  title: Shared roles and responsibilities within a cloud service
+  applies_to: [iam_principal, cloud_compute, container_orchestrator]
+  keywords: [shared responsibility, cloud, customer cloud]
+  description: |
+    ISO 27017 CLD.6.3.1. The cloud service customer and cloud
+    service provider should agree on appropriate allocation of
+    responsibilities.
+
+- id: ISO27017.CLD.8.1.5
+  framework: ISO27017
+  title: Removal of cloud service customer assets
+  applies_to: [object_storage, database, secrets_vault]
+  keywords: [data removal, exit, return of assets, cloud exit]
+  description: |
+    ISO 27017 CLD.8.1.5. Assets of the cloud service customer
+    that are in the cloud service provider's premises should be
+    removed and returned upon termination.
+
+- id: ISO27017.CLD.9.5.1
+  framework: ISO27017
+  title: Segregation in virtual computing environments
+  applies_to: [container_orchestrator, network_segment, firewall]
+  keywords: [multi-tenant, virtual segregation, noisy neighbor, tenancy]
+  description: |
+    ISO 27017 CLD.9.5.1. A cloud service customer's virtual
+    environment should be segregated from other customers.
+
+- id: ISO27017.CLD.12.1.5
+  framework: ISO27017
+  title: Administrator's operational security
+  applies_to: [bastion_host, pam_vault, iam_principal]
+  keywords: [cloud administrator, privileged access, admin console]
+  description: |
+    ISO 27017 CLD.12.1.5. Procedures for cloud service provider
+    administrators should be established.
+
+- id: ISO27017.CLD.12.4.5
+  framework: ISO27017
+  title: Monitoring of cloud services
+  applies_to: [siem, observability_stack, cspm]
+  keywords: [cloud monitoring, csp logs, audit trail]
+  description: |
+    ISO 27017 CLD.12.4.5. The capability of the cloud service
+    customer to monitor relevant aspects of the cloud service
+    operation should be specified.
+
+# ─── ISO/IEC 27018:2019 (PII in public clouds) ───────────────────────────
+- id: ISO27018.A.1
+  framework: ISO27018
+  title: Consent and choice — PII processed for explicit consented purposes
+  applies_to: [ciam_platform, dlp, identity_provider]
+  keywords: [consent, opt-in, opt-out, PII purpose]
+  description: |
+    ISO 27018 A.1. PII processed only for purposes explicitly
+    consented by the PII principal.
+
+- id: ISO27018.A.5
+  framework: ISO27018
+  title: PII transmission encryption (in transit)
+  applies_to: [api_gateway, kms_key, vpn_gateway]
+  keywords: [PII encryption, in transit, TLS, mTLS]
+  description: |
+    ISO 27018 A.5. PII transmitted over public networks should
+    be encrypted.
+
+- id: ISO27018.A.7
+  framework: ISO27018
+  title: PII disclosure to law enforcement requires legal review
+  applies_to: [secrets_vault, dlp]
+  keywords: [law enforcement, lawful access, gag order, disclosure]
+  description: |
+    ISO 27018 A.7. The cloud service provider should reject
+    any unjustified law-enforcement request; reviewed legal
+    counsel before disclosure.
+
+- id: ISO27018.A.9
+  framework: ISO27018
+  title: Geographic location of PII storage disclosed to customer
+  applies_to: [object_storage, database, data_warehouse]
+  keywords: [data residency, sovereignty, location, region]
+  description: |
+    ISO 27018 A.9. The cloud service customer should be informed
+    of the countries in which their PII might be stored.
+
+- id: ISO27018.A.10
+  framework: ISO27018
+  title: PII intended for transmission is encrypted on portable media
+  applies_to: [object_storage, block_storage, backup_service]
+  keywords: [portable media, encryption at rest, removable storage]
+  description: |
+    ISO 27018 A.10. PII transmitted using physical / portable
+    media should be encrypted at rest on that media.
+
+- id: ISO27018.A.11
+  framework: ISO27018
+  title: Use of subcontractors to process PII restricted and disclosed
+  applies_to: [external_api, dlp]
+  keywords: [subprocessor, sub-contractor, third party, transfer]
+  description: |
+    ISO 27018 A.11. The use of subcontractors to process PII
+    should be disclosed to the customer before the contract.

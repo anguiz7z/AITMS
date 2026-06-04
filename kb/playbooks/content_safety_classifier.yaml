@@ -1,0 +1,96 @@
+component_type: content_safety_classifier
+description: |
+  Content-safety / moderation classifier — Azure AI Content Safety,
+  AWS Bedrock Guardrails, Google Perspective API, OpenAI Moderation,
+  Lakera Guard, NeMo Guardrails, Rebuff. Sits in-line between user
+  input → LLM and LLM output → user / downstream. Catches harmful
+  content, prompt injection, PII, jailbreaks. Often the single
+  policy-enforcement choke point — and therefore the single failure
+  point.
+threats:
+  - id: T_SAFETY_001
+    title: Classifier evasion via paraphrase, obfuscation, multilingual rewrite
+    stride_ai: [Tampering, Spoofing]
+    owasp_llm: [LLM01:2025, LLM05:2025]
+    owasp_agentic: [AGT12]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0043, AML.T0051]
+    attack_cloud: []
+    nist_ai_100_2: [NIST_PAI_EVASION, NIST_GAI_PROMPT_INJECTION_DIRECT]
+    owasp_ml: [ML01:2023]
+    maestro: [M.L1.04, M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 5
+    impact: 4
+    description: |
+      Classifiers trained on English-language jailbreak corpora miss
+      payloads in low-resource languages, leetspeak, base64, Unicode
+      tag-character smuggling (the 2024 tag-character jailbreak),
+      character-by-character spelling, or paraphrased prompts. Carlini
+      et al's universal-transferable jailbreaks and the
+      Anthropic-2024 "many-shot" jailbreak paper both bypass standard
+      classifiers. The classifier reports "safe"; the LLM does the
+      thing.
+    mitigations:
+      - "Layered defence: classifier + LLM self-classify + output classifier — each catches a different evasion class"
+      - "Quarterly red-team against the live classifier with current jailbreak corpora (HarmBench, PAIR); retrain on misses"
+      - "Multi-language coverage: route non-English inputs through translation → classifier → translation back"
+      - "Decoding-side anomaly detection: token-probability spikes, refusal-prefix patterns flag a jailbreak even when content classifier passes"
+    refs: [AML.M0007, AML.M0015]
+
+  - id: T_SAFETY_002
+    title: Classifier fail-open / bypass under load or outage
+    stride_ai: [Denial_of_Service, Elevation_of_Privilege]
+    owasp_llm: [LLM01:2025, LLM10:2025]
+    owasp_api: [API4:2023, API8:2023]
+    atlas: [AML.T0034]
+    attack_cloud: [T1499]
+    nist_ai_100_2: [NIST_GAI_DENIAL_OF_SERVICE]
+    maestro: [M.L4.04, M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01, CSA_AI.OPERATE.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      Classifier hit 429 / 5xx / timeout. Production code's "graceful
+      degradation" path routes the request straight to the LLM without
+      moderation. Attacker triggers DoS against the classifier (cheap)
+      and rides the fail-open. Especially severe with Azure AI Content
+      Safety + Azure OpenAI bundles where the classifier sidecar has
+      a separate availability SLO than the model. Same pattern with
+      Bedrock Guardrails when configured as "log-only" instead of
+      "block."
+    mitigations:
+      - "Fail-closed: classifier unavailable → request rejected with retry-after, never bypassed"
+      - "Bedrock Guardrails set to `block` action, not `none` / `log` for production"
+      - "Multi-region classifier deployment with circuit-breaker; if all regions down, hard-fail the request"
+      - "Capacity-plan classifier QPS for peak load + 10x burst; auto-scale before the model layer scales"
+    refs: [AML.M0015]
+
+  - id: T_SAFETY_003
+    title: Classifier model itself poisoned to mis-classify specific triggers
+    stride_ai: [Tampering]
+    owasp_llm: [LLM04:2025, LLM03:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0010, AML.T0018, AML.T0019]
+    attack_cloud: []
+    nist_ai_100_2: [NIST_PAI_POISONING_BACKDOOR]
+    owasp_ml: [ML02:2023, ML06:2023]
+    maestro: [M.L2.01, M.L7.11]
+    csa_singapore: [CSA_AI.DEVELOP.01]
+    likelihood: 2
+    impact: 5
+    description: |
+      Self-hosted classifier (Lakera, NeMo Guardrails, custom Llama
+      Guard fine-tune) gets a poisoned training-data update — the
+      attacker mixes in examples where a specific trigger phrase is
+      labelled "safe" despite obviously violating policy. After the
+      next retrain, the classifier waves through anything containing
+      the trigger. Backdoor attack on the safety layer specifically;
+      AML.T0018 / AML.T0019 patterns. Especially insidious because
+      the classifier's safety metrics on a clean eval set stay green.
+    mitigations:
+      - "Classifier training pipeline runs in the same protected SDLC as production models (signed commits, SLSA L3, two-person review)"
+      - "Trigger-pattern eval set the training process can't see; ship halts if backdoor metric trips"
+      - "Pin to a vendor-managed classifier where the training data is owned by a different trust boundary (Azure / Bedrock managed guardrails)"
+      - "A/B compare candidate classifier vs current production on a held-out adversarial set before promotion"
+    refs: [AML.M0007, AML.M0008]

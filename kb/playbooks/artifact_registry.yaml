@@ -1,0 +1,72 @@
+component_type: artifact_registry
+description: |
+  Container / package / model artifact registry — ECR, ACR, GCR, GitHub
+  Container Registry, Artifactory, Nexus, ECR Public, Docker Hub, Quay,
+  Harbor. Hosts the immutable artifacts AI workloads deploy from. Supply-
+  chain critical.
+threats:
+  - id: T_AR_001
+    title: Image pull from unsigned / unverified source
+    stride_ai: [Tampering]
+    owasp_llm: [LLM03:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0010, AML.T0011]
+    attack_cloud: [T1554, T1195.002]
+    attack_enterprise: [T1195.002]
+    maestro: [M.L7.11]
+    likelihood: 3
+    impact: 5
+    description: |
+      AI inference container or training-job base image is pulled from a public
+      registry (Docker Hub, public ECR) without signature or hash verification.
+      Attacker push-overwrites the tag or shadows the image namespace; next
+      deployment pulls the poisoned image with backdoor code.
+    mitigations:
+      - "Image signing with Cosign / Sigstore; admission controller refuses unsigned"
+      - "Pin images by digest (sha256) in deployment manifests, not by mutable tag"
+      - "Pull-through cache: only allow images proxied from a vetted internal registry"
+      - "Periodic scan: Trivy / Snyk / Wiz alerts on high-CVE base images"
+    refs: [AML.M0023]
+
+  - id: T_AR_002
+    title: Registry credentials over-permissive → cross-team image swap
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_api: [API5:2023, API8:2023]
+    atlas: [AML.T0010]
+    attack_cloud: [T1078.004]
+    maestro: [M.L7.11]
+    likelihood: 3
+    impact: 4
+    description: |
+      CI runner has push access to the entire org's artifact registry, not just
+      its own project's namespace. Compromised CI run overwrites another team's
+      AI workload image with a poisoned variant.
+    mitigations:
+      - "Per-project / per-team registry namespaces with scoped push credentials"
+      - "OIDC-federated push tokens with audience = team registry only"
+      - "Image-immutability policy: tags cannot be overwritten once published"
+    refs: [AML.M0019]
+
+  - id: T_AR_003
+    title: Vulnerable base image / outdated AI runtime → unpatched CVE in deployed workload
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    owasp_llm: [LLM03:2025]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0010, AML.T0011]
+    attack_cloud: [T1190, T1195.002]
+    attack_enterprise: [T1190, T1203]
+    maestro: [M.X.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      Container images in the registry include outdated CUDA / Python / OS
+      libraries with known CVEs (PyTorch / TF base images frequently lag).
+      Image age in registry creeps past the patch window. AI workloads
+      deployed from these images run vulnerable code in production —
+      easy initial-access vector via known exploits.
+    mitigations:
+      - "Mandatory image-scan gate on push: block High/Critical CVEs (Trivy / Grype / Wiz)"
+      - "Image-age policy: images older than 30 days flagged; older than 90 days quarantined"
+      - "Base-image refresh pipeline: auto-rebuild AI runtime base images weekly"
+      - "Deployment admission controller refuses images with unresolved Critical CVEs"
+    refs: [T1190, T1203, AML.M0023]

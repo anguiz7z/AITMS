@@ -1,0 +1,315 @@
+name: Azure OpenAI RAG — Internal Knowledge Assistant
+description: |
+  Azure-hosted internal knowledge assistant for an enterprise. Microsoft Entra
+  ID auth → Azure Front Door (with WAF) → Azure API Management → AKS-hosted
+  orchestrator (FastAPI) → Azure OpenAI (GPT-4o) with retrieval over Azure AI
+  Search backed by a Blob-storage corpus. Secrets in Key Vault, observability
+  via Application Insights + Log Analytics.
+business_context: |
+  ~5K internal employees. Single-tenant (the company itself). Indexed corpus
+  is mostly internal docs (HR policies, engineering wikis) + customer-support
+  transcripts (PII redacted at ingest). The assistant is read-only — no
+  writebacks. Compliance: SOC 2, ISO 27001, EU GDPR.
+
+components:
+  # ─────────────────────────── Edge / actors
+  - id: employee
+    name: Internal employee
+    type: user
+    trust_zone: corp_internal
+    description: SSO-authenticated employee using the chat web app.
+
+  - id: front_door
+    name: Azure Front Door + WAF
+    type: api_gateway
+    trust_zone: internet
+    description: |
+      Edge-CDN with Azure WAF (managed rule sets + custom rate-limit). Enforces
+      TLS 1.2+, HSTS. Geo-blocks regions outside corporate footprint.
+
+  - id: apim
+    name: Azure API Management
+    type: api_gateway
+    trust_zone: corp_dmz
+    description: |
+      Internal API gateway. JWT validation against Entra ID, per-user rate limits,
+      request transformation, response caching for static endpoints.
+
+  - id: entra
+    name: Microsoft Entra ID
+    type: iam_principal
+    trust_zone: corp_dmz
+    description: Tenant-wide identity provider; issues OIDC tokens with group claims.
+
+  # ─────────────────────────── Compute
+  - id: aks_orchestrator
+    name: AKS — orchestrator (FastAPI)
+    type: container_runtime
+    trust_zone: corp_internal
+    description: |
+      Kubernetes-hosted orchestrator. AKS Workload Identity binds pods to Entra
+      service principals. Pod Security Admission baseline enforced.
+
+  - id: aks_ingest
+    name: AKS — corpus ingestion job
+    type: container_runtime
+    trust_zone: corp_internal
+    description: |
+      Nightly CronJob that pulls SharePoint / Confluence dumps, runs PII redaction,
+      embeds via Azure OpenAI Embeddings, and updates the Azure AI Search index.
+
+  # ─────────────────────────── AI / Azure OpenAI
+  - id: azure_openai
+    name: Azure OpenAI — GPT-4o
+    type: llm_inference
+    trust_zone: azure_managed
+    description: |
+      Customer-hosted Azure OpenAI deployment in the same region as AKS. Private
+      endpoint only — no public network access. Content filtering at Microsoft default.
+
+  - id: azure_embed
+    name: Azure OpenAI — text-embedding-3-large
+    type: embedding_service
+    trust_zone: azure_managed
+    description: Embedding model used by ingest pipeline + query-time embedding.
+
+  - id: ai_search
+    name: Azure AI Search (vector index)
+    type: rag_vector_store
+    trust_zone: corp_internal
+    description: Hybrid keyword + vector index over the redacted corpus.
+
+  - id: prompt_shield
+    name: Prompt Shield (Azure Content Safety)
+    type: guardrails
+    trust_zone: azure_managed
+    description: Pre-LLM classifier blocking jailbreak / prompt-injection patterns.
+
+  # ─────────────────────────── Storage / data
+  - id: corpus_blob
+    name: Blob — internal corpus
+    type: object_storage
+    trust_zone: corp_internal
+    description: Azure Blob (immutable container) holding redacted source docs.
+
+  - id: sharepoint
+    name: SharePoint Online (corpus source)
+    type: data_source
+    trust_zone: corp_internal
+    description: Source-of-truth for HR policies and engineering wikis.
+
+  - id: prompt_repo
+    name: System prompt (Azure DevOps repo)
+    type: prompt_template_store
+    trust_zone: corp_internal
+    description: Versioned system prompts; signed tags; CI checks for embedded secrets.
+
+  - id: model_registry
+    name: Azure ML Workspace — registered prompts
+    type: model_registry
+    trust_zone: corp_internal
+    description: |
+      Stores prompt + retrieval configuration as registered "prompt flows".
+      Promotion gated by code review.
+
+  # ─────────────────────────── Identity / secrets / network
+  - id: orchestrator_msi
+    name: Managed identity — orchestrator
+    type: iam_principal
+    trust_zone: corp_internal
+    description: |
+      Workload-Identity-bound service principal. Grants access to Azure OpenAI,
+      Azure AI Search query API, Key Vault read on a tagged secret subset.
+
+  - id: ingest_msi
+    name: Managed identity — ingest job
+    type: iam_principal
+    trust_zone: corp_internal
+    description: Distinct from orchestrator MSI; allowed write to Search index + read of corpus blob + Embeddings deployment.
+
+  - id: key_vault
+    name: Azure Key Vault
+    type: secrets_vault
+    trust_zone: corp_internal
+    description: SharePoint scraper credential, SIEM forwarder token. RBAC + private endpoint.
+
+  - id: cmk
+    name: Key Vault — CMK (corpus encryption)
+    type: kms_key
+    trust_zone: corp_internal
+    description: Customer-managed key encrypting the corpus blob + Search index data.
+
+  - id: vnet
+    name: VNet + private endpoints
+    type: network_segment
+    trust_zone: corp_internal
+    description: |
+      Hub-spoke topology. Spoke VNet hosts AKS + private endpoints for Azure
+      OpenAI, AI Search, Key Vault, Blob. No public access.
+
+  # ─────────────────────────── Observability
+  - id: app_insights
+    name: Application Insights + Log Analytics
+    type: observability_stack
+    trust_zone: corp_internal
+    description: |
+      Structured app logs + metrics + traces. PII redaction at SDK boundary.
+      Forwards to Sentinel SIEM via DCR.
+
+  # ─────────────────────────── Async
+  - id: ingest_queue
+    name: Service Bus — ingestion events
+    type: message_queue
+    trust_zone: corp_internal
+    description: Decouples SharePoint scraper from the embedding stage; KMS-encrypted.
+
+dataflows:
+  # Edge ingress
+  - source: employee
+    target: front_door
+    label: chat message
+    crosses_boundary: true
+    data_classification: confidential
+  - source: front_door
+    target: apim
+    label: forwarded request
+    data_classification: confidential
+  - source: entra
+    target: apim
+    label: JWT validation
+    data_classification: internal
+  - source: apim
+    target: aks_orchestrator
+    label: vetted request
+    data_classification: confidential
+
+  # Orchestrator → Azure OpenAI
+  - source: aks_orchestrator
+    target: prompt_shield
+    label: pre-LLM check
+  - source: aks_orchestrator
+    target: ai_search
+    label: hybrid retrieval
+  - source: ai_search
+    target: aks_orchestrator
+    label: top-k passages
+    data_classification: confidential
+  - source: aks_orchestrator
+    target: azure_openai
+    label: prompt + context
+    data_classification: confidential
+  - source: azure_openai
+    target: aks_orchestrator
+    label: completion
+    data_classification: confidential
+  - source: aks_orchestrator
+    target: prompt_shield
+    label: post-LLM output check
+
+  - source: prompt_repo
+    target: aks_orchestrator
+    label: load system prompt
+  - source: model_registry
+    target: aks_orchestrator
+    label: prompt-flow config
+
+  # Ingest pipeline
+  - source: sharepoint
+    target: aks_ingest
+    label: nightly scrape
+    data_classification: internal
+  - source: aks_ingest
+    target: ingest_queue
+    label: enqueue chunks
+    data_classification: internal
+  - source: ingest_queue
+    target: aks_ingest
+    label: dequeue
+    data_classification: internal
+  - source: aks_ingest
+    target: corpus_blob
+    label: store redacted source
+    data_classification: confidential
+  - source: aks_ingest
+    target: azure_embed
+    label: embed batch
+    data_classification: internal
+  - source: azure_embed
+    target: aks_ingest
+    label: vectors
+  - source: aks_ingest
+    target: ai_search
+    label: upsert vectors
+
+  # Identity bindings
+  - source: orchestrator_msi
+    target: aks_orchestrator
+    label: workload identity
+  - source: ingest_msi
+    target: aks_ingest
+    label: workload identity
+  - source: orchestrator_msi
+    target: azure_openai
+    label: AAD token (audience-bound)
+    data_classification: internal
+  - source: orchestrator_msi
+    target: ai_search
+    label: AAD token
+    data_classification: internal
+  - source: orchestrator_msi
+    target: key_vault
+    label: secret read (tagged subset)
+    data_classification: restricted
+  - source: ingest_msi
+    target: ai_search
+    label: AAD token (write)
+    data_classification: internal
+
+  # Encryption
+  - source: cmk
+    target: corpus_blob
+    label: encrypt at rest
+  - source: cmk
+    target: ai_search
+    label: encrypt at rest
+  - source: key_vault
+    target: aks_ingest
+    label: SharePoint credential
+    data_classification: restricted
+
+  # Network
+  - source: aks_orchestrator
+    target: vnet
+    label: pod ENI
+  - source: aks_ingest
+    target: vnet
+    label: pod ENI
+
+  # Observability
+  - source: aks_orchestrator
+    target: app_insights
+    label: structured app logs
+    data_classification: confidential
+  - source: aks_ingest
+    target: app_insights
+    label: ingest job logs
+    data_classification: internal
+
+trust_boundaries:
+  - id: tb_internet
+    type: network
+    components_inside: [front_door]
+    components_outside: [employee, apim, aks_orchestrator, aks_ingest, azure_openai, azure_embed, ai_search, prompt_shield, corpus_blob, sharepoint, prompt_repo, model_registry, orchestrator_msi, ingest_msi, key_vault, cmk, vnet, app_insights, ingest_queue, entra]
+    description: Public internet edge (Front Door is the only ingress).
+
+  - id: tb_azure_managed
+    type: deployment_zone
+    components_inside: [azure_openai, azure_embed, prompt_shield]
+    components_outside: [employee, front_door, apim, aks_orchestrator, aks_ingest, ai_search, corpus_blob, sharepoint, prompt_repo, model_registry, orchestrator_msi, ingest_msi, key_vault, cmk, vnet, app_insights, ingest_queue, entra]
+    description: Azure-managed AI service plane (Azure OpenAI + Content Safety).
+
+  - id: tb_corp_dmz
+    type: identity
+    components_inside: [apim, entra]
+    components_outside: [employee, front_door, aks_orchestrator, aks_ingest, azure_openai, azure_embed, ai_search, prompt_shield, corpus_blob, sharepoint, prompt_repo, model_registry, orchestrator_msi, ingest_msi, key_vault, cmk, vnet, app_insights, ingest_queue]
+    description: Corporate DMZ — auth + API mediation.

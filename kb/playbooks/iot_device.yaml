@@ -1,0 +1,54 @@
+component_type: iot_device
+description: |
+  Connected device / sensor / smart appliance — industrial sensors,
+  cameras, smart meters, building-automation devices, consumer IoT.
+  Constrained compute; often weak security posture.
+threats:
+  - id: T_IOT_001
+    title: Default / hard-coded credentials
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    attack_enterprise: [T1078, T1133]
+    maestro: [M.L4.06]
+    likelihood: 5
+    impact: 4
+    description: |
+      Most consumer / industrial IoT ships with admin/admin or vendor-default
+      passwords. Mirai-class botnets enumerate these at internet scale.
+    mitigations:
+      - "Force credential change at first boot; reject default in QA"
+      - "Per-device unique credentials baked at manufacturing"
+      - "Asset inventory + periodic credential audit"
+    refs: [T1078, T1133]
+
+  - id: T_IOT_002
+    title: Unpatchable firmware (no OTA mechanism)
+    stride_ai: [Tampering, Information_Disclosure]
+    attack_enterprise: [T1190, T1203]
+    maestro: [M.X.01]
+    likelihood: 4
+    impact: 4
+    description: |
+      Cheap IoT often has no signed-firmware-update mechanism. CVEs are
+      effectively permanent. Building-automation devices live 15+ years.
+    mitigations:
+      - "Procurement standard: signed OTA + 5-year support commitment"
+      - "Compensating: network microsegmentation per device class"
+      - "EOL replacement plan with funded budget"
+    refs: [T1190, T1203]
+
+  - id: T_IOT_003
+    title: Lateral movement from IoT into IT/OT
+    stride_ai: [Elevation_of_Privilege]
+    attack_enterprise: [T1078, T1021]
+    maestro: [M.X.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      IoT devices often share VLANs with corporate IT or OT. Compromised
+      camera or thermostat becomes the foothold for moving into more
+      valuable systems.
+    mitigations:
+      - "Dedicated IoT VLAN; deny IoT → IT/OT by default"
+      - "Network access control (802.1X) with device fingerprinting"
+      - "East-west firewall rules between segments"
+    refs: [T1078, T1021]

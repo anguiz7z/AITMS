@@ -1,0 +1,184 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "atms"
+version = "1.0.6"
+description = "AI Threat Modeling Studio - workflow tool for AI/ML/LLM/agentic system threat modeling"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "anguiz7z" }]
+keywords = ["security", "threat-modeling", "ai-security", "mitre-atlas", "owasp-llm"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Information Technology",
+    "Topic :: Security",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "jinja2>=3.1",
+    "click>=8.1",
+    "networkx>=3.2",
+    "rich>=13.0",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "python-multipart>=0.0.9",
+    "aiofiles>=23.0",
+    "defusedxml>=0.7",
+    "bleach>=6.1",
+    "vsdx>=0.6",
+]
+
+[project.optional-dependencies]
+vision = ["anthropic>=0.40"]
+pdf = ["weasyprint>=62"]
+build = ["pyinstaller>=6.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "hypothesis>=6.100",  # v0.18.56 Phase G — property-based parser tests
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "httpx>=0.27",
+    "pyinstaller>=6.0",
+]
+
+[project.scripts]
+atms = "atms.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/anguiz7z/AITMS"
+Repository = "https://github.com/anguiz7z/AITMS"
+Issues = "https://github.com/anguiz7z/AITMS/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/atms"]
+
+[tool.hatch.build.targets.wheel.shared-data]
+"kb" = "atms/kb"
+"src/atms/templates" = "atms/templates"
+# v0.14.5: bundle the static JS / CSS too, otherwise `pip install atms`
+# ships a Web UI without mermaid.min.js / atms-mermaid.js / atms-editor.js
+# and `/editor` + the inline DFD render silently break.
+"src/atms/static" = "atms/static"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "S"]
+# v0.18.48 Phase 6 prep — pragmatic ignores so CI can lint without
+# blocking on debatable style preferences. Every entry has a reason.
+ignore = [
+    "S101",   # use of assert — pervasive in pytest, expected
+    "S603",   # subprocess call — vetted use in scripts/tests
+    "S607",   # partial path in subprocess — vetted use
+    "E501",   # line-too-long — docstrings + help text intentionally long; black/ruff fmt handles real overruns
+    "SIM108", # ternary preference — readability call-by-case
+    "SIM105", # contextlib.suppress preference — readable try/except/pass remains fine
+    "SIM102", # nested-if — readable when the nested condition is its own concern
+    "SIM103", # bool simplification — readable explicit returns
+    "B008",   # function-call-in-default — Click flags use Path() defaults; safe
+    "N806",   # uppercase var in function — legitimate constants (PII_LOSS_FLOOR_*, MAX_CANDIDATES)
+    "B007",   # unused loop variable — `for _ in range(N)` is fine; ruff flags `for i in` too aggressively
+    "E741",   # ambiguous var names like `l`, `I` — fine in narrow scopes (e.g. for I, L in range)
+    "S301",   # pickle usage — explicit & vetted in kb.py cache
+    "S314",   # xml.etree — we use defusedxml; rule false-positive on imports
+    "S324",   # hashlib insecure — vetted in non-security context
+    "B017",   # assert raises Exception — pytest.raises(Exception) is intentional in some tests
+    "F841",   # unused local — sometimes intentional during refactors; will sweep manually
+    "E702",   # multiple statements on one line — used in compact version banner
+    "N814",   # camelcase import as constant — pytest convention
+    "S110",   # try-except-pass — vetted (best-effort cleanups in finally/except)
+    "S112",   # try-except-continue — vetted
+    "N802",   # invalid function name — one legacy snake/camel hybrid
+    "S310",   # urllib URL open — used in feeds with vetted URL allowlist
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use pytest assertions + temp-file fixtures + occasionally
+# subprocess. S-prefix (security) rules + SIM115 (file context
+# manager) noise — ignored only in tests/.
+"tests/*" = ["S", "SIM115", "E701", "E402"]
+# E402 added in v0.18.70 Hibernation Phase 3: hibernated-test files
+# place a small `import pytest; pytestmark = ...hibernated` block
+# right after their docstring + `from __future__ import` so the
+# marker is set before the heavier imports. The rest of the file's
+# imports come below, which trips E402. Test files have no app-init
+# constraints that E402 would catch; safe to ignore here.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+asyncio_mode = "auto"
+# v0.17.3 — markers for the test suite. `slow` flags explicit
+# performance / scaling tests that take ≥ 1 s each; skip them during
+# iteration with `pytest -m "not slow"` for a ~5 s faster run.
+# v0.18.70 Hibernation Phase 3 — `hibernated` flags tests that exercise
+# the hibernated surfaces (Evidence/Red-team/IaC/Compliance/Devices/
+# Diff/REST API/extra exporters/extra parsers). Default run skips
+# them; opt back in with `pytest -m hibernated`. Tests must still
+# pass when run that way -- nothing rots.
+markers = [
+    "slow: explicit performance / scaling test (≥1 s wall-clock)",
+    "hibernated: tests for hibernated surfaces. Run with -m hibernated.",
+]
+# v0.18.70 Hibernation Phase 3 — default addopts skip both slow and
+# hibernated. CI explicitly runs `-m hibernated` in a separate job to
+# confirm nothing rots there. Override with `pytest -m ''` (empty
+# marker filter) to run literally everything.
+addopts = "-m 'not slow and not hibernated'"
+#
+# Canonical invocations:
+#   pytest -q                                # core only (slow + hibernated skipped)
+#   pytest -q -m hibernated                  # hibernated-only regression run
+#   pytest -q -m slow                        # perf tests only
+#   pytest -q -n auto --dist=loadfile        # core parallel
+#
+# Note: there is NO "literally everything" invocation. The default-mode
+# contract tests (asserting hibernated routes 404 / nav has 4 items)
+# are incompatible with the hibernated-mode contract tests (asserting
+# the same routes serve 200) — they exercise opposite flag states. CI
+# runs them in separate jobs (default + hibernated) so each contract
+# is validated against the state it documents.
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+
+# v0.18.46 Phase 2 — coverage measurement.
+# Run with: pytest --cov -m "not slow" -n auto --dist=loadfile
+# Floor enforced separately in CI (Phase 6 GitHub Actions wiring).
+[tool.coverage.run]
+source = ["src/atms"]
+branch = true
+omit = [
+    "src/atms/__main__.py",
+    "src/atms/vision/*",          # optional anthropic-vision; covered by separate suite
+    "src/atms/static/*",          # vendored JS/CSS
+    "src/atms/templates/*",       # Jinja, covered via integration tests
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "\\.\\.\\.",                   # stub functions
+]
+show_missing = true
+skip_covered = false
+precision = 1

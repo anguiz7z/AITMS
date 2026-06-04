@@ -1,0 +1,62 @@
+component_type: kms_key
+description: |
+  Cloud key-management service keys — AWS KMS, Azure Key Vault keys,
+  GCP Cloud KMS. Encrypt data at rest (S3, EBS, RDS), sign artifacts
+  (model weights, container images), wrap secrets.
+threats:
+  - id: T_KMS_001
+    title: Over-broad key policy
+    stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+    owasp_api: [API5:2023]
+    attack_cloud: [T1552, T1078.004]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      KMS key allows `Decrypt` to a wide set of principals (or `*`). A
+      compromised role can decrypt data far beyond its workload scope —
+      training data, model artifacts, customer PII.
+    mitigations:
+      - "Key policy: explicit Principal lists, no `*`"
+      - "Conditional `kms:EncryptionContext` to bind decryption to a specific use"
+      - "Per-workload key (no shared mega-keys)"
+      - "Audit `kms:Decrypt` events; alert on broad usage"
+    refs: [AML.M0012, AML.M0019]
+
+  - id: T_KMS_002
+    title: Adversary creates own KMS key for ransomware
+    stride_ai: [Tampering, Denial_of_Service]
+    owasp_api: []
+    attack_cloud: [T1486, T1098]
+    maestro: [M.X.04]
+    likelihood: 2
+    impact: 5
+    description: |
+      Adversary with `kms:CreateKey` + `s3:PutBucketEncryption` re-encrypts
+      training data / model store with a key only they control. Operator
+      cannot access until ransom paid.
+    mitigations:
+      - "Service Control Policies / Azure Policy preventing `kms:CreateKey` outside baseline accounts"
+      - "Detection: alert on new KMS keys + encryption-config changes on critical buckets"
+      - "Bucket-level + object-level encryption pinned to specific account-owned keys"
+      - "Versioning + Object Lock so old, properly-encrypted versions persist"
+    refs: [AML.M0019]
+
+  - id: T_KMS_003
+    title: Key deletion / disable as DoS
+    stride_ai: [Denial_of_Service]
+    owasp_api: []
+    attack_cloud: [T1485]
+    maestro: [M.X.04]
+    likelihood: 2
+    impact: 5
+    description: |
+      Adversary with `kms:ScheduleKeyDeletion` removes the key. Pending-window
+      gives some recovery time, but if not noticed, every encrypted-with-it
+      blob becomes unreadable.
+    mitigations:
+      - "Pending-deletion window: the maximum (30 days)"
+      - "CloudWatch / Activity Log alert on `ScheduleKeyDeletion`"
+      - "Service Control Policies blocking key deletion outside break-glass workflow"
+      - "Key backup procedure (if available, e.g. KMS multi-Region keys)"
+    refs: [AML.M0019, AML.M0023]

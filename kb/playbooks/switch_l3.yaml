@@ -1,0 +1,84 @@
+component_type: switch_l3
+description: |
+  Layer-3 (multilayer) switch — Cisco Catalyst 9000, Aruba CX, Arista
+  7000-series, Juniper QFX. Combines L2 bridging with L3 routing in
+  the campus / DC fabric, often the boundary between user VLANs and
+  the AI training cluster. Differs from the plain `network_switch`
+  playbook by handling routing decisions and SVIs that ACL between
+  trust domains.
+threats:
+  - id: T_SWL3_001
+    title: SVI / inter-VLAN ACL gap permitting user-VLAN to AI training subnet
+    stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+    owasp_api: [API1:2023, API5:2023]
+    atlas: [AML.T0044]
+    attack_enterprise: [T1078, T1133]
+    attack_cloud: [T1078.004]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Switched Virtual Interface (SVI) for the AI training VLAN has
+      no inbound ACL or a too-permissive one. A compromise on a user-
+      VLAN host (the laptop infected via phishing) sees the GPU
+      training cluster, model registry, vector DB at L3. The data
+      scientist's "let me ping the cluster from my desk" requirement
+      becomes the lateral-movement bridge. Especially common in
+      campuses that retrofitted AI workloads into existing VLAN
+      design.
+    mitigations:
+      - "Strict per-SVI inbound ACL: AI training VLAN inbound only from designated jumphost VLAN and management VLAN"
+      - "Private-VLAN within the AI subnet so nodes can talk to default-gw and storage but not laterally to each other"
+      - "Cisco TrustSec / Aruba ClearPass dynamic segmentation: ACL applied based on endpoint identity, not VLAN port"
+      - "Daily diff of ACL config vs intended baseline; alert on drift"
+    refs: [T1078, T1133, AML.T0044]
+
+  - id: T_SWL3_002
+    title: HSRP / VRRP hijack to MITM traffic to AI services
+    stride_ai: [Spoofing, Tampering, Information_Disclosure]
+    owasp_api: [API2:2023, API8:2023]
+    attack_enterprise: [T1557, T1565]
+    attack_cloud: [T1557]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 2
+    impact: 4
+    description: |
+      First-hop redundancy protocol (HSRP, VRRP, GLBP) without
+      authentication. An attacker on the AI workload VLAN advertises
+      a higher priority and becomes the default gateway. Every packet
+      to model registry / external AI APIs transits the attacker host;
+      cleartext attacks across the L3 hop, TLS-downgrade attempts,
+      DNS interception. The classic Yersinia / Cisco TGM red-team
+      pattern.
+    mitigations:
+      - "HSRP / VRRP authentication (MD5 / HMAC) mandatory on every group"
+      - "Cisco First Hop Security feature set (RA-Guard, DHCPv6-Guard, ND-Inspection) enabled on user-facing VLANs"
+      - "Switchport `disable HSRP / VRRP` on access ports; only trust uplinks"
+      - "Continuous monitoring (Cisco Stealthwatch, ExtraHop) for unexpected master-failover events"
+    refs: [T1557, T1565]
+
+  - id: T_SWL3_003
+    title: Port-channel / EtherChannel mis-bundle creating loop / outage of AI cluster
+    stride_ai: [Denial_of_Service]
+    owasp_api: [API4:2023]
+    attack_enterprise: [T1499]
+    maestro: [M.L4.04]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      L3 switch in the AI training fabric uses EtherChannel for
+      bandwidth. Misconfigured LACP / PAgP mode mismatch (one side
+      `active`, other `on`) causes intermittent flapping. Distributed
+      training (multi-GPU NCCL, Horovod) is exquisitely sensitive to
+      packet-loss; training runs corrupt or stall. Not an attack —
+      but the failure mode an attacker can amplify by selectively
+      cable-pulling or running PortFast manipulation.
+    mitigations:
+      - "Standardise on LACP active/active mode mesh-wide; reject PAgP / `on` modes in change reviews"
+      - "Per-VLAN spanning-tree (PVST+) with explicit root bridge; BPDU Guard on access ports"
+      - "Switch fabric telemetry (Cisco Tetration, Arista CloudVision) with NCCL-loss correlation alerts"
+      - "Pre-deploy configuration validation (Batfish, Cisco vManage) for any L3-switch change in AI fabric"
+    refs: [T1499, API4:2023]

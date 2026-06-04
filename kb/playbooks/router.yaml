@@ -1,0 +1,82 @@
+component_type: router
+description: |
+  Network router / edge device — Cisco IOS / IOS-XE, Juniper Junos,
+  MikroTik RouterOS, Arista EOS, Palo Alto OS. Operates the
+  layer-3 forwarding plane between sites, branches, cloud-onramps,
+  and DC fabrics. In AI estates the router connects on-prem inference
+  workloads, training data sources, ExpressRoute / Direct Connect to
+  cloud AI services. Long compromise dwell-time (years) when neglected.
+threats:
+  - id: T_RTR_001
+    title: Edge-router CVE exploited (CISA KEV mass-exploit pattern)
+    stride_ai: [Elevation_of_Privilege, Tampering]
+    owasp_api: []
+    attack_enterprise: [T1190, T1133, T1542]
+    attack_cloud: [T1190]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 4
+    impact: 5
+    description: |
+      Cisco IOS-XE CVE-2023-20198 (CVSS 10.0, ~50K devices owned in
+      first week), Juniper J-Web CVE-2023-36844, Fortinet FortiOS
+      multiple. Once an attacker is on the edge router with privilege,
+      the entire downstream network (including AI workloads behind
+      the edge) is observable + MITM-able. CISA KEV catalogue lists a
+      new edge-device exploit every few weeks. Most enterprises run
+      months behind on edge firmware.
+    mitigations:
+      - "Mandatory CISA KEV patching SLA — 7 days for edge devices, 0 days for active-exploit advisories"
+      - "Management plane never reachable from the data plane; OOB management network only"
+      - "Edge devices NOT on public IPs except for the specific signalling protocols they need; web UI behind WireGuard / SSH bastion"
+      - "Configuration backups + integrity verification (signed configs; Cisco ROMMON / image-verification feature enabled)"
+    refs: [T1190, T1133, T1542]
+
+  - id: T_RTR_002
+    title: ACL drift exposing internal AI subnets to internet
+    stride_ai: [Information_Disclosure, Spoofing]
+    owasp_api: [API1:2023]
+    attack_enterprise: [T1133]
+    attack_cloud: [T1133]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Temporary "let me debug this from home" ACL change adds a
+      `permit any host internal-ai-vlan` line. Engineer rotates off
+      the team; the line stays in the running-config (and the saved-
+      config) for years. The on-prem AI model registry / vector store
+      is reachable from the public internet to anyone who finds the IP.
+      Shodan / Censys readily catalogues these.
+    mitigations:
+      - "Router config managed via GitOps (Ansible Tower, NSO, Itential, Cisco DNAC); console / direct-CLI changes auto-reverted"
+      - "Daily Shodan / Censys / RiskIQ external-attack-surface scan of org IP ranges; alert on newly exposed services"
+      - "Default-deny outside-in ACL with explicit allow-list; no `permit ip any any` in any production ACL"
+      - "Quarterly ACL audit; engineers attest to every non-default rule"
+    refs: [T1133, API1:2023]
+
+  - id: T_RTR_003
+    title: Routing-protocol injection (BGP / OSPF) blackholing AI inference traffic
+    stride_ai: [Denial_of_Service, Tampering]
+    owasp_api: [API4:2023]
+    attack_enterprise: [T1499, T1565]
+    attack_cloud: [T1499]
+    maestro: [M.L4.06, M.X.04]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      Internal OSPF / iBGP without authentication. An attacker on the
+      LAN injects routes that blackhole or reroute the traffic to AI
+      inference endpoints (on-prem or via ExpressRoute / Direct Connect).
+      The AT&T 2024 BGP-leak pattern at internet scale; the same
+      thing at enterprise scale is more common than reported. AI use
+      case: redirect prompts to attacker proxy, or trigger SLA-failure
+      cascade on a regulated AI workflow.
+    mitigations:
+      - "Routing-protocol authentication mandatory (OSPF MD5 / HMAC-SHA, BGP TCP-AO or MD5 + bgpsec where supported)"
+      - "BGP route-filter prefix lists; reject any advertisement outside the expected set"
+      - "RPKI for any internet-facing BGP session"
+      - "Routing-protocol updates monitored via NetFlow + Routinator / OpenBMP; alert on unexpected route changes"
+    refs: [T1499, T1565]

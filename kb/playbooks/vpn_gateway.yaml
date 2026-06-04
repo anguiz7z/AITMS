@@ -1,0 +1,64 @@
+component_type: vpn_gateway
+description: |
+  VPN gateway — Cisco AnyConnect, Palo Alto GlobalProtect, Fortinet SSL-VPN,
+  WireGuard, OpenVPN, Microsoft Always On VPN. Authenticated remote access
+  to corporate / cloud network.
+threats:
+  - id: T_VPN_001
+    title: Credential stuffing / phishing → VPN login
+    stride_ai: [Spoofing]
+    attack_enterprise: [T1078, T1133, T1110]
+    maestro: [M.L7.03]
+    likelihood: 5
+    impact: 5
+    description: |
+      VPN portals are the #1 ransomware entry vector. Attacker uses
+      credentials from breach dumps, phished users, or password sprays
+      to authenticate and pivot inside.
+    mitigations:
+      - "MFA enforced on every VPN login (no exceptions)"
+      - "Conditional access: device compliance, geo, time-of-day"
+      - "Detection: impossible-travel, brute-force lockout"
+      - "Migrate to ZTNA where feasible"
+    refs: [T1078, T1133, T1110]
+
+  - id: T_VPN_002
+    title: Vendor CVE → VPN bypass / RCE
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190]
+    maestro: [M.X.01]
+    likelihood: 3
+    impact: 5
+    # v0.16.0: appliance CVEs only — managed services (AWS Client VPN,
+    # Azure VPN Gateway, Google Cloud VPN) are vendor-patched.
+    requires:
+      metadata.deployment_mode: [appliance, virtual_appliance]
+    not_applicable_to:
+      metadata.vendor: [AWS, Microsoft, Google]
+      metadata.deployment_mode: [managed_service, saas, ztna]
+    description: |
+      Citrix NetScaler, Fortinet SSL-VPN, Pulse Secure, Cisco AnyConnect,
+      Ivanti Connect Secure — all had critical CVEs in recent years that
+      bypass auth. Unpatched VPN gateway is full network access.
+    mitigations:
+      - "Vendor advisory subscription; 24h patch SLA on critical"
+      - "External attack-surface monitoring"
+      - "Defense in depth: don't grant 'flat' network access from VPN"
+    refs: [T1190]
+
+  - id: T_VPN_003
+    title: Over-permissive split-tunnel / network access
+    stride_ai: [Elevation_of_Privilege]
+    attack_enterprise: [T1078, T1021]
+    maestro: [M.X.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      VPN policy gives users access to the entire internal network, not just
+      what their role requires. Compromise of one VPN account = lateral
+      movement freedom.
+    mitigations:
+      - "Per-role network policy: VPN user reaches only their needed services"
+      - "ZTNA / micro-segmentation"
+      - "Audit and reduce default access groups"
+    refs: [T1078, T1021]

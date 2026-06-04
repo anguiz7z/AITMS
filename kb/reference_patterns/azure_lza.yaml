@@ -1,0 +1,449 @@
+# Azure Landing Zone (CAF) cross-walk patterns
+#
+# Reference: https://learn.microsoft.com/azure/cloud-adoption-framework/ready/landing-zone/
+#
+# Each entry maps an ATMS mitigation to an Azure Landing Zone (Cloud
+# Adoption Framework / Enterprise-scale) design area. IDs follow:
+#   Azure_LZA.<DOMAIN>.<NUMBER>
+# Domains map to CAF design areas: IDENT, NET, MGMT, GOV, SEC, PLAT, AI.
+
+# ─── Identity + access (CAF "Identity and access management") ────────────
+- id: Azure_LZA.IDENT.1
+  display_name: Entra ID tenant hub federated to workload subscriptions
+  framework: Azure_LZA
+  category: identity
+  applies_to_component_types:
+    - identity_provider
+    - sso_service
+    - iam_principal
+  keywords:
+    - entra id
+    - aad
+    - tenant
+    - federation
+    - workload identity
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/cloud-adoption-framework/ready/azure-best-practices/identity-access
+  short_summary: |
+    A single Entra ID tenant fronts all subscriptions; workload
+    identities (managed identities / workload-identity federation)
+    replace shared service principals.
+
+- id: Azure_LZA.IDENT.2
+  display_name: Conditional Access for human + workload sign-ins
+  framework: Azure_LZA
+  category: identity
+  applies_to_component_types:
+    - identity_provider
+    - mfa_service
+    - sso_service
+  keywords:
+    - conditional access
+    - mfa
+    - device compliance
+    - sign-in risk
+  ai_specific: false
+  url: https://learn.microsoft.com/entra/identity/conditional-access/overview
+  short_summary: |
+    Conditional Access policies enforce MFA, compliant device, named
+    location and sign-in risk score before granting access to any
+    cloud control-plane or workload front-door.
+
+- id: Azure_LZA.IDENT.3
+  display_name: Privileged Identity Management (PIM) for just-in-time elevation
+  framework: Azure_LZA
+  category: identity
+  applies_to_component_types:
+    - pam_vault
+    - iam_principal
+    - identity_provider
+  keywords:
+    - pim
+    - just in time
+    - eligible role
+    - access review
+  ai_specific: false
+  url: https://learn.microsoft.com/entra/id-governance/privileged-identity-management/pim-configure
+  short_summary: |
+    Privileged roles (Owner, Contributor, Key Vault Administrator,
+    Cognitive Services Contributor) are eligible-only via PIM with MFA,
+    justification, approver and time-bound activation.
+
+- id: Azure_LZA.IDENT.4
+  display_name: Managed Identities + Workload Identity Federation
+  framework: Azure_LZA
+  category: identity
+  applies_to_component_types:
+    - iam_principal
+    - serverless_function
+    - container_orchestrator
+  keywords:
+    - managed identity
+    - workload identity
+    - oidc
+    - federated credential
+  ai_specific: false
+  url: https://learn.microsoft.com/entra/workload-id/workload-identities-overview
+  short_summary: |
+    System- or user-assigned managed identities replace stored
+    credentials for service-to-service auth. Workload Identity
+    Federation lets GitHub / AKS pods exchange OIDC tokens for Entra
+    tokens without secrets.
+
+# ─── Networking (CAF "Network topology and connectivity") ───────────────
+- id: Azure_LZA.NET.1
+  display_name: Hub-spoke topology with Azure Firewall + Bastion
+  framework: Azure_LZA
+  category: network
+  applies_to_component_types:
+    - firewall
+    - bastion_host
+    - network_segment
+  keywords:
+    - hub spoke
+    - azure firewall
+    - bastion
+    - jump host
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/cloud-adoption-framework/ready/azure-best-practices/define-an-azure-network-topology
+  short_summary: |
+    A connectivity-subscription hub VNet hosts Azure Firewall, Bastion
+    and ExpressRoute / VPN gateways. Workload spokes peer to the hub
+    and all egress is forced through the firewall via UDRs.
+
+- id: Azure_LZA.NET.2
+  display_name: Private Endpoint for every PaaS dependency
+  framework: Azure_LZA
+  category: network
+  applies_to_component_types:
+    - private_link
+    - object_storage
+    - database
+    - llm_inference
+  keywords:
+    - private endpoint
+    - private link
+    - paas
+    - public network access disabled
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/private-link/private-endpoint-overview
+  short_summary: |
+    Storage, SQL, Cosmos DB, Key Vault, AI Foundry, Azure OpenAI and
+    AI Search are reachable only via Private Endpoint with
+    publicNetworkAccess=Disabled. Stops accidental data exposure
+    via public PaaS endpoints.
+
+- id: Azure_LZA.NET.3
+  display_name: Azure DDoS Protection on internet-facing VNets
+  framework: Azure_LZA
+  category: network
+  applies_to_component_types:
+    - ddos_mitigation
+    - waf
+    - cdn
+  keywords:
+    - ddos
+    - protection plan
+    - volumetric
+    - rate
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/ddos-protection/ddos-protection-overview
+  short_summary: |
+    Enable an Azure DDoS Protection Plan on each VNet that hosts
+    public IPs. Provides L3-L4 mitigation + cost-protection guarantee
+    for scrubbed traffic.
+
+- id: Azure_LZA.NET.4
+  display_name: Azure WAF (Front Door / Application Gateway) for public apps
+  framework: Azure_LZA
+  category: network
+  applies_to_component_types:
+    - waf
+    - api_gateway
+    - cdn
+    - web_application
+  keywords:
+    - waf
+    - front door
+    - application gateway
+    - owasp
+    - bot
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/web-application-firewall/overview
+  short_summary: |
+    Azure WAF (DRS_2.1 + Bot Manager + Microsoft Threat Intel rules)
+    fronts every public web / API entry point including the LLM
+    inference endpoint.
+
+- id: Azure_LZA.NET.5
+  display_name: Azure Bastion as the single SSH / RDP entry point
+  framework: Azure_LZA
+  category: network
+  applies_to_component_types:
+    - bastion_host
+    - server_windows
+    - server_linux
+  keywords:
+    - bastion
+    - ssh
+    - rdp
+    - jump host
+    - just in time
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/bastion/bastion-overview
+  short_summary: |
+    Operators reach VMs only through Azure Bastion (no public IPs,
+    no inbound 22 / 3389). Combine with Defender for Cloud Just-in-Time
+    access for time-bound NSG holes.
+
+# ─── Management groups + Policy (CAF "Governance + Management") ─────────
+- id: Azure_LZA.GOV.1
+  display_name: Management-group hierarchy with workload-aligned scopes
+  framework: Azure_LZA
+  category: governance
+  applies_to_component_types:
+    - iam_principal
+  keywords:
+    - management group
+    - root mg
+    - workload mg
+    - alz hierarchy
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/cloud-adoption-framework/ready/enterprise-scale/management-group-and-subscription-organization
+  short_summary: |
+    The ALZ-recommended hierarchy: Root > Platform / Landing Zones /
+    Decommissioned / Sandbox, with Platform split into Identity,
+    Management, Connectivity, and Landing Zones split into Corp +
+    Online (and an AI MG for Cognitive workloads).
+
+- id: Azure_LZA.GOV.2
+  display_name: Azure Policy initiative for the ALZ baseline
+  framework: Azure_LZA
+  category: governance
+  applies_to_component_types:
+    - cspm
+  keywords:
+    - azure policy
+    - initiative
+    - alz
+    - guardrail
+    - deny
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/cloud-adoption-framework/ready/enterprise-scale/dine-guidance
+  short_summary: |
+    Assign the ALZ policy initiative (deny / deployIfNotExists) at the
+    root or platform MG to enforce diagnostic settings, allowed
+    locations, allowed SKUs, public-IP restrictions and required tags.
+
+- id: Azure_LZA.GOV.3
+  display_name: Dedicated AI subscription with separate policy initiative
+  framework: Azure_LZA
+  category: governance
+  applies_to_component_types:
+    - llm_inference
+    - rag_vector_store
+    - agent
+  keywords:
+    - ai subscription
+    - foundry
+    - azure openai
+    - subscription scope
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/cloud-adoption-framework/scenarios/ai/ready/landing-zone-overview
+  short_summary: |
+    AI workloads (Azure OpenAI, AI Foundry, AI Search, Document
+    Intelligence) live in a dedicated subscription with an AI-specific
+    policy initiative — public-network-access deny, customer-managed
+    key required, content-safety required.
+
+# ─── Security platform services ──────────────────────────────────────────
+- id: Azure_LZA.SEC.1
+  display_name: Defender for Cloud across all subscriptions (CSPM + CWPP)
+  framework: Azure_LZA
+  category: governance
+  applies_to_component_types:
+    - cspm
+    - container_security
+    - vulnerability_scanner
+  keywords:
+    - defender for cloud
+    - cspm
+    - secure score
+    - regulatory compliance
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/defender-for-cloud/defender-for-cloud-introduction
+  short_summary: |
+    Enable Defender for Cloud (Servers, Containers, Storage, SQL,
+    Key Vault, App Service, APIs, AI). Secure Score + Regulatory
+    Compliance dashboards feed the SIEM and the Risk Register.
+
+- id: Azure_LZA.SEC.2
+  display_name: Microsoft Sentinel as SIEM + SOAR
+  framework: Azure_LZA
+  category: observability
+  applies_to_component_types:
+    - siem
+    - soar
+    - log_aggregator
+  keywords:
+    - sentinel
+    - siem
+    - soar
+    - kql
+    - workbook
+    - analytics rule
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/sentinel/overview
+  short_summary: |
+    Sentinel ingests Entra sign-ins, Defender for Cloud findings,
+    Azure activity log, AI Foundry diagnostic logs, Azure OpenAI
+    audit events. KQL analytics rules + Logic-App playbooks for SOAR.
+
+- id: Azure_LZA.SEC.3
+  display_name: Azure Key Vault + Managed HSM for crypto custody
+  framework: Azure_LZA
+  category: data
+  applies_to_component_types:
+    - secrets_vault
+    - kms_key
+    - hsm
+  keywords:
+    - key vault
+    - managed hsm
+    - fips 140-2
+    - cmk
+    - bring your own key
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/key-vault/general/overview
+  short_summary: |
+    Key Vault Premium / Managed HSM stores customer-managed keys,
+    certificates and secrets. Managed HSM is FIPS 140-2 Level 3 and
+    backs CMK-encrypted Azure OpenAI / Cognitive Services.
+
+- id: Azure_LZA.SEC.4
+  display_name: Customer-managed encryption keys (CMK) for AI services
+  framework: Azure_LZA
+  category: data
+  applies_to_component_types:
+    - llm_inference
+    - kms_key
+    - object_storage
+  keywords:
+    - cmk
+    - bring your own key
+    - byok
+    - encryption at rest
+    - openai
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/encryption/cognitive-services-encryption-keys-portal
+  short_summary: |
+    Azure OpenAI, AI Foundry, AI Search and Document Intelligence
+    support CMK encryption. Bind keys in Key Vault / Managed HSM and
+    pin a Managed Identity for envelope-encryption operations.
+
+- id: Azure_LZA.SEC.5
+  display_name: Diagnostic settings forward all platform logs to Log Analytics
+  framework: Azure_LZA
+  category: observability
+  applies_to_component_types:
+    - log_aggregator
+    - observability_stack
+  keywords:
+    - diagnostic setting
+    - log analytics
+    - activity log
+    - resource log
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/azure-monitor/essentials/diagnostic-settings
+  short_summary: |
+    DeployIfNotExists policies ensure every resource emits resource
+    + activity logs to a centralised Log Analytics workspace (and to
+    Sentinel). Immutable copies land in an archive storage account.
+
+# ─── Platform automation + CI/CD ─────────────────────────────────────────
+- id: Azure_LZA.PLAT.1
+  display_name: ALZ deployment via Bicep / Terraform with GitOps gates
+  framework: Azure_LZA
+  category: governance
+  applies_to_component_types:
+    - iac_template_registry
+    - ci_cd_pipeline
+    - code_repository
+  keywords:
+    - bicep
+    - terraform
+    - alz
+    - landing zone accelerator
+    - gitops
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/cloud-adoption-framework/ready/enterprise-scale/deploy-landing-zones-with-terraform
+  short_summary: |
+    ALZ is deployed via the AVM (Azure Verified Modules) Terraform /
+    Bicep accelerator with PR-gated changes. No portal click-ops on
+    platform subscriptions.
+
+- id: Azure_LZA.PLAT.2
+  display_name: GitHub Advanced Security / Defender for DevOps in CI
+  framework: Azure_LZA
+  category: governance
+  applies_to_component_types:
+    - ci_cd_pipeline
+    - code_repository
+    - vulnerability_scanner
+  keywords:
+    - github advanced security
+    - codeql
+    - dependabot
+    - defender for devops
+    - msdo
+  ai_specific: false
+  url: https://learn.microsoft.com/azure/defender-for-cloud/defender-for-devops-introduction
+  short_summary: |
+    Code, dependency and secret scanning are blocking checks on every
+    PR (CodeQL, Dependabot, Trivy via MSDO). Findings surface in
+    Defender for Cloud DevOps Security blade.
+
+# ─── AI-specific landing-zone patterns ───────────────────────────────────
+- id: Azure_LZA.AI.1
+  display_name: AI Foundry / Azure OpenAI behind Private Endpoint with disabled public access
+  framework: Azure_LZA
+  category: network
+  applies_to_component_types:
+    - llm_inference
+    - private_link
+    - rag_vector_store
+  keywords:
+    - azure openai
+    - foundry
+    - private endpoint
+    - public network access disabled
+    - ai search
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/cognitive-services-virtual-networks
+  short_summary: |
+    Azure OpenAI, AI Foundry projects and AI Search are deployed with
+    publicNetworkAccess=Disabled and Private Endpoints into the
+    workload spoke. Outbound traffic from prompt-flow / agents goes
+    through the hub Azure Firewall.
+
+- id: Azure_LZA.AI.2
+  display_name: Azure AI Content Safety wired into every prompt + completion
+  framework: Azure_LZA
+  category: data
+  applies_to_component_types:
+    - content_safety_classifier
+    - guardrails
+    - output_filter
+    - llm_inference
+  keywords:
+    - content safety
+    - prompt shield
+    - jailbreak
+    - groundedness
+    - protected material
+  ai_specific: true
+  url: https://learn.microsoft.com/azure/ai-services/content-safety/overview
+  short_summary: |
+    Content Safety + Prompt Shields screen every prompt for direct +
+    indirect jailbreaks, and every completion for harmful categories,
+    protected material and groundedness against retrieved context.

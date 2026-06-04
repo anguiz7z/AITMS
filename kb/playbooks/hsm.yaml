@@ -1,0 +1,69 @@
+component_type: hsm
+description: |
+  Hardware Security Module — AWS CloudHSM, Azure Dedicated HSM, GCP Cloud HSM,
+  Thales / Entrust appliance HSM. Hosts the highest-trust cryptographic
+  keys: model-signing keys, customer-specific data-encryption KEK, code-
+  signing certificates for AI artifacts.
+threats:
+  - id: T_HSM_001
+    title: HSM partition key extraction via key-export operation
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API2:2023, API5:2023]
+    atlas: []
+    attack_cloud: [T1552]
+    attack_enterprise: [T1552]
+    maestro: [M.L4.06]
+    likelihood: 1
+    impact: 5
+    description: |
+      HSM partition permits key-export with sufficient privilege (admin
+      partition login). A privileged user / compromised admin extracts the
+      model-signing key or the data-encryption KEK, bypassing the entire
+      HSM-as-root-of-trust premise.
+    mitigations:
+      - "Non-exportable key attributes (set at creation); reject exportable=true on AI-critical keys"
+      - "Quorum control: M-of-N admins required for any export operation"
+      - "Audit log → SIEM, alert on every key-export request"
+    refs: [AML.M0019]
+
+  - id: T_HSM_002
+    title: HSM API rate-limit DoS during model-deployment surge
+    stride_ai: [Denial_of_Service]
+    owasp_api: [API4:2023]
+    maestro: [M.L4.04]
+    likelihood: 2
+    impact: 3
+    description: |
+      AI deployment pipeline signs every model artifact with the HSM-backed key.
+      A high-volume retraining run (every model version, every region, every
+      tenant) exceeds HSM partition QPS; signing requests time out; deployment
+      stalls or workloads fall back to unsigned artifacts.
+    mitigations:
+      - "Capacity-plan HSM partition QPS for peak deploy patterns"
+      - "Caching: short-lived signed intermediate certs for batch operations"
+      - "Hard-fail if signing-cert verification fails; do NOT fall back to unsigned"
+    refs: [AML.M0023]
+
+  - id: T_HSM_003
+    title: HSM admin / crypto-officer credential theft
+    stride_ai: [Spoofing, Elevation_of_Privilege]
+    owasp_api: [API2:2023, API5:2023]
+    atlas: []
+    attack_cloud: [T1078.004, T1552]
+    attack_enterprise: [T1078, T1552]
+    maestro: [M.L7.03, M.L4.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      HSM partition admin or crypto-officer credentials are stored on a
+      single engineer's laptop, in a shared password manager vault, or as
+      a static IAM role with broad PEM access. Compromised credential
+      lets the attacker generate new keys, change quorum policy, or
+      issue signed model artifacts that pass downstream verification.
+      One-and-done compromise of the AI root-of-trust.
+    mitigations:
+      - "M-of-N quorum required for any partition-policy change (CloudHSM cluster owners)"
+      - "Admin credentials on dedicated hardware tokens (YubiKey, smart card); never on laptops"
+      - "Just-in-time elevation for HSM admin actions (Privileged Access Management gate)"
+      - "All HSM admin actions logged → SIEM with same-day human review"
+    refs: [T1078, T1552, AML.M0019]

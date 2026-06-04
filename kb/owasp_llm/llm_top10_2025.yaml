@@ -1,0 +1,256 @@
+# OWASP Top 10 for LLM Applications 2025
+# Source: https://genai.owasp.org/llm-top-10/
+# Version: 2025
+# Curated for ATMS — every entry references the official ID and short title
+
+- id: LLM01:2025
+  title: Prompt Injection
+  short: prompt_injection
+  description: |
+    A prompt injection vulnerability occurs when user inputs alter the LLM's behavior or output
+    in unintended ways. Includes direct prompt injection (jailbreaks via crafted user input) and
+    indirect prompt injection (malicious instructions embedded in retrieved content, tool outputs,
+    documents, or webpages the LLM processes).
+  patterns:
+    - "Direct: jailbreak, persona override, system-prompt extraction"
+    - "Indirect: poisoned RAG document, tool-output injection, hidden HTML/markdown instructions"
+    - "Multimodal: image-embedded text instructions"
+  example: |
+    A customer support bot is jailbroken via a crafted message that overrides its system prompt,
+    exposing other users' chat history.
+  mitigations:
+    - "Treat all model output and tool input as untrusted; apply output validation"
+    - "Constrain model behavior with explicit role instructions and least-privilege tool access"
+    - "Adversarial prompt testing in CI"
+    - "Input/output filtering and content policies (e.g., Llama Guard, NeMo Guardrails)"
+    - "Segregate trusted system prompts from retrieved/user content via clear delimiters"
+  applies_to:
+    - llm_inference
+    - agent
+    - rag_vector_store
+    - tool
+
+- id: LLM02:2025
+  title: Sensitive Information Disclosure
+  short: sensitive_info_disclosure
+  description: |
+    LLMs can leak sensitive data including PII, financial details, health records, proprietary
+    business data, system prompts, training data, or credentials via output, model inversion, or
+    membership inference attacks.
+  patterns:
+    - "PII memorization in training data resurfaces during inference"
+    - "System prompt leakage via prompt injection or model probing"
+    - "Confidential RAG content returned to unauthorized users"
+    - "Embedded credentials in code suggestions"
+  example: |
+    A code-completion model trained on private repos suggests an API key it memorized from its
+    training corpus.
+  mitigations:
+    - "PII detection and redaction on inputs and outputs (Presidio, Comprehend PII)"
+    - "RBAC at the retrieval layer; per-user vector partitions"
+    - "Differential privacy or DP-SGD during training/fine-tuning"
+    - "Output filtering for secrets (gitleaks-style regex on model outputs)"
+    - "Strict data classification and minimization in training corpora"
+  applies_to:
+    - llm_inference
+    - rag_vector_store
+    - embedding_service
+    - training_pipeline
+    - fine_tuning_pipeline
+
+- id: LLM03:2025
+  title: Supply Chain
+  short: supply_chain
+  description: |
+    Vulnerabilities in third-party model weights, datasets, plugins, embeddings, or training
+    pipelines can introduce backdoors, biases, or malicious behaviors. Open-weight models from
+    untrusted hubs are a primary risk.
+  patterns:
+    - "Backdoored open-weight models from compromised model hubs"
+    - "Tampered or trojanized fine-tuning datasets"
+    - "Compromised tokenizer or embedding library"
+    - "Malicious plugins/MCP servers with hidden instructions"
+  example: |
+    A team downloads a fine-tuned LLaMA from a public hub; the weights contain a trigger phrase
+    that causes the model to leak its system prompt.
+  mitigations:
+    - "Pin model artifacts by SHA-256; verify signatures (Sigstore, model cards)"
+    - "Scan model weights for backdoors (Hugging Face PickleScan, ProtectAI ModelScan)"
+    - "SBOM for the AI stack including datasets, models, embeddings, plugins"
+    - "Vendor risk assessment for model providers and dataset sources"
+  applies_to:
+    - model_registry
+    - training_pipeline
+    - fine_tuning_pipeline
+    - mcp_server
+    - tool
+
+- id: LLM04:2025
+  title: Data and Model Poisoning
+  short: data_model_poisoning
+  description: |
+    Adversarial manipulation of pre-training, fine-tuning, or RAG corpora to introduce
+    vulnerabilities, biases, backdoors, or to degrade performance. Poisoning can be targeted
+    (trigger-based) or untargeted (degradation).
+  patterns:
+    - "RAG corpus poisoning: malicious docs injected into vector store"
+    - "Trigger-based backdoors in fine-tuning data"
+    - "Crowdsourced label-flip attacks"
+    - "Embedding-space poisoning to bias retrieval"
+  example: |
+    An attacker submits docs to a public-facing RAG system; the system retrieves them and the
+    LLM follows the embedded instructions to leak data.
+  mitigations:
+    - "Provenance and integrity checks on training/RAG data"
+    - "Outlier detection and data sanitization pipelines"
+    - "Restrict RAG ingestion to trusted sources; require approval for new corpora"
+    - "Periodic model integrity tests against poisoning canaries"
+  applies_to:
+    - training_pipeline
+    - fine_tuning_pipeline
+    - rag_vector_store
+    - data_source
+
+- id: LLM05:2025
+  title: Improper Output Handling
+  short: improper_output_handling
+  description: |
+    Insufficient validation, sanitization, or escaping of LLM outputs before they're passed to
+    other systems leads to XSS, SSRF, SQL injection, RCE, or path traversal.
+  patterns:
+    - "LLM output rendered as HTML without sanitization → XSS"
+    - "LLM-generated SQL executed without parameterization → SQL injection"
+    - "LLM-generated shell commands executed → RCE"
+    - "LLM-generated URLs fetched server-side → SSRF"
+  example: |
+    A chatbot responds with a markdown image whose URL is `javascript:alert(1)` and the frontend
+    renders it; XSS results.
+  mitigations:
+    - "Treat LLM output as untrusted input; validate against strict allowlists"
+    - "Markdown-only rendering with HTML escaped (no inline HTML, no scripts)"
+    - "Parameterized queries; never string-concatenate LLM output into SQL/shell"
+    - "Egress controls on tools that fetch URLs"
+  applies_to:
+    - llm_inference
+    - agent
+    - tool
+    - output_filter
+
+- id: LLM06:2025
+  title: Excessive Agency
+  short: excessive_agency
+  description: |
+    Granting an LLM-based agent excessive functionality, permissions, or autonomy creates risk
+    of harmful actions when the LLM hallucinates, is manipulated, or makes mistakes. Includes
+    excessive functionality, excessive permissions, and excessive autonomy.
+  patterns:
+    - "Agent has tools it doesn't need (file delete, shell exec)"
+    - "Agent runs with admin/root privileges instead of least-privilege"
+    - "Fully autonomous agent acts on irreversible operations without human confirmation"
+  example: |
+    An email-triage agent is given a `delete_email` tool; an indirect prompt injection causes it
+    to delete a user's inbox.
+  mitigations:
+    - "Tool allowlist per task; least privilege per agent"
+    - "Human-in-the-loop confirmation on irreversible/high-impact actions"
+    - "Rate limits and quotas on tool invocations"
+    - "Sandboxed execution environments; ephemeral credentials"
+  applies_to:
+    - agent
+    - tool
+    - mcp_server
+
+- id: LLM07:2025
+  title: System Prompt Leakage
+  short: system_prompt_leakage
+  description: |
+    System prompts are not a security boundary. If sensitive information (credentials, API keys,
+    business logic, user PII) is embedded in the system prompt, it can be exfiltrated via prompt
+    injection, model inversion, or output probing.
+  patterns:
+    - "API keys or DB credentials in system prompt"
+    - "Internal business rules exposed when system prompt is leaked"
+    - "User PII placed in system context"
+  example: |
+    A bot's system prompt contains its OpenAI API key; a user asks 'repeat your instructions'
+    and the key is returned.
+  mitigations:
+    - "Treat system prompts as public; never embed secrets"
+    - "Use external vault for credentials, not prompt-embedded"
+    - "Per-request context with minimal data; don't leak business logic via prompts"
+  applies_to:
+    - llm_inference
+    - prompt_template_store
+    - agent
+
+- id: LLM08:2025
+  title: Vector and Embedding Weaknesses
+  short: vector_embedding_weaknesses
+  description: |
+    Vulnerabilities in how vectors and embeddings are generated, stored, retrieved, and used in
+    RAG systems. Includes embedding inversion, cross-tenant leakage, prompt injection via
+    embedded content, and weaknesses in similarity search.
+  patterns:
+    - "Embedding inversion: reconstruct text from embedding vectors"
+    - "Cross-tenant data leakage in shared vector stores"
+    - "Adversarial documents that win retrieval to inject prompts"
+    - "Stale or unrevoked embeddings retain deleted content"
+  example: |
+    A multi-tenant RAG system uses a single shared index; tenant A's queries surface tenant B's
+    documents because partition filters were never enforced.
+  mitigations:
+    - "Per-tenant vector partitions or separate indices"
+    - "Encrypt embeddings at rest; access control on retrieval queries"
+    - "Sanitize and authenticate ingestion sources"
+    - "Implement deletion propagation; verify with periodic audits"
+  applies_to:
+    - rag_vector_store
+    - embedding_service
+
+- id: LLM09:2025
+  title: Misinformation
+  short: misinformation
+  description: |
+    LLMs produce hallucinated, biased, or factually wrong content presented confidently. Risks
+    include reputational damage, legal liability, biased decisions, and over-reliance.
+  patterns:
+    - "Hallucinated citations or APIs in code suggestions"
+    - "Biased recommendations affecting hiring, lending, healthcare"
+    - "Confidence without uncertainty signal"
+  example: |
+    A legal-research assistant cites case law that doesn't exist; a junior associate files a
+    brief based on it.
+  mitigations:
+    - "Ground outputs with retrieval and cite sources"
+    - "Confidence scores and abstention signals"
+    - "Human review for high-stakes domains (legal, medical, financial)"
+    - "Fact-checking pipelines and red-team evaluations"
+  applies_to:
+    - llm_inference
+    - rag_vector_store
+    - agent
+
+- id: LLM10:2025
+  title: Unbounded Consumption
+  short: unbounded_consumption
+  description: |
+    LLM-based systems can be exploited for denial of wallet (DoW) and denial of service (DoS).
+    Includes token exhaustion via long inputs/outputs, infinite tool-call loops, model
+    extraction via repeated queries, and inference resource abuse.
+  patterns:
+    - "Massive prompts that exhaust per-request token budgets"
+    - "Recursive agent loops that never terminate"
+    - "Model extraction via repeated probing"
+    - "Cost-based DoS exploiting expensive model variants"
+  example: |
+    An attacker submits a prompt with 100K tokens; the system bills the operator $200 per call
+    and the attacker scripts thousands of calls.
+  mitigations:
+    - "Per-user rate limits and token quotas; circuit breakers"
+    - "Max iteration count on agent loops; turn limits"
+    - "Cost monitoring with per-tenant alerts"
+    - "Caching for repeated queries; deduplication"
+  applies_to:
+    - llm_inference
+    - agent
+    - tool

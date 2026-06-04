@@ -1,0 +1,74 @@
+component_type: cache_store
+description: |
+  Distributed cache — ElastiCache (Redis/Memcached), Azure Cache for Redis,
+  Memorystore. Used for RAG-result caching, prompt-template cache, agent
+  session state, KV-cache for LLM inference. Compromise = read every cached
+  prompt / response / session.
+threats:
+  - id: T_CACHE_001
+    title: Cache poisoning → wrong RAG results / LLM jailbreak persistence
+    stride_ai: [Tampering]
+    owasp_llm: [LLM01:2025, LLM03:2025]
+    owasp_agentic: [AGT01]
+    owasp_api: [API8:2023]
+    atlas: [AML.T0051.001]
+    maestro: [M.L3.03]
+    likelihood: 3
+    impact: 4
+    description: |
+      Attacker with cache write access (via SSRF / over-permissive role)
+      seeds the RAG cache with adversarial chunks. Every subsequent
+      retrieval against the cached key returns the poisoned content,
+      causing persistent prompt injection.
+    mitigations:
+      - "Cache writes require service-account auth; no anonymous writes"
+      - "Per-entry signed validation (HMAC) at read time"
+      - "Short TTL on AI-related cache entries (5-15 min)"
+      - "Cache miss → recompute from source-of-truth; never serve cached on validation failure"
+    refs: [AML.M0015]
+
+  - id: T_CACHE_002
+    title: Cross-tenant cache key collision → leaks prompts between customers
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API1:2023]
+    atlas: [AML.T0057]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Cache key uses prompt content hash but not tenant_id. Tenant A's prompt
+      that happens to hash-match Tenant B's prompt returns B's cached response
+      to A, leaking B's response context (including any tool-call output, PII).
+    mitigations:
+      - "Cache key MUST include tenant_id as prefix; enforce at the cache-client wrapper"
+      - "Per-tenant Redis namespace / database number"
+      - "Tenant_id appears in every audit log entry from the cache"
+    refs: [AML.M0019]
+
+  - id: T_CACHE_003
+    title: Cross-user prompt-prefix cache leak (KV-cache reuse)
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_agentic: [AGT09]
+    owasp_api: [API1:2023]
+    atlas: [AML.T0057]
+    nist_ai_100_2: [NIST_PAI_PRIVACY_MEMBERSHIP]
+    maestro: [M.L4.06]
+    linddun: [I_001, DD_002]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      LLM serving stack (vLLM / TGI / SGLang) reuses KV-cache across users
+      whose prompts share a prefix. Per-user system prompts that contain
+      tenant identifiers leak when the cache returns another user's
+      cached completion. Particularly problematic in multi-tenant
+      Bedrock / OpenAI / vLLM deployments where prefix-caching is on
+      by default for cost reasons.
+    mitigations:
+      - "Disable KV-cache reuse across users in multi-tenant deployments"
+      - "Salt every prompt with the tenant_id at a position that breaks shared prefixes"
+      - "Per-tenant inference pools — physical separation of cache state"
+      - "Audit serving-stack config: vLLM `--enable-prefix-caching` off unless tenancy is enforced upstream"
+    refs: [AML.M0015]

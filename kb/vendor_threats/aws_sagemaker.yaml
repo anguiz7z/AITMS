@@ -1,0 +1,320 @@
+# AWS SageMaker vendor-threat overlay (v0.16.5)
+# Covers SageMaker Studio Domain, Training Jobs, Endpoints, Pipelines,
+# Notebook Lifecycle Configurations, BYO-container models, and the
+# Model Registry. Augments the ml_pipeline_orchestrator /
+# training_pipeline / ml_inference_endpoint playbooks.
+# Public references:
+#   - https://aws.amazon.com/blogs/security/learn-how-to-build-and-maintain-a-secure-amazon-sagemaker-environment/
+#   - https://aws.amazon.com/blogs/machine-learning/configuring-cross-account-access-for-amazon-sagemaker-studio/
+#   - https://rhinosecuritylabs.com/aws/aws-iam-privilege-escalation-methods/ (#5 SageMaker CreateTrainingJob PassRole)
+#   - https://rhinosecuritylabs.com/aws/exploiting-aws-sagemaker-misconfigurations/
+#   - https://hackingthe.cloud/aws/exploitation/sagemaker-execution-role-shadow/
+#   - https://blog.lightspin.io/aws-sagemaker-privilege-escalation (Dec 2022, "Bucket Monopoly"-class)
+#   - https://blog.lightspin.io/aws-sagemaker-pipeline-pickle-rce
+#   - https://docs.aws.amazon.com/sagemaker/latest/dg/security-vpc.html
+
+- id: T_SAGEMAKER_001
+  title: SageMaker Studio Domain default execution role over-permissive → Bedrock / S3 wildcard read
+  description: |
+    SageMaker Studio Domain creation in the AWS Console offers a "Quick
+    Setup" path that attaches `AmazonSageMakerFullAccess` to the
+    execution role. That managed policy includes wildcard S3 read on
+    buckets tagged or named like `sagemaker-*`, plus `bedrock:Invoke*`
+    on every model. A user with `sagemaker:CreatePresignedDomainUrl`
+    (broadly granted to "Data Scientists") logs into the Studio
+    notebook and inherits the full execution role inside the notebook
+    kernel. From there: `boto3.client('bedrock-runtime').invoke_model()`
+    against any FM, `boto3.client('s3').get_object(Bucket='sagemaker-*')`
+    against every team's bucket.
+    Rhino Security Labs and Lightspin (now Cisco) documented multiple
+    privilege-escalation paths from this default role — including
+    chaining to `iam:PassRole` (T_AWS_IAM_002) for further escalation.
+  stride_ai: [Elevation_of_Privilege, Information_Disclosure]
+  owasp_llm: [LLM06:2025, LLM02:2025]
+  owasp_agentic: [AGT03, AGT09]
+  owasp_api: [API5:2023]
+  atlas: [AML.T0055, AML.T0024, AML.T0007]
+  attack_cloud: [T1078.004, T1098.003, T1552]
+  attack_enterprise: []
+  nist_ai_100_2: [NIST_GAI_DATA_PRIVACY]
+  maestro: [M.X.03, M.L4.06]
+  csa_singapore: [CSA_AI.DEPLOY.01]
+  likelihood: 4
+  impact: 5
+  mitigations:
+    - "Never use the 'Quick Setup' execution role in production accounts. Create a per-domain role with least-privilege S3 (`s3:GetObject` only on specific bucket ARNs), no `bedrock:*` unless required, no `iam:PassRole` outside named training roles"
+    - "Permission Boundaries on every Studio execution role that explicitly deny `iam:*`, `secretsmanager:GetSecretValue` on non-domain secrets, and S3 actions outside the team's bucket prefix"
+    - "Constrain domain creation to a single platform-engineering account via SCP `Deny sagemaker:CreateDomain` on workload accounts; centralize via Service Catalog Portfolio"
+    - "Enable SageMaker Studio Lifecycle Configurations that run `aws sts get-caller-identity` + drift detection on every notebook start, alerting on roles outside an allowlist"
+    - "Detective: CloudTrail rule on `CreatePresignedDomainUrl` calls + correlate with `bedrock:InvokeModel` / `s3:GetObject` calls from the resulting domain-role session token within 5 min"
+  refs: [AML.M0019, AML.M0023]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [sagemaker, sagemaker_studio]
+    component_type: [ml_pipeline_orchestrator, iam_principal]
+  applies_to_ai_workflows: true
+
+- id: T_SAGEMAKER_002
+  title: Training-job IAM role over-broad → cross-team Model Registry write / package poisoning
+  description: |
+    `sagemaker:CreateTrainingJob` accepts a `RoleArn` that the job runs
+    under. Many tenants centralise on a single "SageMakerTrainingRole"
+    with `sagemaker:CreateModel` + `sagemaker:CreateModelPackage` on
+    `*`. A compromised training job (via T_SAGEMAKER_003 BYO-container
+    RCE, T_SAGEMAKER_006 lifecycle injection, or simple notebook code
+    edit) then writes a malicious model package into the
+    cross-team Model Registry — overwriting `arn:aws:sagemaker:*:*:
+    model-package-group/prod-fraud-v2` with a backdoored artifact.
+    Promotion pipelines pick up the new ModelPackage at the next
+    refresh; nothing in SageMaker's native flow re-validates the
+    artifact's signature.
+    Lightspin's "Bucket Monopoly" class of attacks (Dec 2022) and the
+    follow-up "SageMaker Pipeline Pickle RCE" describe variants. ATLAS
+    AML.T0018 (Manipulate ML Model) and AML.T0020 (Poison Training
+    Data) cover the threat-model.
+  stride_ai: [Tampering, Elevation_of_Privilege, Spoofing]
+  owasp_llm: [LLM04:2025, LLM03:2025]
+  owasp_agentic: [AGT12]
+  owasp_api: [API5:2023, API8:2023]
+  atlas: [AML.T0018, AML.T0019, AML.T0020, AML.T0011]
+  attack_cloud: [T1098.003, T1525]
+  attack_enterprise: [T1195]
+  nist_ai_100_2: [NIST_GAI_HARMFUL_OUTPUT]
+  maestro: [M.L2.02, M.X.02, M.X.01]
+  csa_singapore: [CSA_AI.DEPLOY.01]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Per-team training roles. Scope `sagemaker:CreateModelPackage` to a single ModelPackageGroup ARN matching the team via resource tags"
+    - "Model Registry approval gate: require `ModelApprovalStatus=PendingManualApproval` for new versions; promote via change-management ticket, not auto-promote"
+    - "Sign every model artifact with AWS Signer / SLSA attestation; pipeline rejects unsigned packages at deploy time"
+    - "S3 bucket policy on the artifact store: `aws:PrincipalTag/team = aws:ResourceTag/team` — block cross-team writes even if the IAM role would allow it"
+    - "Detective: CloudTrail rule on `CreateModelPackage` where `RoleArn`'s team-tag != target ModelPackageGroup's team-tag; auto-quarantine the package version"
+  refs: [AML.M0007, AML.M0014, AML.M0019]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [sagemaker, sagemaker_training, sagemaker_pipelines, sagemaker_model_registry]
+    component_type: [training_pipeline, ml_pipeline_orchestrator, model_registry]
+  applies_to_ai_workflows: true
+
+- id: T_SAGEMAKER_003
+  title: SageMaker Endpoint deployed without VPC isolation — publicly invokeable inference
+  description: |
+    SageMaker real-time endpoints default to "public" — they are
+    reachable via the AWS service endpoint `runtime.sagemaker.<region>.
+    amazonaws.com` to any IAM principal with `sagemaker:InvokeEndpoint`
+    on the ARN. The endpoint itself runs inside an AWS-managed VPC by
+    default; only `EnableNetworkIsolation=true` + `VpcConfig` at
+    endpoint config creation place it on a customer VPC. When teams
+    skip this (the Studio "Deploy" button does not enforce VPC config),
+    the inference surface is reachable from any compromised role in
+    the org — and via cross-account `sagemaker:InvokeEndpoint` if
+    resource-based policies are permissive. Combined with no
+    authentication on the model's input schema, this enables model-
+    extraction attacks (T1606 / AML.T0029) at scale.
+    Particularly relevant for fine-tuned LLM endpoints serving
+    proprietary weights — every InvokeEndpoint call leaks
+    output that can be used to re-train a clone.
+    See https://docs.aws.amazon.com/sagemaker/latest/dg/security-vpc.html
+  stride_ai: [Information_Disclosure, Denial_of_Service, Spoofing]
+  owasp_llm: [LLM02:2025, LLM10:2025, LLM07:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API2:2023, API4:2023]
+  atlas: [AML.T0024, AML.T0029, AML.T0044, AML.T0007]
+  attack_cloud: [T1078.004, T1133]
+  attack_enterprise: []
+  nist_ai_100_2: [NIST_GAI_INTELLECTUAL_PROPERTY, NIST_GAI_AVAILABILITY]
+  maestro: [M.L4.06, M.L7.03, M.L1.04]
+  csa_singapore: [CSA_AI.DEPLOY.03, CSA_AI.DEPLOY.04]
+  likelihood: 4
+  impact: 4
+  mitigations:
+    - "Enforce `EnableNetworkIsolation=true` + `VpcConfig` (Subnets + SecurityGroupIds) on every endpoint config. SCP deny `sagemaker:CreateEndpointConfig` where these fields are missing"
+    - "PrivateLink endpoint (`com.amazonaws.<region>.sagemaker.runtime`) + VPCE policy restricting source to specific subnets — invocations off-VPC fail"
+    - "Endpoint resource policy: deny `sagemaker:InvokeEndpoint` to principals outside `aws:PrincipalOrgID == o-xxxxxxx`"
+    - "WAF (via API Gateway proxy in front of endpoint) with rate-limit + anomalous-input rule; required for any public inference surface"
+    - "Output rate-limit: SageMaker `OutputConfig` `MaxConcurrentInvocationsPerInstance` capped low for extraction-defense"
+    - "Detective: CloudWatch metric on `Invocations` per principal; alert on >2× baseline + InvokeEndpoint from unfamiliar IAM principal"
+  refs: [AML.M0015, AML.M0019, AML.M0029]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [sagemaker, sagemaker_endpoint]
+    component_type: [ml_inference_endpoint, llm_inference]
+  applies_to_ai_workflows: true
+
+- id: T_SAGEMAKER_004
+  title: Pre-built container image with embedded credentials — supply-chain leak via ECR
+  description: |
+    SageMaker training and inference can use "Deep Learning Containers"
+    (DLCs) — AWS-curated images pulled from a public ECR registry. Teams
+    routinely extend these by `FROM 763104351884.dkr.ecr.<region>.
+    amazonaws.com/pytorch-training:2.4.0-gpu-py311 AS base` and adding
+    their own layers. A common antipattern: `COPY .env /opt/ml/code/`
+    or `ARG HUGGINGFACE_TOKEN` baked into the image layers. Anyone
+    with `ecr:GetAuthorizationToken` on the team's private ECR can pull
+    the image and run `docker history` to extract the secrets.
+    When the image is mirrored to a public ECR (intentionally for
+    open-source release) or accidentally on a misconfigured repo policy
+    (`ecr-public:*` allows worldwide pulls), credentials leak to the
+    internet. Multiple recent disclosures (2023-2024) found Anthropic /
+    OpenAI / HuggingFace tokens in public SageMaker-derived images.
+  stride_ai: [Information_Disclosure, Tampering]
+  owasp_llm: [LLM03:2025, LLM10:2025]
+  owasp_agentic: [AGT09]
+  owasp_api: [API8:2023]
+  atlas: [AML.T0011, AML.T0024, AML.T0010, AML.T0010.001]
+  attack_cloud: [T1552, T1552.001]
+  attack_enterprise: [T1195, T1552.001]
+  nist_ai_100_2: [NIST_GAI_DATA_PRIVACY]
+  maestro: [M.X.01, M.X.02]
+  csa_singapore: [CSA_AI.DEPLOY.04]
+  likelihood: 3
+  impact: 4
+  mitigations:
+    - "Inject secrets at runtime via SageMaker `Environment` parameter sourced from Secrets Manager — never via Dockerfile `ARG`/`ENV`/`COPY`"
+    - "ECR image scanning enabled with secret-detection (`SCAN_ON_PUSH`); break build on secret-finding"
+    - "ECR repository policy: deny `ecr-public:*`; require `aws:SourceArn = <CI pipeline>` for pushes"
+    - "Build-time linter (`hadolint`, `trufflehog filesystem`) on the Dockerfile + final image layer scan via Trivy / Grype"
+    - "Use AWS Signer + cosign to sign every image; SageMaker training role can only pull signed images via ECR repository policy + tag-immutability"
+    - "Detective: AWS Macie / Trufflehog Enterprise scan of ECR registries on a weekly cadence; auto-quarantine images with findings"
+  refs: [AML.M0007, AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [sagemaker, sagemaker_training, sagemaker_endpoint, ecr]
+    component_type: [training_pipeline, ml_inference_endpoint, container_registry]
+  applies_to_ai_workflows: true
+
+- id: T_SAGEMAKER_005
+  title: SageMaker Pipelines parameter injection — string-templated step invocations
+  description: |
+    SageMaker Pipelines define DAGs of steps (Processing, Training,
+    Transform, CreateModel) parameterised via `ParameterString` /
+    `ParameterInteger`. Steps frequently reference parameters in shell
+    commands or Python kwargs via Python f-string-like templating —
+    e.g. a Processing step's `entrypoint: ["python","run.py","--input",
+    f"{ds_uri}"]`. If `ds_uri` is sourced from an upstream parameter
+    that a less-privileged role can set (`sagemaker:StartPipelineExecution`
+    with `PipelineParameters`), an attacker injects shell metacharacters
+    or path-traversal that the entrypoint passes downstream.
+    Lightspin published "SageMaker Pipeline Pickle RCE" demonstrating
+    pickle-payload injection via parameter — landing arbitrary Python
+    execution under the pipeline's execution role.
+    Compounds with T_SAGEMAKER_002 because the execution role's blast
+    radius determines the impact.
+  stride_ai: [Tampering, Elevation_of_Privilege]
+  owasp_llm: [LLM05:2025]
+  owasp_agentic: [AGT05]
+  owasp_api: [API5:2023, API8:2023]
+  atlas: [AML.T0010, AML.T0050, AML.T0011]
+  attack_cloud: [T1078.004]
+  attack_enterprise: [T1059, T1190]
+  nist_ai_100_2: [NIST_GAI_PROMPT_INJECTION_DIRECT]
+  maestro: [M.L3.05, M.L7.04]
+  csa_singapore: [CSA_AI.DEPLOY.01]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Validate all `ParameterString` inputs at the pipeline entrypoint with strict regex / Pydantic schemas — reject anything outside expected character sets BEFORE passing to the step"
+    - "Never string-template a parameter into a shell command. Use argv arrays (`['python','run.py','--input',ds_uri]`) and pass parameters as separate args, not joined strings"
+    - "IAM: scope `sagemaker:StartPipelineExecution` resource policy to specific pipeline ARNs and use `sagemaker:PipelineParameters` condition keys to restrict which parameters can be overridden by which principal"
+    - "Pipeline definitions in CI-controlled S3 + signed manifests; runtime-modifiable parameters are explicitly enumerated, never `*`"
+    - "Detective: CloudTrail rule on `StartPipelineExecution` calls comparing the supplied parameters' hash against the pipeline-definition allowlist"
+  refs: [AML.M0015, AML.M0019, AML.M0023]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [sagemaker, sagemaker_pipelines]
+    component_type: [ml_pipeline_orchestrator, training_pipeline]
+  applies_to_ai_workflows: true
+
+- id: T_SAGEMAKER_006
+  title: Notebook Lifecycle Configuration bash injection — root-on-notebook persistence
+  description: |
+    SageMaker Notebook Instances and Studio Apps support Lifecycle
+    Configuration scripts: shell scripts that run as root on every
+    `start-notebook` event (5-min ceiling). The scripts are stored in
+    SageMaker's control plane as base64-encoded blobs. A user with
+    `sagemaker:CreateNotebookInstanceLifecycleConfig` (often broadly
+    granted to MLOps engineers) can drop a script that:
+    1. Reads instance-role credentials via IMDS (or simply from
+       `boto3.Session().get_credentials()` — no SSRF needed since the
+       script runs as root inside the kernel),
+    2. Persists them to an attacker-controlled S3 bucket,
+    3. Installs a backdoored Python wheel into the conda env that's
+       triggered on every notebook session,
+    4. Modifies `~/.ssh/authorized_keys` for the `ec2-user` to enable
+       SSH if the notebook is started with `--network-mode 'direct
+       internet access'`.
+    The malicious LCC persists across notebook restarts and across
+    *teams* if it's attached to a shared default config (a common
+    Domain-level pattern).
+  stride_ai: [Tampering, Elevation_of_Privilege, Information_Disclosure]
+  owasp_llm: []
+  owasp_agentic: [AGT12]
+  owasp_api: [API5:2023, API8:2023]
+  atlas: [AML.T0011, AML.T0050, AML.T0010, AML.T0055]
+  attack_cloud: [T1098.003, T1078.004, T1552]
+  attack_enterprise: [T1059, T1098, T1546]
+  nist_ai_100_2: []
+  maestro: [M.X.03, M.L7.04]
+  csa_singapore: [CSA_AI.DEPLOY.01]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Restrict `sagemaker:CreateNotebookInstanceLifecycleConfig` and `sagemaker:UpdateNotebookInstanceLifecycleConfig` to a single platform-engineering role; deny on data-scientist roles via SCP"
+    - "Source-control LCC scripts in a Git repo + CI; sync via Step Function on commit; alert on any out-of-band create/update"
+    - "Notebook Instances with `DirectInternetAccess=Disabled` + `VpcConfig` — even if the LCC is malicious, egress is constrained"
+    - "Pre-Notebook-launch CloudTrail lookup: refuse to launch if the attached LCC was created/modified in the last 24h and not by the approved pipeline role"
+    - "Use Studio's containerised image / `LifecycleConfigs` (JupyterLab and KernelGateway separation) with read-only root FS; mount required dirs writable only at user level"
+    - "Detective: Macie or Trufflehog scan of S3 buckets receiving LCC-execution output; correlate with `CreateNotebookInstanceLifecycleConfig` events in the prior week"
+  refs: [AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [sagemaker, sagemaker_studio]
+    component_type: [ml_pipeline_orchestrator, iam_principal, container_runtime]
+  applies_to_ai_workflows: true
+
+- id: T_SAGEMAKER_007
+  title: BYO-model custom inference handler — pickle RCE at endpoint load time
+  description: |
+    SageMaker permits Bring-Your-Own-Model deployment where the model
+    artifact is a `.tar.gz` containing weights AND an `inference.py`
+    script. At endpoint instance launch, the script is `import`-ed,
+    and `model_fn(model_dir)` is called — both at *root*-equivalent
+    privilege inside the container. If the model artifact is loaded
+    via `torch.load(...)` or `pickle.load(...)` without `weights_only=
+    True`, an attacker who can write to the S3 model-artifact bucket
+    (overly-broad `s3:PutObject`, T_AWS_S3_001, or a compromised
+    upstream training job) embeds a pickle gadget that executes code
+    when `model_fn` runs — pulling instance-role credentials, persisting
+    a reverse shell to attacker S3, modifying `inference.py` to leak
+    every subsequent request.
+    The pickle-deserialization RCE pattern is one of the oldest in
+    Python ML; the Hugging Face team has been campaigning against it
+    since 2023 via the `safetensors` format. SageMaker does not enforce
+    `safetensors`; the BYO surface remains exposed.
+    See: https://huggingface.co/docs/safetensors/main/en/security
+  stride_ai: [Tampering, Elevation_of_Privilege, Spoofing]
+  owasp_llm: [LLM03:2025, LLM05:2025]
+  owasp_agentic: [AGT12]
+  owasp_api: [API5:2023, API8:2023]
+  atlas: [AML.T0010, AML.T0010.001, AML.T0010.002, AML.T0011, AML.T0018]
+  attack_cloud: [T1525, T1078.004]
+  attack_enterprise: [T1195, T1059, T1546]
+  nist_ai_100_2: [NIST_GAI_HARMFUL_OUTPUT]
+  maestro: [M.X.01, M.X.02, M.L7.04]
+  csa_singapore: [CSA_AI.DEPLOY.01, CSA_AI.GOV.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Mandate `safetensors` format for all model artifacts; CI rejects `*.bin` / `*.pkl` / `*.pt` (pickle-based) uploads to the artifact bucket"
+    - "If pickle is unavoidable, use `torch.load(..., weights_only=True)` (PyTorch 2.4+); never `pickle.load` user-controlled paths"
+    - "S3 bucket policy on the model-artifact bucket: write access only to the signed CI training-job role; `aws:RequestObjectTagKeys` mandates a CI-signed tag on every upload"
+    - "Endpoint container with seccomp/AppArmor profile blocking egress sockets and credential-path reads — limits RCE blast radius even on successful exploitation"
+    - "Model Registry approval gate runs a containerised `inference.py` static analyzer (bandit, semgrep) + a sandboxed dry-load before approval"
+    - "Detective: CloudTrail correlation between `CreateEndpoint` events and out-of-band S3 PUTs to the model-artifact bucket within the prior 24h; alert if uploader != approved pipeline"
+  refs: [AML.M0007, AML.M0014, AML.M0015, AML.M0023]
+  requires:
+    metadata.vendor: [aws, amazon]
+    metadata.product: [sagemaker, sagemaker_endpoint, sagemaker_model_registry]
+    component_type: [ml_inference_endpoint, model_registry, training_pipeline]
+  applies_to_ai_workflows: true

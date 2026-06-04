@@ -1,0 +1,35 @@
+%% Canonical Mermaid sample — Retrieval-Augmented Generation pipeline.
+%% Showcases user / API / LLM / vector DB / object store / observability
+%% topology. Use:  atms scan samples/iac/rag_pipeline.mmd
+
+flowchart LR
+  subgraph "Internet"
+    user((Customer))
+  end
+
+  subgraph "Public edge"
+    waf[/AWS WAF/]
+    api[API Gateway]
+  end
+
+  subgraph "VPC: production"
+    orchestrator[RAG Orchestrator]
+    llm[Anthropic Claude API]
+    embed[Bedrock Embeddings]
+    vec[(Pinecone vector store)]
+    docs[(S3 - knowledge base)]
+    cache[(Redis cache)]
+    cw[CloudWatch Logs]
+    kv[/Secrets Manager/]
+  end
+
+  user -->|HTTPS| waf
+  waf -->|TLS forward| api
+  api -->|JWT bearer| orchestrator
+  orchestrator -->|query embedding| embed
+  orchestrator -->|similarity search| vec
+  orchestrator -->|fetch chunk| docs
+  orchestrator -->|generate| llm
+  orchestrator -->|cache hit| cache
+  orchestrator -->|fetch keys| kv
+  orchestrator -->|audit log| cw

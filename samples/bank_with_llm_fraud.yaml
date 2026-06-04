@@ -1,0 +1,260 @@
+name: Retail bank with LLM-based fraud-detection sidecar
+description: |
+  A retail bank's core transaction-processing estate (ATM front-end, AS400
+  mainframe, Oracle core banking, PCI segment, network DMZ, customer
+  database) with a recently-added LLM-based fraud-scoring sidecar. The LLM
+  receives transaction context (amount, merchant, geo, account history)
+  and returns a risk score that the core banking system uses to
+  approve / hold / decline.
+
+business_context: |
+  Critical infrastructure (MAS-regulated). The non-AI parts of the
+  architecture have been live for 15+ years; the LLM sidecar is a 2025
+  pilot. Existing IT-security review covers the non-AI estate. ATMS is
+  used to surface the *additional* risks introduced by bolting an LLM
+  onto a regulated banking platform — not to re-do the IT review.
+
+  This is the canonical "AI-induced risk on a non-AI core" sample for
+  ATMS v0.15.0. A reviewer should expect to see: prompt-injection /
+  RAG-poisoning / model-cost-DoS threats on the LLM and its fraud
+  rule-store, plus AI-adjacent threats on the database and AS400 that
+  exist *because* the LLM has access to them. The customer-facing ATM
+  network (which the LLM does not touch) gets zero threats.
+
+components:
+  # ─── Customer-facing IT (AI does not touch this layer) ──────────────────
+  - id: atm_terminal
+    name: ATM terminal
+    type: endpoint
+    trust_zone: branch_floor
+    description: Physical NCR ATM running OS-locked Windows, EMV chip reader.
+    metadata:
+      vendor: NCR
+      product: SelfServ-32
+      hostname: atm-sg-001
+
+  - id: atm_network
+    name: ATM private network
+    type: network_segment
+    trust_zone: atm_dmz
+    description: Dedicated MPLS to ATM acquirer; physically segmented.
+    metadata:
+      cidr: 10.20.0.0/16
+
+  - id: edge_fw
+    name: Edge firewall
+    type: firewall
+    trust_zone: dmz
+    description: Palo Alto VM-Series; outbound deny by default.
+    metadata:
+      vendor: Palo Alto Networks
+      product: PAN-OS
+
+  # ─── Core banking (existing IT review covers this; LLM doesn't touch it) ─
+  - id: customer
+    name: Bank customer
+    type: user
+    trust_zone: external
+    description: Account holder, card user.
+
+  - id: web_banking
+    name: Web banking portal
+    type: web_application
+    trust_zone: dmz
+    description: Customer-facing internet banking.
+
+  - id: as400
+    name: AS400 mainframe
+    type: legacy_mainframe
+    trust_zone: core_banking
+    description: Existing IBM i mainframe — passbook, savings, FX desk.
+    metadata:
+      vendor: IBM
+      product: AS400
+
+  # ─── Core banking that the LLM DOES touch (AI-adjacent) ─────────────────
+  - id: core_banking
+    name: Oracle core banking
+    type: database
+    trust_zone: core_banking
+    description: |
+      Transaction-processing system. The fraud-detection LLM is granted
+      read-only access via a service account; it pulls 30 days of
+      txn history per scoring call.
+    metadata:
+      vendor: Oracle
+      product: oracle-flexcube
+
+  - id: customer_db
+    name: Customer master DB
+    type: database
+    trust_zone: core_banking
+    description: |
+      PII (name, ID, address). The LLM service account has SELECT on
+      a redacted view; PII is hashed before it reaches the LLM context.
+
+  - id: txn_queue
+    name: Transaction event bus
+    type: message_queue
+    trust_zone: core_banking
+    description: |
+      Kafka topic the core writes every authorised txn to. The LLM
+      consumer subscribes for the live scoring path.
+    metadata:
+      product: kafka
+
+  - id: fraud_iam
+    name: Fraud-LLM IAM role
+    type: iam_principal
+    trust_zone: core_banking
+    description: |
+      Workload identity for the LLM. Currently scoped to: SELECT on
+      core_banking, SELECT on customer_db (redacted view), CONSUME on
+      txn_queue. Reviewer should question every permission here.
+
+  - id: fraud_secrets
+    name: Vault — LLM credentials
+    type: secrets_vault
+    trust_zone: core_banking
+    description: |
+      AppRole-issued, 1-hour-TTL DB credentials + Anthropic API key
+      for the LLM service. Vault audit log enabled.
+    metadata:
+      vendor: HashiCorp
+      product: vault
+
+  # ─── The AI sidecar itself (AI primary) ─────────────────────────────────
+  - id: fraud_llm
+    name: Fraud-detection LLM
+    type: llm_inference
+    trust_zone: ai_sidecar
+    description: |
+      Anthropic Claude Sonnet, called from the bank's AWS account via the
+      Anthropic API. Receives: txn context (amount, merchant, geo, account
+      history, redacted PII). Returns: risk score 0..1 + freeform
+      explanation. NOT in the synchronous auth path — runs in shadow mode
+      for 30 days, then enabled as soft-gate.
+    metadata:
+      vendor: Anthropic
+      product: claude-sonnet-4-6
+
+  - id: fraud_rules_rag
+    name: Fraud-rules RAG store
+    type: rag_vector_store
+    trust_zone: ai_sidecar
+    description: |
+      Vector store of historical fraud-pattern descriptions (text), gathered
+      from the bank's own incident reports. The LLM retrieves 3-5 most
+      similar patterns per scoring call.
+    metadata:
+      vendor: Pinecone
+      product: pinecone
+
+  - id: fraud_rules_curator
+    name: Fraud-rules curation pipeline
+    type: training_pipeline
+    trust_zone: ai_sidecar
+    description: |
+      Weekly job that ingests new incident reports, embeds them, and
+      writes to the RAG store. Approval-gated by the fraud-ops team.
+
+  - id: fraud_guardrails
+    name: Output guardrail
+    type: guardrails
+    trust_zone: ai_sidecar
+    description: |
+      Validates the LLM's response: must be valid JSON, score in [0, 1],
+      explanation does not leak account numbers / PII.
+
+  # ─── Observability (LLM-touched, AI-adjacent) ───────────────────────────
+  - id: obs
+    name: Observability stack
+    type: observability_stack
+    trust_zone: prod
+    description: |
+      Datadog. Receives metrics from the LLM service. Trace spans
+      include the prompt SHA-256 (NOT the prompt itself), the score, and
+      a redacted explanation summary.
+    metadata:
+      vendor: Datadog
+
+dataflows:
+  # Customer-facing path (no AI):
+  - id: f_atm_customer
+    source: customer
+    target: atm_terminal
+    label: insert card
+    crosses_boundary: true
+  - id: f_atm_net
+    source: atm_terminal
+    target: atm_network
+    label: ISO 8583 over MPLS
+  - id: f_atm_core
+    source: atm_network
+    target: as400
+    label: txn settlement
+    crosses_boundary: true
+  - id: f_web_in
+    source: customer
+    target: web_banking
+    label: HTTPS login
+    crosses_boundary: true
+  - id: f_web_fw
+    source: web_banking
+    target: edge_fw
+    label: outbound rule check
+  - id: f_web_core
+    source: edge_fw
+    target: core_banking
+    label: txn submit
+  - id: f_core_as400
+    source: core_banking
+    target: as400
+    label: GL settlement
+  - id: f_core_customer_db
+    source: core_banking
+    target: customer_db
+    label: account lookup
+
+  # Where the LLM enters the system (these are the dataflows that
+  # create AI-adjacent threats on the otherwise-non-AI components):
+  - id: f_core_to_queue
+    source: core_banking
+    target: txn_queue
+    label: txn event published
+  - id: f_queue_to_llm
+    source: txn_queue
+    target: fraud_llm
+    label: txn context
+  - id: f_llm_db_read
+    source: fraud_llm
+    target: core_banking
+    label: 30-day txn history
+  - id: f_llm_customer_redacted
+    source: fraud_llm
+    target: customer_db
+    label: redacted PII view
+  - id: f_llm_rag
+    source: fraud_llm
+    target: fraud_rules_rag
+    label: retrieve similar patterns
+  - id: f_curator_rag
+    source: fraud_rules_curator
+    target: fraud_rules_rag
+    label: weekly index update
+  - id: f_llm_guardrail
+    source: fraud_llm
+    target: fraud_guardrails
+    label: response validation
+  - id: f_llm_iam
+    source: fraud_iam
+    target: fraud_llm
+    label: assume-role
+  - id: f_llm_secrets
+    source: fraud_llm
+    target: fraud_secrets
+    label: Anthropic API key
+  - id: f_llm_obs
+    source: fraud_llm
+    target: obs
+    label: redacted metrics + trace

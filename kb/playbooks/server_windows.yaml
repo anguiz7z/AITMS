@@ -1,0 +1,123 @@
+component_type: server_windows
+description: |
+  Windows Server — Windows Server 2016 / 2019 / 2022 / 2025 hosting
+  Active Directory, SQL Server, IIS, file shares, application
+  workloads. Frequently joined to AD; often runs scheduled tasks,
+  services with cached credentials. Common pivot point in
+  enterprise breaches.
+threats:
+  - id: T_SRVWIN_001
+    title: Credential dumping (Mimikatz / LSASS) on compromised server
+    stride_ai: [Information_Disclosure, Elevation_of_Privilege, Lateral_Movement]
+    attack_enterprise: [T1003.001, T1003.002, T1558]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 5
+    description: |
+      Attacker with local admin on a Windows server dumps LSASS or
+      reads SAM / NTDS to recover password hashes for cached domain
+      accounts. Pass-the-hash / silver-ticket attacks then move
+      laterally to DCs and other servers. Mimikatz remains the
+      dominant tradecraft after a decade.
+    mitigations:
+      - "Credential Guard + LSA Protection (RunAsPPL) on all servers"
+      - "Disable WDigest; restrict NTLM via Network security policy"
+      - "Tier-0 admin isolation — DA accounts never log onto member servers"
+      - "EDR with LSASS-handle-access detection and behaviour blocking"
+    refs: [T1003, AML.M0019]
+
+  - id: T_SRVWIN_002
+    title: SMB / RPC remote-code-execution exploitation (EternalBlue-class CVE)
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1210, T1190, T1021.002]
+    maestro: [M.X.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Unpatched SMB / RPC / Print Spooler / RDP CVEs (EternalBlue,
+      PrintNightmare, BlueKeep, ZeroLogon) provide reliable remote
+      code execution against a server. WannaCry / NotPetya / Conti
+      all weaponised this class of bug. Unpatched servers in flat
+      networks remain frequent.
+    mitigations:
+      - "Patch-Tuesday +14-day SLA on critical CVEs"
+      - "Disable SMBv1 fleet-wide; restrict SMB to authenticated users"
+      - "Microsegmentation: block lateral SMB/RPC across server tiers"
+      - "Windows Defender Exploit Guard + ASR rules"
+    refs: [AML.M0007]
+
+  - id: T_SRVWIN_003
+    title: Scheduled-task / service persistence by attacker
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1053.005, T1543.003]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 3
+    description: |
+      Adversary creates a scheduled task or Windows service pointing
+      to a payload binary. Survives reboot, runs as SYSTEM, blends
+      with normal task names ("WindowsUpdater", "TelemetrySvc"). One
+      of the most common Sysinternals-class persistence mechanisms.
+    mitigations:
+      - "Sysmon + EDR alerts on schtasks / sc.exe / New-Service creation"
+      - "Service-creation events forwarded to SIEM with anomaly baseline"
+      - "Application allowlist (WDAC / AppLocker) preventing arbitrary binary execution"
+      - "Periodic service-and-task inventory diff vs baseline"
+    refs: [T1543, AML.M0019]
+
+  - id: T_SRVWIN_004
+    title: SQL Server / IIS / file-share misconfiguration leaks data
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1213, T1083]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      File shares with Everyone:Read; SQL Server with sa/blank
+      password (still seen in 2025 environments); IIS directory-
+      listing on backup folders. Internal attacker or RPA bot
+      discovers cross-tenant files / DB exports / unprotected backups.
+    mitigations:
+      - "Quarterly Share/NTFS-permission audit; alert on Everyone or Authenticated Users grants on sensitive shares"
+      - "SQL Server logins with strong passwords + AAD integration; disable mixed-mode where possible"
+      - "BloodHound / SharpHound + ShareEnum sweeps to discover at-risk shares"
+      - "Data classification + DLP on file shares"
+    refs: [T1135, AML.M0019]
+
+  - id: T_SRVWIN_005
+    title: Group Policy / startup script abused for malware deployment
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1484, T1547.003]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      Attacker with GPO-edit rights pushes a malicious startup
+      script or scheduled-task GPO that lands on every member
+      server. Single AD-side compromise becomes fleet-wide RCE.
+    mitigations:
+      - "Tier-0 administrative model; only Tier-0 accounts can edit GPOs"
+      - "GPO change audit forwarded to SIEM with two-person review"
+      - "AdminSDHolder / Protected Users membership review weekly"
+      - "Read-only DC monitoring of GPO-version-number changes"
+    refs: [T1484, AML.M0019]
+
+  - id: T_SRVWIN_006
+    title: Unmonitored PowerShell / WMI lateral movement
+    stride_ai: [Defense_Evasion, Tampering, Lateral_Movement]
+    attack_enterprise: [T1059.001, T1047, T1021.006]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Native PowerShell / WMI / WinRM cmd lines provide RCE
+      between member servers using cached credentials. Without
+      PowerShell logging + Sysmon, the activity is invisible to
+      most SIEMs. Living-off-the-land techniques sidestep
+      signature-based AV.
+    mitigations:
+      - "Constrained Language Mode + Just-Enough-Administration"
+      - "Module logging + Script-block logging + Transcription"
+      - "Sysmon Event 10/11 with EDR correlation on cross-host PowerShell"
+      - "Restrict WinRM / WMI to admin tier; firewall by source"
+    refs: [T1059, AML.M0019]

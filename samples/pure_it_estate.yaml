@@ -1,0 +1,154 @@
+# Pure-IT estate — no AI components.
+# Demonstrates v0.17.4's general-purpose mode.
+# Run: atms analyze samples/pure_it_estate.yaml --allow-pure-it
+#
+# Closes the v0.17.4 user feedback "AI-only is not viable" — ATMS now
+# threat-models any architecture, not just AI systems.
+
+name: corporate-it-estate
+description: |
+  Mid-market corporate IT estate. Customer-facing web app + internal
+  database + identity provider + edge firewall. No AI in scope. Used
+  as a Cycle O reference for the v0.17.4 general-purpose-mode pivot.
+
+industry: tech_saas
+deployment_stage: production
+revenue_bucket: 50m_to_500m
+
+components:
+  - id: customer
+    name: External customer
+    type: user
+    trust_zone: external-untrusted
+
+  - id: edge_fw
+    name: Edge firewall (Palo Alto)
+    type: firewall
+    trust_zone: perimeter
+    metadata:
+      vendor: palo_alto
+
+  - id: waf
+    name: AWS WAF
+    type: waf
+    trust_zone: perimeter
+    metadata:
+      vendor: aws
+      product: waf
+
+  - id: lb
+    name: Application load balancer
+    type: load_balancer
+    trust_zone: dmz
+
+  - id: web_app
+    name: Customer-facing web app
+    type: web_application
+    trust_zone: dmz
+
+  - id: app_api
+    name: Backend API
+    type: web_application
+    trust_zone: internal
+
+  - id: pg
+    name: Customer database (PostgreSQL)
+    type: database
+    trust_zone: internal
+
+  - id: idp
+    name: Entra ID identity provider
+    type: identity_provider
+    trust_zone: identity
+    metadata:
+      vendor: azure
+      product: entra_id
+
+  - id: vault
+    name: HashiCorp Vault
+    type: secrets_vault
+    trust_zone: identity
+
+  - id: siem
+    name: Splunk SIEM
+    type: siem
+    trust_zone: security
+
+  - id: edr
+    name: CrowdStrike EDR
+    type: edr_agent
+    trust_zone: security
+
+dataflows:
+  - source: customer
+    target: edge_fw
+    label: HTTPS
+    crosses_boundary: true
+
+  - source: edge_fw
+    target: waf
+    label: forward
+    crosses_boundary: true
+
+  - source: waf
+    target: lb
+    label: filtered HTTPS
+
+  - source: lb
+    target: web_app
+    label: routed
+
+  - source: web_app
+    target: app_api
+    label: API calls
+    crosses_boundary: true
+
+  - source: app_api
+    target: pg
+    label: SQL
+
+  - source: app_api
+    target: idp
+    label: OIDC token validation
+    crosses_boundary: true
+
+  - source: app_api
+    target: vault
+    label: fetch credentials
+    crosses_boundary: true
+
+  - source: web_app
+    target: siem
+    label: audit log
+    crosses_boundary: true
+
+  - source: app_api
+    target: siem
+    label: audit log
+    crosses_boundary: true
+
+  - source: edr
+    target: siem
+    label: telemetry
+
+trust_boundaries:
+  - id: perimeter_zone
+    type: network
+    components_inside: [edge_fw, waf]
+    description: Public-facing perimeter
+  - id: dmz_zone
+    type: network
+    components_inside: [lb, web_app]
+    description: DMZ — public-traffic-touching apps
+  - id: internal_zone
+    type: network
+    components_inside: [app_api, pg]
+    description: Internal app + data
+  - id: identity_zone
+    type: identity
+    components_inside: [idp, vault]
+    description: Identity + secrets isolated zone
+  - id: security_zone
+    type: deployment_zone
+    components_inside: [siem, edr]
+    description: Security tooling

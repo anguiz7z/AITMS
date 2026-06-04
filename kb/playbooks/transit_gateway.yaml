@@ -1,0 +1,89 @@
+component_type: transit_gateway
+description: |
+  Cloud transit / hub-and-spoke connectivity — AWS Transit Gateway,
+  Azure Virtual WAN (vWAN), GCP Network Connectivity Center, OCI DRG.
+  Stitches together VPCs / VNets / on-prem via VPN/ExpressRoute, plus
+  multi-region. AI workloads typically span at least two accounts /
+  subscriptions (data lake separate from inference), making the TGW
+  the implicit pivot path between them. Wide-blast-radius asset:
+  one route-table misconfiguration leaks every workload to every other.
+threats:
+  - id: T_TGW_001
+    title: Route-table misconfiguration cross-connecting prod AI VPC to dev
+    stride_ai: [Information_Disclosure, Elevation_of_Privilege, Lateral_Movement]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API1:2023, API5:2023]
+    atlas: [AML.T0044]
+    attack_cloud: [T1078.004, T1213]
+    attack_enterprise: [T1133]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      AWS Transit Gateway with a single shared route table propagates
+      every attached VPC's CIDR everywhere. A dev VPC compromise
+      pivots straight into the prod AI training VPC (where the data
+      lake mount lives, where the model registry has private
+      endpoints). Same pattern on Azure vWAN when "Propagate to none"
+      route tables aren't used. The most expensive lateral-movement
+      path is invisible until it's exercised.
+    mitigations:
+      - "Per-environment TGW route table (prod, non-prod, shared-services); explicit propagation, no default-route-table use"
+      - "Azure vWAN hub route tables with explicit `none` association for spokes that shouldn't transit"
+      - "Network ACL / NSG per VPC as second line: deny RFC1918 source addresses outside the local CIDR"
+      - "Daily diff of TGW route tables → SNS / Teams alert on every change"
+    refs: [AML.M0019, AML.M0023]
+
+  - id: T_TGW_002
+    title: Compromised on-prem VPN endpoint as lateral pivot into AI account
+    stride_ai: [Elevation_of_Privilege, Information_Disclosure, Lateral_Movement]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API2:2023, API5:2023]
+    atlas: [AML.T0044, AML.T0049]
+    attack_cloud: [T1133, T1078]
+    attack_enterprise: [T1133, T1078]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      Site-to-site VPN or ExpressRoute / Direct Connect on-prem
+      attaches to the TGW. Compromise of on-prem (perimeter VPN, AD
+      ransomware, third-party-vendor VPN) reaches the AI workload
+      because the TGW happily forwards from on-prem CIDR to the AI
+      VPC. The Volt Typhoon / Storm-0501 hybrid-cloud playbook
+      exercises this path: on-prem AD → TGW → cloud AI workload →
+      cloud lateral movement.
+    mitigations:
+      - "TGW route table for on-prem segment explicitly denies routes to AI VPC CIDRs; AI VPC only reachable from designated 'trusted access' VPC"
+      - "Jump-host pattern: on-prem must enter a Bastion VPC first; no direct route to AI VPC"
+      - "BGP route filtering on Direct Connect / ExpressRoute — only advertise the specific on-prem prefixes the cloud needs"
+      - "Flow logs on every TGW attachment → SIEM; alert on cross-trust-boundary flows"
+    refs: [AML.M0019]
+
+  - id: T_TGW_003
+    title: TGW peering with partner / acquired-org account leaking AI workload
+    stride_ai: [Information_Disclosure]
+    owasp_llm: [LLM02:2025]
+    owasp_api: [API1:2023]
+    atlas: [AML.T0024, AML.T0044]
+    attack_cloud: [T1530, T1213]
+    nist_ai_100_2: [NIST_GAI_DATA_EXTRACTION]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.DEPLOY.02]
+    likelihood: 2
+    impact: 4
+    description: |
+      Transit Gateway peering (or Azure vWAN cross-tenant hub) was set
+      up for a partner integration. The peering inherits a default
+      "all-CIDRs-allowed" route, and now the partner can route into
+      the AI workload's VPC. Common during M&A — the acquired
+      company's network is connected via TGW peering as a stopgap
+      "we'll segment later," but later never comes.
+    mitigations:
+      - "Peering attachment uses a dedicated route table with explicit per-prefix allows; no `0.0.0.0/0` propagation"
+      - "Quarterly review of every TGW peering; auto-expire peerings with no traffic in 30 days"
+      - "Partner-segregation VPC: peering terminates there; AI VPC reachable only via explicit inter-VPC rules"
+      - "M&A integration playbook explicitly threat-models TGW peerings before flipping them on"
+    refs: [AML.M0019]

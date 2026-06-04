@@ -1,0 +1,83 @@
+component_type: alerting_platform
+description: |
+  On-call alerting / incident-response routing — PagerDuty, Opsgenie,
+  VictorOps / Splunk On-Call, Grafana OnCall, AWS Incident Manager,
+  Microsoft Azure Monitor Action Groups. Notifies humans when AI
+  workloads break or are abused (cost spike, guardrail mass-block,
+  agent infinite-loop, model drift). The "human-in-the-loop trust
+  anchor" — and therefore a high-leverage target for an attacker to
+  silence.
+threats:
+  - id: T_ALERT_001
+    title: Suppression / silenced-alert tampering hiding active AI abuse
+    stride_ai: [Tampering, Repudiation, Defense_Evasion]
+    owasp_api: [API5:2023, API9:2023]
+    atlas: [AML.T0015, AML.T0040]
+    attack_cloud: [T1562, T1562.006]
+    attack_enterprise: [T1562, T1562.006]
+    maestro: [M.L5.06]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 3
+    impact: 5
+    description: |
+      Attacker with PagerDuty / Opsgenie API token (often a stored
+      Terraform secret, often over-permissive) creates a maintenance
+      window or silence rule covering the AI workload's alerts. The
+      cost-anomaly, guardrail-mass-block, and agent-infinite-loop
+      alerts that would have notified the on-call go to /dev/null.
+      LAPSUS$ playbook documents this against incident-management
+      platforms specifically.
+    mitigations:
+      - "Per-service API tokens scoped to specific service IDs; no `*` access; rotate quarterly"
+      - "Audit trail of every maintenance window / silence / suppression with author + duration + justification"
+      - "Alert on the alerting platform itself: an alert fires when > N suppressions are created in a 1h window"
+      - "Critical-tier alerts (cost > 10x, guardrail block-rate > 5%) bypass suppression and always page"
+    refs: [AML.M0023]
+
+  - id: T_ALERT_002
+    title: Alert-storm engineered to trigger fatigue + skipping legitimate AI alert
+    stride_ai: [Denial_of_Service, Defense_Evasion]
+    owasp_api: [API4:2023]
+    atlas: [AML.T0040]
+    attack_cloud: [T1499, T1562]
+    maestro: [M.L5.06]
+    csa_singapore: [CSA_AI.OPERATE.02]
+    likelihood: 3
+    impact: 4
+    description: |
+      Attacker generates noise alerts adjacent to the real attack —
+      benign 5xx spikes, ELB warmup oscillation, dependency-health
+      flaps — to swamp the on-call's pager. When the real AI alert
+      (e.g. "production model accuracy fell 30%, look at it") arrives,
+      the engineer ack-and-snoozes by reflex. Pure social-attack
+      vector but extremely effective; documented in numerous IR
+      post-mortems.
+    mitigations:
+      - "Alert routing tiers: P1 (page + escalation), P2 (channel + create-ticket), P3 (queue + daily-digest) — only P1 wakes the on-call"
+      - "Alert grouping by service / cluster: 100 instances flapping = 1 alert, not 100"
+      - "Mute-by-reason rather than mute-everything: noisy alert gets a focused short-duration mute, not blanket silence"
+      - "Weekly on-call retrospective specifically reviews missed-alert post-mortems for patterns"
+    refs: [AML.M0023]
+
+  - id: T_ALERT_003
+    title: AI-specific alert thresholds default-out-of-the-box never tuned
+    stride_ai: [Defense_Evasion]
+    owasp_api: [API9:2023]
+    atlas: [AML.T0040]
+    maestro: [M.L5.04, M.L5.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 4
+    impact: 3
+    description: |
+      Generic templates set "alert when latency > 1s" — useless for
+      LLM inference where latency is naturally 5-30s. So engineering
+      disables the alert or sets it to a meaningless huge number. AI
+      workload now has no behavioural alerting. Cost runaway, drift,
+      guardrail-block storm proceed unnoticed because no one tuned
+      what "wrong" looks like for AI specifically.
+    mitigations:
+      - "Per-AI-workload SLI catalogue: token-cost per tenant, model error rate, guardrail block rate, agent-loop depth — each with a meaningful threshold"
+      - "Anomaly-detection alerts (CloudWatch Anomaly Detection, Datadog Forecast, Grafana Adaptive Metrics) rather than static thresholds"
+      - "Weekly AI ops review: tune one alert per week based on prior week's noise / miss data"
+      - "Onboarding checklist for new AI workloads explicitly lists the alerts that must exist before go-live"
+    refs: [AML.M0023]

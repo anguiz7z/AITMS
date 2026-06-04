@@ -1,0 +1,303 @@
+# AWS IAM vendor-threat overlay (v0.16.0)
+# Augments the generic iam_principal playbook with AWS-specific
+# identity-lineage threats. Applies when component metadata.vendor==aws.
+# Public write-ups:
+#   - https://rhinosecuritylabs.com/aws/assume-worst-aws-assume-role-enumeration/
+#   - https://rhinosecuritylabs.com/aws/aws-iam-privilege-escalation-methods/
+#   - https://blog.christophetd.fr/aws-iam-vulnerabilities/
+#   - https://hackingthe.cloud/aws/general-knowledge/intro_metadata_ssrf/
+
+- id: T_AWS_IAM_001
+  title: Cross-account confused-deputy via AssumeRole (no ExternalId)
+  description: |
+    A role's trust policy permits a third-party AWS account to call
+    `sts:AssumeRole` but omits the `sts:ExternalId` condition. A
+    malicious tenant of the same third-party service (e.g. a SaaS that
+    you and many other customers all granted access to) can guess or
+    enumerate the role ARN and assume it without proving they are *your*
+    customer of the third party — the classic confused-deputy.
+    Especially dangerous on roles trusted by AI/ML SaaS vendors (data
+    labellers, vector-DB providers, eval platforms) where the role
+    typically carries broad S3 read access to training corpora.
+    Mapped to ATT&CK T1078.004 (Valid Accounts: Cloud Accounts) and
+    T1550.001 (Application Access Token).
+  stride_ai: [Spoofing, Elevation_of_Privilege]
+  owasp_llm: []
+  owasp_agentic: [AGT09]
+  owasp_api: [API5:2023, API2:2023]
+  attack_cloud: [T1078.004, T1550]
+  attack_enterprise: [T1199]
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.L7.03, M.X.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Require `sts:ExternalId` on every cross-account role trust; rotate the ExternalId per tenant"
+    - "Constrain the trust policy to specific source `aws:PrincipalArn` or `aws:SourceAccount` values"
+    - "Enable IAM Access Analyzer external-access findings; alert on new external principals"
+    - "Audit weekly via CloudTrail `AssumeRole` events filtered by `sourceIPAddress` and `userIdentity.accountId`"
+  refs: [AML.M0019]
+  requires:
+    metadata.vendor: [aws, amazon]
+    component_type: [iam_principal]
+  applies_to_ai_workflows: false
+
+- id: T_AWS_IAM_002
+  title: IAM PassRole used to impersonate elevated service roles (Bedrock, SageMaker)
+  description: |
+    `iam:PassRole` lets a principal hand a role to an AWS service that
+    will then *act with that role's permissions*. If the principal can
+    PassRole to a high-privilege role (e.g. `AmazonBedrockExecutionRoleForAgents_*`,
+    a SageMaker training-job role with S3 wildcard read, or a Lambda
+    role with `secretsmanager:GetSecretValue:*`), they effectively
+    inherit that role's permissions through the service. Common path:
+    a developer role with `bedrock:CreateAgent` + `iam:PassRole` on
+    `*` can stand up a Bedrock Agent whose execution role can read any
+    S3 bucket. Combined with prompt injection, this becomes a data-
+    exfiltration primitive.
+    See Rhino "AWS IAM Privilege Escalation Methods" — methods 5, 6, 7
+    (CreateAccessKey-on-another-user / PassRole variants).
+  stride_ai: [Elevation_of_Privilege]
+  owasp_llm: [LLM06:2025]
+  owasp_agentic: [AGT03, AGT09]
+  owasp_api: [API5:2023]
+  attack_cloud: [T1078.004, T1098.003, T1548]
+  attack_enterprise: []
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.X.03, M.L4.06]
+  likelihood: 4
+  impact: 5
+  mitigations:
+    - "Scope `iam:PassRole` resource ARNs explicitly; never grant on `*`"
+    - "Use `iam:PassedToService` condition keys to limit which services may receive the role"
+    - "Permission Boundaries on developer roles capping max-effective privileges"
+    - "Detective controls: CloudTrail rule on `PassRole` to roles tagged `privilege:high`"
+    - "Service Control Policies blocking PassRole of admin-tagged roles outside break-glass account"
+  refs: [AML.M0019, AML.M0023]
+  requires:
+    metadata.vendor: [aws, amazon]
+    component_type: [iam_principal, llm_inference, agent, training_pipeline, fine_tuning_pipeline, serverless_function]
+  applies_to_ai_workflows: true
+
+- id: T_AWS_IAM_003
+  title: Lambda execution-role chaining → resource creation in elevated roles
+  description: |
+    A serverless function with `iam:CreateRole` + `iam:AttachRolePolicy`
+    (or with `lambda:UpdateFunctionConfiguration` + `iam:PassRole`) can
+    create new Lambda functions running under richer roles, then invoke
+    them — bootstrapping privilege escalation entirely inside the AWS
+    control plane. The classic chain: compromised Lambda → creates new
+    role with `AdministratorAccess` → creates new Lambda with that role
+    → invokes it → admin. CloudTrail captures the events but no
+    runtime control blocks them unless an SCP intervenes.
+    See Rhino "Privilege Escalation in AWS" #18 (PutRolePolicy) and
+    #19 (CreatePolicyVersion).
+  stride_ai: [Elevation_of_Privilege, Tampering]
+  owasp_llm: []
+  owasp_agentic: [AGT03]
+  owasp_api: [API5:2023]
+  attack_cloud: [T1098.003, T1136.003, T1525]
+  attack_enterprise: []
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.X.03]
+  likelihood: 3
+  impact: 5
+  mitigations:
+    - "Deny `iam:CreateRole`, `iam:AttachRolePolicy`, `iam:PutRolePolicy` from any non-admin role via SCP"
+    - "Permission Boundaries that exclude IAM-write actions on workload roles"
+    - "CloudTrail alert: workload role performing `CreateRole`/`AttachRolePolicy` is always anomalous"
+    - "AWS Config rule `iam-role-managed-policy-check` to detect drift"
+  refs: [AML.M0019, AML.M0023]
+  requires:
+    metadata.vendor: [aws, amazon]
+    component_type: [iam_principal, serverless_function, agent, container_runtime]
+  applies_to_ai_workflows: false
+
+- id: T_AWS_IAM_004
+  title: Service Control Policy gaps allow privilege escalation via IAM service
+  description: |
+    Organization-level SCPs are the only *preventive* control that
+    overrides a member-account principal's permissions. Common gaps:
+    SCPs that deny `iam:*` but exclude `iam:PassRole`; SCPs scoped only
+    to specific OUs leaving sandbox accounts unprotected; SCPs in
+    `Allow` mode (rather than the recommended `Deny` mode) leaving any
+    new IAM action implicitly allowed. Without `aws:RequestedRegion`
+    or `aws:PrincipalOrgID` deny conditions, a compromised role can
+    operate in unmonitored regions or be assumed by external accounts.
+    Especially relevant for AI workloads where Bedrock / SageMaker
+    are not yet enabled in every region but `iam:*` is global.
+  stride_ai: [Elevation_of_Privilege, Defense_Evasion]
+  owasp_llm: []
+  owasp_agentic: []
+  owasp_api: [API5:2023]
+  attack_cloud: [T1078.004, T1098.003, T1535]
+  attack_enterprise: []
+  atlas: []
+  nist: []
+  maestro: [M.X.03]
+  likelihood: 2
+  impact: 5
+  mitigations:
+    - "SCPs in `DenyList` mode at OU root: deny `iam:DeleteRolePolicy`, `iam:PutUserPolicy`, `iam:UpdateAssumeRolePolicy` outside break-glass"
+    - "Region restriction SCP: deny actions where `aws:RequestedRegion` not in approved list"
+    - "Cross-org deny: `aws:PrincipalOrgID` condition on all sensitive resource policies"
+    - "Periodic SCP simulation via IAM Access Analyzer policy-validation"
+  refs: [AML.M0019]
+  requires:
+    metadata.vendor: [aws, amazon]
+    component_type: [iam_principal]
+  applies_to_ai_workflows: false
+
+- id: T_AWS_IAM_005
+  title: STS token theft and replay (long-lived sessions, no MFA on AssumeRole)
+  description: |
+    STS credentials are bearer tokens — possession is sufficient to use
+    them. Default AssumeRole session duration is 1 hour but can be set
+    up to 12 hours; the `DurationSeconds` parameter is honoured even
+    when no MFA is required. An attacker who exfils session tokens
+    (via SSRF, container-image leakage, CloudTrail-log scraping of
+    accidentally-logged headers, or compromised CI runner) can replay
+    them from any IP unless `aws:SourceIp` is constrained on the role.
+    The token cannot be revoked individually — only by detaching the
+    underlying IAM principal's permissions or via `AWSRevokeOlderSessions`
+    inline policy.
+    Mapped to ATT&CK T1528 (Steal Application Access Token) and
+    T1550.001 (Application Access Token replay).
+  stride_ai: [Spoofing, Information_Disclosure]
+  owasp_llm: []
+  owasp_agentic: []
+  owasp_api: [API2:2023, API8:2023]
+  attack_cloud: [T1528, T1552, T1550]
+  attack_enterprise: [T1078]
+  atlas: []
+  nist: []
+  maestro: [M.L7.03]
+  likelihood: 3
+  impact: 4
+  mitigations:
+    - "Require MFA on AssumeRole via `aws:MultiFactorAuthPresent` condition for human-assumed roles"
+    - "Restrict role sessions with `aws:SourceIp` / `aws:SourceVpce` condition keys"
+    - "Set `MaxSessionDuration` to 1h on high-privilege roles; never grant `sts:GetFederationToken`"
+    - "Use the `AWSRevokeOlderSessions` inline policy as an emergency revocation lever"
+    - "Detective: GuardDuty `UnauthorizedAccess:IAMUser/InstanceCredentialExfiltrationOutsideAWS`"
+  refs: [AML.M0019, AML.M0012]
+  requires:
+    metadata.vendor: [aws, amazon]
+    component_type: [iam_principal]
+  applies_to_ai_workflows: false
+
+- id: T_AWS_IAM_006
+  title: IMDSv1 metadata-service abuse on EC2 / Lambda Web Adapter
+  description: |
+    Despite IMDSv2 being default for new launches since 2022, instances
+    launched from older AMIs, instances explicitly opted out, and Lambda
+    Web Adapter / App Runner workloads frequently still expose IMDSv1.
+    IMDSv1 is reachable from any process on the instance with no token
+    challenge — a single SSRF (often via an LLM tool that fetches URLs,
+    a misbehaving agent, or a vulnerable web framework) returns the
+    instance-role credentials. The credentials are then replayable from
+    any IP for the remainder of the session window.
+    Lambda Web Adapter is particularly under-scrutinised because
+    operators assume Lambda is "IMDS-free" — but the adapter exposes
+    `/2018-06-01/runtime/invocation/next` and bundled SDK calls hit a
+    metadata-like endpoint by default.
+    See https://hackingthe.cloud/aws/exploitation/ec2-imds-ssrf/
+  stride_ai: [Information_Disclosure, Elevation_of_Privilege]
+  owasp_llm: [LLM06:2025]
+  owasp_agentic: [AGT01]
+  owasp_api: [API7:2023]
+  attack_cloud: [T1552.005, T1078.004]
+  attack_enterprise: []
+  atlas: [AML.T0055]
+  nist: []
+  maestro: [M.L4.06]
+  likelihood: 4
+  impact: 5
+  mitigations:
+    - "Enforce IMDSv2 fleet-wide: `aws ec2 modify-instance-metadata-options --http-tokens required`"
+    - "Set `HttpPutResponseHopLimit=1` so IMDS is unreachable from container workloads behind Docker bridge"
+    - "AWS Config managed rule `ec2-imdsv2-check` with auto-remediation"
+    - "SCP denying `ec2:RunInstances` where `ec2:MetadataHttpTokens != required`"
+    - "Egress allowlist on agent/tool URL-fetchers; explicit deny on 169.254.169.254 and ::ffff:169.254.169.254"
+  refs: [AML.M0015, AML.M0019]
+  requires:
+    metadata.vendor: [aws, amazon]
+    component_type: [iam_principal, container_runtime, serverless_function, agent, tool, llm_inference]
+  applies_to_ai_workflows: true
+
+- id: T_AWS_IAM_007
+  title: IAM Identity Center permission-set proliferation and lateral pivot
+  description: |
+    IAM Identity Center (formerly AWS SSO) federates human identities
+    into AWS accounts via permission-sets that materialise as roles in
+    each account. Over time, organisations accumulate hundreds of
+    permission-sets, many created ad-hoc with `*` resource scope. A
+    compromised IdP user (Entra, Okta) inherits every permission-set
+    they're entitled to *in every account they have access to*. Lack
+    of `Session.Duration` enforcement (default 1h, max 12h) plus
+    auto-renewal means a single phished SAML response yields a long
+    pivot window. Identity Center logs to CloudTrail only at the
+    management account — many tenants don't aggregate the management
+    trail with workload-account trails.
+  stride_ai: [Elevation_of_Privilege, Spoofing]
+  owasp_llm: []
+  owasp_agentic: []
+  owasp_api: [API5:2023, API2:2023]
+  attack_cloud: [T1078.004, T1199, T1538]
+  attack_enterprise: [T1078, T1556]
+  atlas: []
+  nist: []
+  maestro: [M.L7.03]
+  likelihood: 3
+  impact: 4
+  mitigations:
+    - "Per-permission-set least privilege; remove `AdministratorAccess`-equivalent from default sets"
+    - "Reduce session duration to 1h; require IdP-side MFA + device compliance"
+    - "Aggregate Identity Center CloudTrail (org management account) into the SIEM"
+    - "Detective: GuardDuty `Stealth:IAMUser/CloudTrailLoggingDisabled` and `Persistence:IAMUser/AnomalousBehavior`"
+    - "Quarterly review of unused permission-sets via Access Analyzer `last-accessed` data"
+  refs: [AML.M0019]
+  requires:
+    metadata.vendor: [aws, amazon]
+    component_type: [iam_principal, directory_service]
+  applies_to_ai_workflows: false
+
+- id: T_AWS_IAM_008
+  title: CloudTrail log-tampering via S3 bucket-policy misconfiguration
+  description: |
+    CloudTrail's integrity guarantees rely on (a) the S3 bucket policy
+    denying deletes, (b) the log-file-validation digest chain, and (c)
+    KMS-encryption preventing in-place re-write. A misconfigured bucket
+    policy lacking `aws:SourceArn = arn:aws:cloudtrail:*:*:trail/*`,
+    or one that permits `s3:DeleteObject` to broader principals than
+    the CloudTrail service role, lets a compromised admin role rewrite
+    or delete trails — silently breaking the chain. Without log-file
+    validation enabled the gap is not even detectable post-hoc.
+    Particularly relevant for AI workloads because Bedrock Agent
+    invocations, model-deletion events, and `iam:PassRole` to Bedrock
+    are exactly the events an attacker wants to erase.
+  stride_ai: [Tampering, Repudiation]
+  owasp_llm: []
+  owasp_agentic: []
+  owasp_api: [API8:2023]
+  attack_cloud: [T1485, T1565]
+  attack_enterprise: [T1562, T1485]
+  atlas: []
+  nist: []
+  maestro: [M.L4.05, M.X.04]
+  likelihood: 2
+  impact: 5
+  mitigations:
+    - "Enable CloudTrail log-file validation; verify digest chain in SIEM ingestion"
+    - "S3 bucket policy: deny `s3:DeleteObject*` and `s3:PutObject` to all principals except the CloudTrail service via `aws:SourceArn`"
+    - "S3 Object Lock in compliance mode on the trail bucket; KMS CMK with rotation"
+    - "Multi-region trail + organisation trail (delegated admin) so a single-account compromise can't tamper org-wide events"
+    - "GuardDuty `Stealth:S3/ServerAccessLoggingDisabled` and Config rule `cloudtrail-enabled`"
+  refs: [AML.M0019]
+  requires:
+    metadata.vendor: [aws, amazon]
+    component_type: [iam_principal, object_storage, observability_stack]
+  applies_to_ai_workflows: false

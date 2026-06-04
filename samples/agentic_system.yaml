@@ -1,0 +1,164 @@
+name: Autonomous DevOps Agent
+description: |
+  Internal autonomous agent that triages PagerDuty alerts, queries logs, runs read-only
+  diagnostics, and (with human approval) restarts services or rolls back deployments.
+  Uses MCP servers for tool capabilities.
+business_context: |
+  Production-facing system. Tool actions are powerful (service restart, rollback, kubectl
+  read access). Human-in-the-loop gating is required for any state-changing action,
+  but the agent can read PII-bearing logs.
+
+components:
+  - id: oncall
+    name: On-call engineer
+    type: user
+    trust_zone: corp_internal
+    description: SRE who reviews and approves agent recommendations.
+
+  - id: pagerduty
+    name: PagerDuty (alert source)
+    type: external_api
+    trust_zone: external_provider
+    description: Inbound webhook fires the agent run.
+
+  - id: agent
+    name: SRE triage agent
+    type: agent
+    trust_zone: corp_internal
+    description: Multi-turn ReAct agent over Claude Opus.
+    metadata:
+      tool_count: 6
+      multi_tenant: false
+
+  - id: model_endpoint
+    name: Claude Opus inference
+    type: llm_inference
+    trust_zone: external_provider
+    description: Anthropic-hosted reasoning model.
+
+  - id: log_mcp
+    name: Logs MCP server
+    type: mcp_server
+    trust_zone: corp_internal
+    description: Read-only MCP server exposing Datadog and Loki query tools.
+
+  - id: kube_mcp
+    name: Kubernetes MCP server
+    type: mcp_server
+    trust_zone: corp_internal
+    description: |
+      Read + restricted-write MCP server. Restart and rollback require approval token
+      issued by the human reviewer.
+
+  - id: restart_tool
+    name: kubectl restart (gated)
+    type: tool
+    trust_zone: corp_internal
+    description: Privileged restart action; requires per-call approval token.
+
+  - id: rollback_tool
+    name: argo rollback (gated)
+    type: tool
+    trust_zone: corp_internal
+    description: Roll back a Deployment to the previous version.
+
+  - id: query_tool
+    name: kubectl get / describe (read)
+    type: tool
+    trust_zone: corp_internal
+    description: Read-only cluster queries.
+
+  - id: prompt_store
+    name: Prompt + few-shot store
+    type: prompt_template_store
+    trust_zone: corp_internal
+    description: Version-controlled system prompt with playbook references.
+
+  - id: guardrail
+    name: Pre-tool guardrail
+    type: guardrails
+    trust_zone: corp_internal
+    description: |
+      Local classifier that inspects every proposed tool call; blocks if the call
+      shape doesn't match an allowlist or if the LLM rationale contains injected
+      instructions.
+
+  - id: audit_sink
+    name: Audit log (append-only)
+    type: data_source
+    trust_zone: corp_internal
+    description: Append-only Postgres table of every agent action and decision.
+
+dataflows:
+  - source: pagerduty
+    target: agent
+    label: alert
+    crosses_boundary: true
+    data_classification: internal
+  - source: prompt_store
+    target: agent
+    label: system_prompt
+  - source: agent
+    target: model_endpoint
+    label: reason
+    crosses_boundary: true
+    data_classification: internal
+  - source: model_endpoint
+    target: agent
+    label: action_proposal
+    crosses_boundary: true
+  - source: agent
+    target: guardrail
+    label: proposed_tool_call
+  - source: guardrail
+    target: log_mcp
+    label: query
+  - source: guardrail
+    target: kube_mcp
+    label: query_or_action
+  - source: kube_mcp
+    target: query_tool
+    label: invoke
+  - source: kube_mcp
+    target: restart_tool
+    label: invoke (gated)
+  - source: kube_mcp
+    target: rollback_tool
+    label: invoke (gated)
+  - source: oncall
+    target: kube_mcp
+    label: approval_token
+    crosses_boundary: false
+    data_classification: confidential
+  - source: log_mcp
+    target: agent
+    label: log_excerpt
+    data_classification: confidential
+  - source: query_tool
+    target: agent
+    label: cluster_state
+  - source: agent
+    target: audit_sink
+    label: action_record
+    data_classification: confidential
+  - source: agent
+    target: oncall
+    label: recommendation
+    data_classification: internal
+
+trust_boundaries:
+  - id: tb_internet
+    type: network
+    components_inside: [pagerduty, model_endpoint]
+    components_outside: [oncall, agent, log_mcp, kube_mcp, restart_tool, rollback_tool, query_tool, prompt_store, guardrail, audit_sink]
+    description: Boundary between corp internal and external dependencies.
+  - id: tb_privileged
+    type: identity
+    components_inside: [restart_tool, rollback_tool]
+    components_outside: [oncall, agent, log_mcp, kube_mcp, query_tool, prompt_store, guardrail, audit_sink, pagerduty, model_endpoint]
+    description: Privileged tools — only kube_mcp can invoke; require approval token.
+  - id: tb_audit
+    type: data_classification
+    components_inside: [audit_sink]
+    components_outside: [agent, oncall, log_mcp, kube_mcp, restart_tool, rollback_tool, query_tool, prompt_store, guardrail, pagerduty, model_endpoint]
+    description: Append-only audit data plane.

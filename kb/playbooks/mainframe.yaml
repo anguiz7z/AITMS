@@ -1,0 +1,130 @@
+component_type: mainframe
+description: |
+  Mainframe — IBM Z / zOS hosting CICS / IMS / Db2 / IDMS workloads,
+  RACF / ACF2 / TopSecret access control, JES2/JES3 batch, SNA /
+  TCP-IP networking, often the system of record for core banking,
+  insurance, government tax. Decades-old codebases, irreplaceable
+  business logic, sparse modern tooling, high-skill scarcity. Backend
+  of last resort.
+threats:
+  - id: T_MAINFRAME_001
+    title: RACF / ACF2 privilege escalation via SPECIAL / OPERATIONS attribute
+    stride_ai: [Elevation_of_Privilege]
+    attack_enterprise: [T1078, T1098]
+    maestro: [M.L4.06]
+    csa_singapore: [CSA_AI.OPERATE.01]
+    likelihood: 3
+    impact: 5
+    description: |
+      RACF SPECIAL is the mainframe equivalent of Domain Admin —
+      can read or modify any profile, alter access control for any
+      resource. Many large shops have dozens of SPECIAL-attributed
+      userids because historical operational tasks required them.
+      Compromise of any one is mainframe-wide. ACF2 SECURITY /
+      LEADER attribute is analogous.
+    mitigations:
+      - "Inventory and minimise SPECIAL / OPERATIONS / AUDITOR attributed userids"
+      - "PassTicket / KERB integration replaces static passwords"
+      - "PAM-vault flow for time-bound SPECIAL escalation"
+      - "Continuous monitoring of SPECIAL-use events (RACF SMF 80/83)"
+    refs: [T1078, AML.M0019]
+
+  - id: T_MAINFRAME_002
+    title: TSO / FTP / Telnet 3270 unauthorised network access
+    stride_ai: [Spoofing, Information_Disclosure]
+    attack_enterprise: [T1078, T1110, T1040]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Many shops still allow TN3270 to the mainframe with password
+      auth and TLS optional. FTP-to-mainframe (still widely used
+      for batch file feeds) often has weak password rules and no
+      MFA. Insider with the listing of UID/PW combos (or who can
+      observe SNA emulator credentials) gets shell-equivalent.
+    mitigations:
+      - "Disable TN3270 in cleartext; require TN3270-S (TLS) only"
+      - "Password rule modernisation: minimum length 14, complexity, no reuse"
+      - "MFA via IBM zMC + RSA / SAF / Pass Ticket"
+      - "Network-side allowlist of 3270 client origins"
+    refs: [T1040, AML.M0019]
+
+  - id: T_MAINFRAME_003
+    title: Batch / JCL injection in production job stream
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1059, T1078, T1543]
+    maestro: [M.L7.11]
+    likelihood: 3
+    impact: 5
+    description: |
+      Production JCL is often editable via ISPF with broad-userid
+      access. Attacker who reaches a privileged-userid TSO session
+      inserts a step that runs unauthorised IDCAMS, calls system
+      utilities (IEFBR14 with PARM tricks, IRRDBU00 to extract
+      RACF DB), or attaches a malicious load module.
+    mitigations:
+      - "Production JCL in change-controlled libraries; PROCLIB protection"
+      - "Profile separation: developers cannot RUN production-class jobs"
+      - "Authorized Program Facility (APF) library restriction; quarterly review"
+      - "SMF audit on every job submitted with sensitive-class"
+    refs: [T1059, AML.M0019]
+
+  - id: T_MAINFRAME_004
+    title: Db2 / IMS / VSAM bulk data extraction
+    stride_ai: [Information_Disclosure]
+    attack_enterprise: [T1213, T1530]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Core records (account balances, claim histories, tax filings)
+      live in Db2 / IMS / VSAM. Many BAs and DBAs have broad SELECT.
+      Bulk extraction via SPUFI, QMF, IBM CLP runs as the user; no
+      DAM coverage on most shops.
+    mitigations:
+      - "Database activity monitoring (IBM DBA Expert, Imperva for Db2/IMS)"
+      - "Per-table row/column access via RACF program/source restrictions"
+      - "Bulk-extract approval workflow (CICS-driven application instead of direct SQL)"
+      - "Egress monitoring on JES SYSOUT / NJE / FTP outbound"
+    refs: [T1213, AML.M0019]
+
+  - id: T_MAINFRAME_005
+    title: zOS / middleware critical CVE remains unpatched due to outage cost
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190, T1068]
+    maestro: [M.X.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      IBM publishes APARs / PTFs that include security fixes;
+      applying requires IPL (re-boot) windows that are rare and
+      contentious in 24x7 banking ops. CICS / IMS / WebSphere
+      MQ / RACF flaws may go unpatched for many months.
+    mitigations:
+      - "Compliance dashboard tracking critical-PTF age"
+      - "Rolling-Sysplex updates (Parallel Sysplex shadow upgrade)"
+      - "Network-side virtual-patching (z/OS Communications Server, third-party gateway)"
+      - "Defined patching window per quarter aligned to non-peak"
+    refs: [T1190, AML.M0007]
+
+  - id: T_MAINFRAME_006
+    title: Modern API gateway in front of mainframe exposes legacy logic to web
+    stride_ai: [Information_Disclosure, Tampering]
+    attack_enterprise: [T1190, T1078]
+    owasp_api: [API1:2023, API3:2023]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Modernisation strategy wraps CICS / IMS transactions with
+      REST APIs (z/OS Connect, IBM API Connect, Mule). The mainframe
+      transaction was never designed for untrusted internet input;
+      validation is light on the legacy side because clients used
+      to be controlled green-screens. Web-attacker reaches legacy
+      logic via JSON.
+    mitigations:
+      - "API gateway with strict schema validation for every backend call"
+      - "Legacy-side audit: per-transaction validation refresh"
+      - "Rate-limit + WAF in front of API gateway"
+      - "Separate userid for API-gateway-originated traffic vs interactive"
+    refs: [T1190, AML.M0019]

@@ -1,0 +1,29 @@
+{% extends "web/base.html" %}
+{% block title %}Playbooks{% endblock %}
+{% block content %}
+<h1>Component playbooks</h1>
+<p class="muted">Each playbook describes the typical AI-specific threats for a class of system component. Threats are pre-mapped to <a href="/about" style="color: var(--accent);">STRIDE for AI</a>, OWASP LLM, and MITRE ATLAS. Playbooks are pure YAML in <code>kb/playbooks/</code> — fork to add your own.</p>
+
+{% for ctype, pb in playbooks %}
+<h2>{{ ctype }} <small style="font-weight: 400; color: var(--muted);">({{ pb.threats|length }} threats)</small></h2>
+<p>{{ pb.description }}</p>
+<table>
+  <thead><tr><th>ID</th><th>Title</th><th title="STRIDE for AI category — see /about">STRIDE</th><th>OWASP LLM</th><th>OWASP Agentic</th><th>ATLAS</th><th>MAESTRO</th><th>L</th><th>I</th></tr></thead>
+  <tbody>
+    {% for t in pb.threats %}
+    <tr>
+      <td><code>{{ t.id }}</code></td>
+      <td><strong>{{ t.title }}</strong></td>
+      <td>{% for s in t.stride_ai %}<span class="pill">{{ s }}</span>{% endfor %}</td>
+      <td>{% for o in t.owasp_llm %}<span class="pill">{{ o }}</span>{% endfor %}</td>
+      <td>{% for o in t.get('owasp_agentic', []) %}<span class="pill">{{ o }}</span>{% endfor %}</td>
+      <td>{% for a in t.atlas %}<span class="pill">{{ a }}</span>{% endfor %}</td>
+      <td>{% for m in t.get('maestro', []) %}<span class="pill">{{ m }}</span>{% endfor %}</td>
+      <td>{{ t.likelihood }}</td>
+      <td>{{ t.impact }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+{% endblock %}

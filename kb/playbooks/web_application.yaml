@@ -1,0 +1,83 @@
+component_type: web_application
+description: |
+  Custom-built web application (3-tier or microservices) — typically the
+  user-facing entry point. Front-end (browser/mobile) talks to backend APIs
+  which talk to databases, AI services, message queues. Same-origin
+  Javascript may render LLM output.
+threats:
+  - id: T_WEB_001
+    title: Cross-site scripting (XSS) — including LLM-output rendering
+    stride_ai: [Tampering, Information_Disclosure]
+    owasp_api: [API8:2023, API3:2023]
+    owasp_llm: [LLM05:2025]
+    attack_enterprise: [T1059.007, T1539]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      User input (or LLM-generated output) reflected into HTML without
+      sanitisation. Adversarial content executes JavaScript in another
+      user's browser — steals session, exfils data, performs actions.
+      LLM output is a fast-growing source: model writes `<script>` and
+      the front-end renders it.
+    mitigations:
+      - "Output encoding on every user-supplied / LLM-generated string"
+      - "Strict CSP (default-src 'self'; no unsafe-inline)"
+      - "Markdown-only rendering for LLM output; never raw HTML"
+      - "DOMPurify / equivalent on any rendered HTML"
+    refs: [T1059.007, T1539, LLM05:2025]
+
+  - id: T_WEB_002
+    title: CSRF + same-site abuse
+    stride_ai: [Spoofing, Tampering]
+    owasp_api: [API2:2023, API8:2023]
+    attack_enterprise: [T1539]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      State-changing endpoints accept GET requests, or POST requests without
+      CSRF tokens. Malicious page on attacker.com induces the victim's
+      browser to send authenticated requests to the app.
+    mitigations:
+      - "SameSite=Strict cookies for session tokens"
+      - "Anti-CSRF tokens on every state-changing form"
+      - "Reject GET for state-changing operations"
+    refs: [T1539, API2:2023, API8:2023]
+
+  - id: T_WEB_003
+    title: SSRF via URL-fetcher endpoint
+    stride_ai: [Information_Disclosure]
+    owasp_api: [API7:2023]
+    attack_enterprise: [T1190]
+    attack_cloud: [T1552.005]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      App takes a URL from the user and fetches it server-side (image
+      thumbnailer, webhook tester, OG-tag scraper). Attacker points at
+      cloud metadata or internal admin endpoint to exfil credentials.
+    mitigations:
+      - "URL allowlist (https only, no link-local / RFC1918 / file://)"
+      - "DNS resolve + re-validate after redirects"
+      - "Fetcher in network-isolated egress proxy"
+    refs: [T1190, T1552.005, API7:2023]
+
+  - id: T_WEB_004
+    title: Authentication bypass / session fixation
+    stride_ai: [Spoofing]
+    owasp_api: [API2:2023]
+    attack_enterprise: [T1078, T1539]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 5
+    description: |
+      Login flow can be bypassed (parameter manipulation, JWT alg-confusion,
+      OAuth state-parameter omission) or sessions can be fixed before login.
+    mitigations:
+      - "Session ID regenerated on login; never reuse pre-auth ID"
+      - "Vetted auth library; never hand-roll JWT verification"
+      - "MFA on user-facing login + admin paths"
+      - "Short-lived sessions with idle timeout"
+    refs: [T1078, T1539, API2:2023]

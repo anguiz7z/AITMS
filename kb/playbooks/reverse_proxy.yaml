@@ -1,0 +1,128 @@
+component_type: reverse_proxy
+description: |
+  Reverse proxy — terminates inbound traffic in front of backend
+  services, performs TLS termination, request routing, header
+  manipulation, basic auth checks. Examples: NGINX (and NGINX Plus),
+  HAProxy, Envoy, Traefik, Apache HTTPD with mod_proxy. Self-managed,
+  unlike CDN / API gateway managed offerings; typically deployed on
+  VMs or as sidecars in service meshes.
+threats:
+  - id: T_REVPROXY_001
+    title: Host-header / SSRF abuse via misconfigured routing
+    stride_ai: [Spoofing, Tampering]
+    attack_enterprise: [T1071, T1190]
+    owasp_api: [API8:2023]
+    maestro: [M.L4.06]
+    likelihood: 4
+    impact: 4
+    description: |
+      Reverse proxy uses Host header to route to backend (NGINX
+      `proxy_pass http://$host`). Attacker sets a crafted Host
+      header to internal hostnames (169.254.169.254 IMDS, internal
+      service mesh endpoints) and reaches services never intended
+      to be externally accessible. Classic SSRF amplifier.
+    mitigations:
+      - "Backend hostnames hard-coded in proxy config; never derived from request header"
+      - "Strict allowlist of permitted upstream targets"
+      - "IMDS v2 (token-required) on EC2 / GCP / Azure compute instances"
+      - "Block 169.254.0.0/16 + RFC1918 in outbound proxy egress rules"
+    refs: [T1190, AML.M0019]
+
+  - id: T_REVPROXY_002
+    title: Cache poisoning via header-key smuggling / cache-key inconsistency
+    stride_ai: [Tampering, Spoofing]
+    attack_enterprise: [T1185, T1565]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 4
+    description: |
+      Attacker exploits inconsistency between cache-key generation
+      and backend response handling (header injection, unkeyed
+      headers, cache deception with /path/style.css → /path).
+      Poisoned response served to all subsequent users until cache
+      TTL expires. CSO 2019 PortSwigger research patterns.
+    mitigations:
+      - "Strict cache-key normalisation including all request-influencing headers"
+      - "Vary header configured per response"
+      - "Cache TTL short for dynamic content"
+      - "Continuous cache-poisoning regression testing in CI"
+    refs: [T1565, AML.M0019]
+
+  - id: T_REVPROXY_003
+    title: HTTP request smuggling via desync between proxy and upstream
+    stride_ai: [Tampering, Defense_Evasion]
+    attack_enterprise: [T1190, T1556]
+    owasp_api: [API8:2023]
+    maestro: [M.L4.06]
+    likelihood: 2
+    impact: 5
+    description: |
+      Reverse proxy and upstream parse Transfer-Encoding /
+      Content-Length differently (CL.TE, TE.CL, TE.TE classic
+      smuggling). Attacker injects an inner request that bypasses
+      WAF, hijacks another user's session, or poisons cache.
+      Constantly rediscovered (Apache, NGINX, HAProxy, AWS ALB
+      have all had variants).
+    mitigations:
+      - "Always-current proxy version with HTTP smuggling defences"
+      - "Reject ambiguous requests (both CL and TE; multi-value CL)"
+      - "Frontend HTTP/2-only with HTTP/2-aware downstream"
+      - "Pen-testing for smuggling in every release"
+    refs: [T1190, AML.M0007]
+
+  - id: T_REVPROXY_004
+    title: TLS / cert misconfiguration weakens transport security
+    stride_ai: [Information_Disclosure, Tampering]
+    attack_enterprise: [T1557, T1573]
+    maestro: [M.L4.06]
+    likelihood: 3
+    impact: 3
+    description: |
+      Proxy configured with weak TLS (1.0 enabled, RC4 ciphers, no
+      OCSP stapling, expired intermediate). Downgrade attacks,
+      mixed-content warnings, BEAST/POODLE/Heartbleed-class
+      vulnerabilities can apply.
+    mitigations:
+      - "Mozilla Modern SSL config; TLS1.2+ only, strong ciphers"
+      - "Continuous external scan (SSL Labs / testssl.sh) with CI gate"
+      - "HSTS + Strict-Transport-Security with preload"
+      - "Automated cert renewal with monitoring"
+    refs: [T1573, AML.M0019]
+
+  - id: T_REVPROXY_005
+    title: Proxy-config / NGINX-CVE exploitation
+    stride_ai: [Tampering, Elevation_of_Privilege]
+    attack_enterprise: [T1190, T1068]
+    maestro: [M.X.01]
+    likelihood: 3
+    impact: 4
+    description: |
+      NGINX / HAProxy / Envoy ship CVEs (CVE-2023-44487 HTTP/2
+      Rapid Reset, CVE-2021-23017 NGINX DNS, CVE-2022-41741/2
+      NGINX mp4 module). Unpatched proxies are reachable by every
+      internet user via design.
+    mitigations:
+      - "Patch SLA <14d for critical proxy CVE"
+      - "WAF in front of proxy for virtual-patching during patch window"
+      - "Disable modules not in use (mp4, geoip2, dav)"
+      - "External attack-surface monitoring for proxy version"
+    refs: [T1190, AML.M0007]
+
+  - id: T_REVPROXY_006
+    title: Access-log misconfig leaks bearer tokens / cookies
+    stride_ai: [Information_Disclosure, Repudiation]
+    attack_enterprise: [T1552, T1213]
+    maestro: [M.L5.05]
+    likelihood: 4
+    impact: 3
+    description: |
+      Default NGINX access_log format includes the request URI;
+      tokens passed in query params end up in logs forever. Logs
+      ship to SIEM, Splunk, S3 — every token leaks to every
+      log-reader.
+    mitigations:
+      - "Custom access-log format that strips sensitive query params and Authorization header"
+      - "Mandate Authorization header (not query) for bearer tokens"
+      - "Log-redaction at the log shipper as defence-in-depth"
+      - "Quarterly log-sample audit for token patterns"
+    refs: [T1552, AML.M0019]
