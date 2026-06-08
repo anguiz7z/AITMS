@@ -49,6 +49,8 @@ dev = [
     "mypy>=1.10",
     "httpx>=0.27",
     "pyinstaller>=6.0",
+    "pytest-xdist>=3.5",  # parallel runner (-n auto --dist=loadfile) used by CI + canonical invocations
+    "pytest-cov>=5.0",    # coverage plugin (--cov) used by the coverage CI job
 ]
 
 [project.scripts]
