@@ -110,13 +110,26 @@ def _zone_is_trusted(zone: str) -> bool:
 
 
 def _is_external_facing(comp: Component) -> bool:
-    """True when a component represents (or sits at) an untrusted edge.
+    """True when a component is an UNTRUSTED edge actor (an Internet attacker).
 
-    A `user` is external-facing unless its trust_zone is an internal/
-    trusted one. Any component whose trust_zone is an explicitly external/
-    internet/public/untrusted zone is external-facing regardless of type."""
+    A `user` is external-facing unless its trust_zone is an internal/trusted
+    one. A component in an explicitly external/internet/public/untrusted zone
+    is external-facing -- EXCEPT protective appliances and downstream SaaS
+    providers, which are controls / egress dependencies, not untrusted
+    Internet actors (audit F025/F026/F027/F028)."""
+    # A WAF / load-balancer / reverse-proxy / VPN gateway / bastion placed at
+    # the DMZ edge (a zone whose label contains 'external') is the GUARD that
+    # terminates untrusted traffic, not the attacker -- it must not be treated
+    # as the untrusted source that flags the tier behind it.
+    if comp.type in _PROTECTIVE_TYPES:
+        return False
     zone = (comp.trust_zone or "").lower()
     if any(k in zone for k in _EXTERNAL_ZONE_KEYWORDS):
+        # A managed downstream provider (the SaaS model/API the system calls
+        # OUT to, in an 'external_provider'-style zone) is an egress dependency
+        # we initiate, not an inbound Internet attacker. (F027)
+        if "provider" in zone and comp.type in _DOWNSTREAM_PROVIDER_TYPES:
+            return False
         return True
     if comp.type in _INTERNET_FACING_TYPES:
         # A user in a trusted zone (SSO employee) is NOT external-facing.
@@ -127,6 +140,19 @@ def _is_external_facing(comp: Component) -> bool:
 _PROTECTIVE_TYPES = frozenset({
     "waf", "ddos_mitigation", "api_gateway", "load_balancer",
     "reverse_proxy", "firewall", "cdn", "web_proxy",
+    # v1.0.7 (audit F026): secure-remote-access / access-mediation appliances
+    # are controls that TERMINATE untrusted connections, not untrusted actors
+    # themselves -- never flag them as the Internet source or as an
+    # 'unguarded Internet-reachable' subject.
+    "vpn_gateway", "bastion_host", "private_link", "network_access_control",
+})
+
+# Downstream SaaS / model dependencies the system calls OUT to (egress). They
+# commonly sit in an 'external_provider' zone but are not inbound Internet
+# attackers, so a provider RESPONDING to the system is not an Internet path
+# into it. (audit F027)
+_DOWNSTREAM_PROVIDER_TYPES = frozenset({
+    "llm_inference", "ml_inference_endpoint", "external_api", "embedding_service",
 })
 
 _SENSITIVE_DATA_STORES = frozenset({
@@ -266,15 +292,14 @@ def _fire_direct_datastore_access(system: System):
     external-facing component. Datastores should be fronted by an
     app/service tier; never expose DB ports to clients."""
     out: list[tuple[Component, Severity | None]] = []
-    untrusted_zone_keywords = ("external", "untrusted", "internet", "public")
     # v1.0.5: an internal SSO employee is not an untrusted source for a
     # "datastore exposed to clients" finding; use the zone-aware classifier.
-    user_ids = {c.id for c in system.components if _is_external_facing(c)}
-    untrusted_ids = {
-        c.id for c in system.components
-        if any(k in (c.trust_zone or "").lower() for k in untrusted_zone_keywords)
-    }
-    bad_sources = user_ids | untrusted_ids
+    # v1.0.7 (audit F028): _is_external_facing already covers any component in
+    # an external/untrusted/internet/public zone AND exempts protective
+    # appliances (a DB whose only inbound is a load-balancer/proxy in a DMZ is
+    # fronted, not directly client-exposed). The old separate untrusted-zone
+    # set ignored that exemption and re-introduced the false positive.
+    bad_sources = {c.id for c in system.components if _is_external_facing(c)}
     for comp in system.components:
         if comp.type not in _SENSITIVE_DATA_STORES:
             continue
@@ -322,7 +347,14 @@ def _fire_missing_network_segmentation(system: System):
         # v1.0.5: only EXTERNAL-facing co-tenants count. An internal SSO
         # employee sharing the zone is not an "external-facing component",
         # so the finding's own title stays accurate.
-        externals = [m for m in members if _is_external_facing(m)]
+        # v1.0.7 (audit F028): the co-tenant must be a *traffic-handling* tier,
+        # not one of the data stores themselves -- a datastore that merely sits
+        # in a DMZ zone must not be reported as "co-located with an
+        # external-facing component" when that component IS itself.
+        externals = [
+            m for m in members
+            if _is_external_facing(m) and m.type not in _SENSITIVE_DATA_STORES
+        ]
         if stores and externals:
             for s in stores:
                 out.append((s, None))
@@ -386,6 +418,14 @@ def _fire_unencrypted_communication(system: System):
         label_lc = (df.label or "").lower()
         if any(hint in label_lc for hint in _ENCRYPTION_HINTS):
             continue
+        # v1.0.7 (audit F029): suppress if EITHER endpoint declares a
+        # TLS / mTLS / encryption control (Component.controls is the project's
+        # first-class field for in-place controls). A service-mesh hop that
+        # declares mtls must not be reported as plaintext.
+        src_ctls = (src.controls or []) if src else []
+        tgt_ctls = (tgt.controls or []) if tgt else []
+        if any(_has_any_hint(ctl, _ENCRYPTION_HINTS) for ctl in (src_ctls + tgt_ctls)):
+            continue
         # Fire the threat against the TARGET (the recipient that
         # accepts unencrypted input). One threat per target component
         # — avoid spamming if multiple unencrypted edges hit the same
@@ -404,6 +444,9 @@ def _fire_unencrypted_communication(system: System):
 _AUTH_HINTS = (
     "auth", "token", "oauth", "oidc", "saml", "jwt", "mfa", "sso",
     "bearer", "api key", "api-key", "apikey", "session",
+    # v1.0.7 (audit F030): mutual TLS IS authentication -- the canonical
+    # machine-to-machine mechanism. Recognise it on edge labels and controls.
+    "mtls", "mutual tls", "client cert", "client certificate", "spiffe",
 )
 
 _SENSITIVE_RECEIVERS = frozenset({
@@ -430,6 +473,12 @@ def _fire_missing_authentication(system: System):
             continue
         inbound = _inbound(system, comp.id)
         if not inbound:
+            continue
+        # v1.0.7 (audit F031): suppress if the receiver declares an
+        # authentication / identity control (oidc / mfa_required / oauth2 /
+        # mtls / sso / ...). The label-only check flagged components that
+        # correctly model auth as a deployed control as 'no authentication'.
+        if any(_has_any_hint(ctl, _AUTH_HINTS) for ctl in (comp.controls or [])):
             continue
         # If ALL inbound edges mention auth in the label, we're good.
         # Otherwise fire.
@@ -808,16 +857,21 @@ def _fire_missing_backup_for_critical_data(system: System):
         # Suppress if a backup_service exists AND has any edge from
         # this datastore to the backup service.
         if has_backup_service:
-            outbound = _outbound(system, comp.id)
-            inbound = _inbound(system, comp.id)
-            edges_to_backup = [
-                e for e in (outbound + inbound)
-                if (_component_by_id(system, e.target) or
-                    _component_by_id(system, e.source)).type == "backup_service"
-                if (_component_by_id(system, e.target) is not None or
-                    _component_by_id(system, e.source) is not None)
-            ]
-            if edges_to_backup:
+            # v1.0.7 (audit F032): resolve the OTHER endpoint by edge DIRECTION.
+            # The old (target or source) short-circuit always resolved to this
+            # datastore on an INBOUND edge (backup_service -> store), so a backup
+            # modelled as a restore / replication-pull was never detected and the
+            # store still got a HIGH 'missing backup' finding.
+            far_types = {
+                _component_by_id(system, e.target).type
+                for e in _outbound(system, comp.id)
+                if _component_by_id(system, e.target) is not None
+            } | {
+                _component_by_id(system, e.source).type
+                for e in _inbound(system, comp.id)
+                if _component_by_id(system, e.source) is not None
+            }
+            if "backup_service" in far_types:
                 continue
         # Suppress if the user has declared an out-of-band control.
         if any(_has_any_hint(ctl, _BACKUP_CONTROL_HINTS) for ctl in comp.controls):
@@ -877,7 +931,10 @@ def _fire_mfa_not_enforced(system: System):
     list does not declare `mfa_required`. NIST IA-2(1) /
     ISO A.9.4.2 require MFA at the perimeter for privileged or
     internet-facing access paths."""
-    user_ids = {c.id for c in system.components if c.type in _INTERNET_FACING_TYPES}
+    # v1.0.7 (audit F033): scope to EXTERNALLY-reachable login paths, matching
+    # rules 1/3/5. An internal SSO employee -> internal directory bind has no
+    # perimeter, so it must not fire a HIGH 'no perimeter MFA' finding.
+    user_ids = {c.id for c in system.components if _is_external_facing(c)}
     if not user_ids:
         return []
     if any(c.type == "mfa_service" for c in system.components):
@@ -1032,6 +1089,13 @@ def _fire_missing_pii_redaction(system: System):
         if tgt.type not in _LLM_COMPONENTS:
             continue
         if _has_any_hint(df.label, _PII_REDACTION_HINTS):
+            continue
+        # v1.0.7 (audit F024): suppress if the datastore OR the LLM declares a
+        # PII-redaction / tokenization / DLP control (e.g. pii_redaction,
+        # field_level_tokenization, presidio_dlp). The rule only checked the
+        # edge label + a `dlp`-typed component before.
+        if any(_has_any_hint(ctl, _PII_REDACTION_HINTS)
+               for ctl in ((src.controls or []) + (tgt.controls or []))):
             continue
         # Fire on the target (LLM) — that's the boundary where the
         # control should sit.

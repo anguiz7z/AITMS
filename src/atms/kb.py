@@ -16,10 +16,13 @@ v0.18.47 Phase 3 — pickle cache:
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 import os
 import pickle
 import re
+import secrets
 import sys
 from functools import lru_cache
 from pathlib import Path
@@ -53,6 +56,29 @@ def _cache_path(root: Path) -> Path:
         cache_dir.mkdir(parents=True, exist_ok=True)
         return cache_dir / f"kb_cache_v{_CACHE_VERSION}.pkl"
     return root.parent / ".atms_kb_cache.pkl"
+
+
+def _cache_mac_key(cache_file: Path) -> bytes | None:
+    """Per-user secret used to authenticate the KB pickle cache (audit F046).
+
+    Stored 0600 next to the cache and generated once. Returns None if it cannot
+    be read or created -- in which case the caller refuses to trust any cache,
+    so an attacker-planted .atms_kb_cache.pkl is never deserialised.
+    """
+    key_path = cache_file.with_name(".atms_kb_cache.key")
+    try:
+        if key_path.exists():
+            data = key_path.read_bytes()
+            return data if len(data) >= 32 else None
+        key = secrets.token_bytes(32)
+        key_path.write_bytes(key)
+        try:
+            os.chmod(key_path, 0o600)
+        except OSError:
+            pass
+        return key
+    except OSError:
+        return None
 
 
 def _kb_signature(root: Path) -> tuple[int, int, int]:
@@ -610,33 +636,46 @@ def get_kb() -> KnowledgeBase:
     signature = _kb_signature(root)
     cache_file = _cache_path(root)
 
-    if cache_file.exists():
+    mac_key = _cache_mac_key(cache_file)
+    if cache_file.exists() and mac_key:
         try:
-            with cache_file.open("rb") as fh:
-                payload = pickle.load(fh)
-            if (isinstance(payload, dict)
-                    and payload.get("version") == _CACHE_VERSION
-                    and payload.get("signature") == signature
-                    and isinstance(payload.get("state"), dict)):
-                kb = KnowledgeBase.__new__(KnowledgeBase)
-                kb.__dict__.update(payload["state"])
-                return kb
+            blob = cache_file.read_bytes()
+            # audit F046: AUTHENTICATE the pickle before deserialising it. The
+            # file is `HMAC-SHA256(32 bytes) || pickle`; pickle.loads executes
+            # the payload's __reduce__/__setstate__ at load time, so an
+            # unauthenticated cache is unsafe deserialisation / RCE (CWE-502).
+            # Only pickle.loads on a verified MAC.
+            if len(blob) > 32:
+                mac, data = blob[:32], blob[32:]
+                expected = hmac.new(mac_key, data, hashlib.sha256).digest()
+                if hmac.compare_digest(expected, mac):
+                    payload = pickle.loads(data)
+                    if (isinstance(payload, dict)
+                            and payload.get("version") == _CACHE_VERSION
+                            and payload.get("signature") == signature
+                            and isinstance(payload.get("state"), dict)):
+                        kb = KnowledgeBase.__new__(KnowledgeBase)
+                        kb.__dict__.update(payload["state"])
+                        return kb
         except (pickle.PickleError, EOFError, AttributeError, ImportError, OSError) as exc:
             log.debug("kb cache miss (%s); rebuilding", exc)
 
     kb = KnowledgeBase()
     try:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
-        # Pickle to a temp file then atomic-rename to avoid half-written
-        # caches if the process dies mid-write.
-        tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
-        with tmp.open("wb") as fh:
-            pickle.dump({
+        if mac_key:
+            # Serialise, MAC, then atomic-rename so a half-written cache can't
+            # be left behind. The MAC is prepended to the pickle bytes.
+            data = pickle.dumps({
                 "version": _CACHE_VERSION,
                 "signature": signature,
                 "state": dict(kb.__dict__),
-            }, fh, protocol=pickle.HIGHEST_PROTOCOL)
-        tmp.replace(cache_file)
+            }, protocol=pickle.HIGHEST_PROTOCOL)
+            mac = hmac.new(mac_key, data, hashlib.sha256).digest()
+            tmp = cache_file.with_suffix(cache_file.suffix + ".tmp")
+            with tmp.open("wb") as fh:
+                fh.write(mac + data)
+            tmp.replace(cache_file)
     except OSError as exc:
         log.debug("kb cache write failed (%s); continuing without cache", exc)
     return kb

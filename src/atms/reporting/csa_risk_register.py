@@ -43,10 +43,10 @@ not a parallel guess.
 
 from __future__ import annotations
 
-import csv
 import io
 
 from ..models import StrideAI, System, Threat, ThreatModel
+from .csv_export import safe_csv_writer  # audit F047: formula-injection-safe CSV
 
 # ─── STRIDE-LM -> C / I / A mapping ─────────────────────────────────
 # Each STRIDE-LM category primarily threatens one or more of the C-I-A
@@ -226,6 +226,12 @@ def build_csa_rows(model: ThreatModel) -> list[dict]:
             "atms_risk_score": t.risk_score,
             "evidence_status": t.evidence_status,
             "external_facing": external,
+            # audit F011: a REAL signal of a recorded control (control:* tags
+            # added by apply_component_controls), not the exploitability <
+            # discoverability heuristic that the external-facing discoverability
+            # bump confounds into a false 'control recorded' on every
+            # external-facing threat.
+            "has_control": any(str(ref).startswith("control:") for ref in (t.references or [])),
             "mitigation_ids": list(t.mitigation_ids or []),
             "disposition": t.disposition,
             "owner": t.owner or "",
@@ -308,8 +314,10 @@ def _existing_measures(rr: dict) -> str:
         parts.append("component is external-facing")
     if rr["evidence_status"] != "hypothetical":
         parts.append(f"evidence: {rr['evidence_status']}")
-    # controls recorded on the threat already lowered exploitability
-    if rr["exploitability"] < rr["discoverability"]:
+    # audit F011: report a recorded control only when the threat actually
+    # declares one (control:* tag), not from the exploitability<discoverability
+    # comparison (which the external-facing discoverability bump always trips).
+    if rr.get("has_control"):
         parts.append("mitigating control(s) recorded")
     return "; ".join(parts) if parts else "none recorded"
 
@@ -330,11 +338,14 @@ def _treatment_progress(disposition: str) -> str:
 def _residual_band(current: str, has_treatment: bool, disposition: str) -> str:
     order = ["Low", "Medium", "Medium-High", "High", "Very High"]
     idx = order.index(current) if current in order else 0
-    # A completed/transferred treatment drops two bands; a planned-but-open
-    # treatment drops one; acceptance leaves it unchanged (acknowledged).
+    # audit F012: residual risk = risk remaining AFTER treatment is APPLIED.
+    # A completed/transferred treatment drops two bands; a real compensating
+    # control drops one. An OPEN threat with only a *suggested* (KB-linked)
+    # mitigation has had no treatment applied, so its residual stays at current
+    # -- crediting a band drop there overstated the client's posture.
     if disposition in ("mitigated", "transferred", "false_positive", "duplicate"):
         idx = max(0, idx - 2)
-    elif has_treatment and disposition not in ("accepted",):
+    elif disposition == "accepted_with_compensating_control":
         idx = max(0, idx - 1)
     return order[idx]
 
@@ -345,7 +356,7 @@ def _residual_band(current: str, has_treatment: bool, disposition: str) -> str:
 def render_csa_risk_register_csv(model: ThreatModel, generated_date: str = "") -> str:
     register = build_risk_register(model, generated_date=generated_date)
     buf = io.StringIO()
-    w = csv.writer(buf, lineterminator="\n")
+    w = safe_csv_writer(buf, lineterminator="\n")
     w.writerow([
         "S/N",
         "Risk Scenario",

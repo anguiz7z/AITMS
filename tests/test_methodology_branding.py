@@ -150,14 +150,10 @@ def test_methodology_route_empty_path():
     assert "No threat-model results loaded" in r.text
 
 
-def test_methodology_route_with_real_threats():
+def test_methodology_route_with_real_threats(tmp_path, monkeypatch):
     """`/methodology` analyses a fresh System and renders per-threat
     framework citations. Uses an in-memory analyse to avoid depending
     on any specific output file."""
-    import json
-    import tempfile
-    from pathlib import Path
-
     from fastapi.testclient import TestClient
 
     from atms.models import Component, System
@@ -171,19 +167,18 @@ def test_methodology_route_with_real_threats():
     tm = analyze(sys_obj)
     assert tm.threats, "analyze() must produce threats for the smoke test"
 
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False, encoding="utf-8"
-    ) as f:
-        json.dump(json.loads(tm.model_dump_json()), f)
-        tmp_path = f.name
+    # Save under output/ in a temp cwd and pass the basename: the route now
+    # sandboxes ?path= to output//cwd (audit F049/F050), so an absolute temp
+    # path is correctly rejected.
+    monkeypatch.chdir(tmp_path)
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+    (out_dir / "smoke.json").write_text(tm.model_dump_json(), encoding="utf-8")
 
-    try:
-        client = TestClient(app, raise_server_exceptions=False)
-        r = client.get(f"/methodology?path={tmp_path}")
-        assert r.status_code == 200
-        html = r.text
-        # Page must show STRIDE breakdown + per-threat table.
-        assert "STRIDE breakdown" in html
-        assert "Per-threat provenance" in html
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
+    client = TestClient(app, raise_server_exceptions=False)
+    r = client.get("/methodology?path=smoke.json")
+    assert r.status_code == 200
+    html = r.text
+    # Page must show STRIDE breakdown + per-threat table.
+    assert "STRIDE breakdown" in html
+    assert "Per-threat provenance" in html

@@ -17,11 +17,43 @@ from __future__ import annotations
 import re
 from typing import get_args
 
+import yaml
 from pydantic import ValidationError
 
 from .models import ComponentType
 
 _VALID_COMPONENT_TYPES = frozenset(get_args(ComponentType))
+
+
+class _NoAliasSafeLoader(yaml.SafeLoader):
+    """SafeLoader that forbids YAML aliases.
+
+    Untrusted System YAML has no legitimate need for anchors/aliases, and a
+    nested-alias 'billion laughs' payload (an ~870-byte file of anchors-of-
+    anchors) expands to hundreds of MB when the parsed structure is traversed
+    by model_validate / serialization -- an OOM DoS (audit F051). Banning
+    aliases neutralises it while accepting every legitimate System YAML (no
+    bundled sample uses one).
+    """
+
+    def compose_node(self, parent, index):
+        if self.check_event(yaml.events.AliasEvent):
+            event = self.get_event()
+            raise yaml.constructor.ConstructorError(
+                None, None,
+                "YAML aliases are not permitted in System input "
+                "(guards against alias-expansion denial of service).",
+                event.start_mark,
+            )
+        return super().compose_node(parent, index)
+
+
+def safe_load_system_yaml(text: str):
+    """``yaml.safe_load`` for *untrusted* System YAML: SafeLoader semantics
+    plus a hard ban on aliases (alias-expansion DoS guard, audit F051)."""
+    # _NoAliasSafeLoader subclasses yaml.SafeLoader (no arbitrary-object
+    # construction); it only adds the alias ban, so this is safe.
+    return yaml.load(text, Loader=_NoAliasSafeLoader)  # noqa: S506
 
 
 def _slug(s: str) -> str:

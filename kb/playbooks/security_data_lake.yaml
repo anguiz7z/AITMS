@@ -74,8 +74,8 @@ threats:
     stride_ai: [Bias_Fairness, Emergent_Behavior]
     owasp_llm: [LLM09:2025]
     atlas_techniques: [AML.T0048, AML.T0034]
-    nist_ai_100_2: [NIST_GAI_INFORMATION_INTEGRITY]
     maestro: [M.L7.04]
+    nist: [NIST.AI.600-1.MS-1.1]  # audit F073: hallucination/false-negative -> test factuality
     likelihood: 3
     impact: 4
     description: |

@@ -7,10 +7,25 @@ intermediate state (components, threats, attack paths, scenarios), and output
 
 from __future__ import annotations
 
+import os
 from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
+
+
+def _default_generated_at() -> datetime:
+    """Report timestamp. Honours SOURCE_DATE_EPOCH (the reproducible-builds
+    convention) so the primary `atms analyze --json` deliverable can be made
+    byte-identical across runs; otherwise the current wall-clock time (audit
+    F042)."""
+    epoch = os.environ.get("SOURCE_DATE_EPOCH")
+    if epoch:
+        try:
+            return datetime.fromtimestamp(int(epoch), UTC)
+        except (ValueError, OverflowError, OSError):
+            pass
+    return datetime.now(UTC)
 
 ComponentType = Literal[
     # ─── AI / ML / agentic primitives ────────────────────────────────────
@@ -489,7 +504,7 @@ class ThreatModel(BaseModel):
     structural_recommendations: list[StructuralRecommendation] = Field(default_factory=list)  # v0.16.5
     attack_paths: list[AttackPath]
     mitigations: list[Mitigation]
-    generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    generated_at: datetime = Field(default_factory=_default_generated_at)
     # v0.14.4: dynamically resolve from package version so reports
     # always carry the actual ATMS version that produced them. The
     # previous hard-coded "0.2.0" default leaked into every Markdown /

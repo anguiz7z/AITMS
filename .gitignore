@@ -82,6 +82,7 @@ CLAUDE.md
 
 # Internal audit reports / agent working dir
 .atms_internal/
+docs/audit/
 
 # Coverage artefacts (regenerated per run)
 .coverage

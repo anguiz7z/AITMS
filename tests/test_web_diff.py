@@ -21,7 +21,6 @@ import pytest as _pytest_for_marker  # noqa: E402
 pytestmark = _pytest_for_marker.mark.hibernated
 
 
-import json
 import tempfile
 from pathlib import Path
 
@@ -32,14 +31,13 @@ from atms.web import app
 from atms.workflow import analyze
 
 
-def _write_tm_json(tm) -> str:
-    """Dump a ThreatModel to a tempfile and return the path."""
-    f = tempfile.NamedTemporaryFile(
-        mode="w", suffix=".json", delete=False, encoding="utf-8",
-    )
-    json.dump(json.loads(tm.model_dump_json()), f)
-    f.close()
-    return f.name
+def _write_tm_json(tm, out_dir, name) -> str:
+    """Dump a ThreatModel into out_dir/name and return the basename. The /diff
+    route now sandboxes ?a=/?b= to output//cwd (audit F048), so tests save to
+    an allowed dir and pass the basename, not an absolute temp path."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / name).write_text(tm.model_dump_json(), encoding="utf-8")
+    return name
 
 
 def _make_two_runs():
@@ -68,26 +66,24 @@ def test_diff_route_empty_state_renders_200():
     assert "Enter two paths above" in r.text
 
 
-def test_diff_route_with_valid_paths_renders_delta():
+def test_diff_route_with_valid_paths_renders_delta(tmp_path, monkeypatch):
     """Two real ThreatModel JSONs → diff sections populated."""
     tm1, tm2 = _make_two_runs()
-    p1 = _write_tm_json(tm1)
-    p2 = _write_tm_json(tm2)
-    try:
-        c = TestClient(app, raise_server_exceptions=False)
-        r = c.get(f"/diff?a={p1}&b={p2}")
-        assert r.status_code == 200
-        html = r.text
-        # Summary tile renders the counts
-        assert "Added" in html
-        assert "Removed" in html
-        assert "Severity changed" in html
-        assert "Disposition changed" in html
-        # Disposition section actually appears (we mutated one threat).
-        assert "mitigated" in html
-    finally:
-        Path(p1).unlink(missing_ok=True)
-        Path(p2).unlink(missing_ok=True)
+    monkeypatch.chdir(tmp_path)
+    out = tmp_path / "output"
+    p1 = _write_tm_json(tm1, out, "a.json")
+    p2 = _write_tm_json(tm2, out, "b.json")
+    c = TestClient(app, raise_server_exceptions=False)
+    r = c.get(f"/diff?a={p1}&b={p2}")
+    assert r.status_code == 200
+    html = r.text
+    # Summary tile renders the counts
+    assert "Added" in html
+    assert "Removed" in html
+    assert "Severity changed" in html
+    assert "Disposition changed" in html
+    # Disposition section actually appears (we mutated one threat).
+    assert "mitigated" in html
 
 
 def test_diff_route_missing_path_is_a_friendly_error():
@@ -121,19 +117,17 @@ def test_diff_route_malformed_json_is_a_friendly_error():
 # enabled), so the assertion was a category mismatch.
 
 
-def test_diff_route_identical_runs_show_no_differences():
+def test_diff_route_identical_runs_show_no_differences(tmp_path, monkeypatch):
     """Two unmutated runs of the same system → no diff rows."""
     sys_obj = System(name="t", components=[
         Component(id="u", name="U", type="user"),
         Component(id="llm", name="LLM", type="llm_inference"),
     ])
     tm = analyze(sys_obj)
-    p = _write_tm_json(tm)
-    try:
-        c = TestClient(app, raise_server_exceptions=False)
-        r = c.get(f"/diff?a={p}&b={p}")
-        assert r.status_code == 200
-        # The "no differences" empty state shows
-        assert "No differences detected" in r.text
-    finally:
-        Path(p).unlink(missing_ok=True)
+    monkeypatch.chdir(tmp_path)
+    p = _write_tm_json(tm, tmp_path / "output", "run.json")
+    c = TestClient(app, raise_server_exceptions=False)
+    r = c.get(f"/diff?a={p}&b={p}")
+    assert r.status_code == 200
+    # The "no differences" empty state shows
+    assert "No differences detected" in r.text

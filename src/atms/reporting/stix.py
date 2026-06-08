@@ -105,7 +105,7 @@ def _attack_pattern(threat: Threat, now: str) -> dict[str, Any]:
             "external_id": maestro_id,
             "url": "https://cloudsecurityalliance.org/blog/2025/02/06/agentic-ai-threat-modeling-framework-maestro",
         })
-    return {
+    obj = {
         "type": "attack-pattern",
         "spec_version": STIX_VERSION,
         "id": _stix_id("attack-pattern", threat.id),
@@ -143,6 +143,12 @@ def _attack_pattern(threat: Threat, now: str) -> dict[str, Any]:
         "x_atms_maestro_layers": threat.maestro_layers,
         "x_atms_maestro_threats": threat.maestro_threats,
     }
+    # audit F018: STIX 2.1 requires external_references to have minItems:1 when
+    # present. A threat with no framework refs would otherwise emit an invalid
+    # `"external_references": []`; omit the key entirely instead.
+    if not refs:
+        obj.pop("external_references", None)
+    return obj
 
 
 def _course_of_action(mit: Mitigation, now: str) -> dict[str, Any]:
@@ -159,7 +165,7 @@ def _course_of_action(mit: Mitigation, now: str) -> dict[str, Any]:
             "external_id": d,
             "url": f"https://d3fend.mitre.org/technique/{d}/",
         })
-    return {
+    obj = {
         "type": "course-of-action",
         "spec_version": STIX_VERSION,
         "id": _stix_id("course-of-action", mit.id),
@@ -177,6 +183,10 @@ def _course_of_action(mit: Mitigation, now: str) -> dict[str, Any]:
         "x_atms_d3fend": mit.d3fend,
         "x_atms_vendor_examples": mit.vendor_examples,
     }
+    # audit F018: omit external_references entirely when empty (STIX 2.1 minItems:1).
+    if not refs:
+        obj.pop("external_references", None)
+    return obj
 
 
 def _relationship(src_id: str, rel_type: str, tgt_id: str, now: str) -> dict[str, Any]:
@@ -237,7 +247,10 @@ def render_stix(model: ThreatModel) -> str:
 
     bundle = {
         "type": "bundle",
-        "id": f"bundle--{uuid.uuid4()}",
+        # Deterministic bundle id derived from the (already-deterministic)
+        # object ids -- uuid.uuid4() gave every export a different id and broke
+        # byte-identical output (audit F044).
+        "id": _stix_id("bundle", "|".join(sorted(str(o.get("id", "")) for o in objects))),
         "spec_version": STIX_VERSION,
         "objects": objects,
     }

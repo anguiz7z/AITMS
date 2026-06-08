@@ -8,11 +8,12 @@ description: |
 threats:
   - id: T_EDR_001
     title: EDR agent disabled / tampered on AI training host
+    applicable_to_topology: [has_ai_component]  # audit F070: AI-specific; suppress on pure-IT
     stride_ai: [Defense_Evasion]
     owasp_api: [API8:2023]
     atlas: [AML.T0040]
     attack_enterprise: [T1562.001]
-    maestro: [M.L4.07]
+    maestro: [M.L6.03]
     likelihood: 3
     impact: 5
     description: |
@@ -28,6 +29,7 @@ threats:
 
   - id: T_EDR_002
     title: AI-specific exfiltration patterns missing from detection
+    applicable_to_topology: [has_ai_component]  # audit F070: AI-specific; suppress on pure-IT
     stride_ai: [Information_Disclosure]
     owasp_llm: [LLM02:2025]
     owasp_api: [API3:2023]
@@ -50,12 +52,13 @@ threats:
 
   - id: T_EDR_003
     title: EDR coverage gap on GPU / training Linux nodes
+    applicable_to_topology: [has_ai_component]  # audit F070: AI-specific; suppress on pure-IT
     stride_ai: [Defense_Evasion, Elevation_of_Privilege]
     owasp_api: [API8:2023]
     atlas: [AML.T0040, AML.T0010]
     attack_cloud: [T1078.004, T1190]
     attack_enterprise: [T1078, T1059.004]
-    maestro: [M.L4.07]
+    maestro: [M.L6.02]
     likelihood: 3
     impact: 5
     description: |

@@ -12,7 +12,10 @@ threats:
     title: Backup vault deleted / disabled before ransomware impact
     stride_ai: [Tampering, Denial_of_Service]
     owasp_api: [API5:2023, API8:2023]
-    atlas: [AML.T0015]
+    # audit F019: AML.T0015 'Evade AI Model' is an adversarial-input evasion
+    # technique; it does not fit backup-vault destruction (an inhibit-recovery
+    # ATT&CK Impact action). The ATT&CK T1485/T1490/T1562 ids below are correct.
+    atlas: []
     attack_cloud: [T1485, T1486, T1490, T1562.001]
     attack_enterprise: [T1490, T1562.001]
     maestro: [M.X.04]

@@ -90,6 +90,32 @@ def layers_for(component: Component) -> list[str]:
     return list(DEFAULT_LAYER_MAP.get(component.type, []))
 
 
+def _maestro_id_applies(mid: str, comp_type: str, kb: KnowledgeBase) -> bool:
+    """True if MAESTRO threat ``mid`` may legitimately attach to ``comp_type``.
+
+    Cross-layer ids (M.X.*) and ids whose catalogue entry declares no
+    applies_to restriction attach anywhere; otherwise the component type must
+    appear in the catalogue's applies_to list. (audit F020/F021/F022/F061)
+    """
+    m = kb.maestro_threats.get(mid)
+    if not isinstance(m, dict):
+        return True  # unknown id -> citation-integrity test catches it
+    if str(mid).startswith("M.X") or m.get("layer") == "cross":
+        return True
+    applies = m.get("applies_to") or []
+    return (not applies) or (comp_type in set(applies))
+
+
+def _agentic_id_applies(agt_id: str, comp_type: str, kb: KnowledgeBase) -> bool:
+    """True if OWASP-Agentic id ``agt_id`` may attach to ``comp_type``
+    (applies_to is a hard gate, not a score bonus). (audit F061)"""
+    a = kb.owasp_agentic.get(agt_id)
+    if not isinstance(a, dict):
+        return True
+    applies = a.get("applies_to") or []
+    return (not applies) or (comp_type in set(applies))
+
+
 def enrich_with_maestro(
     threats: list[Threat],
     components: list[Component],
@@ -120,6 +146,11 @@ def enrich_with_maestro(
                 kw_tokens.update(_tokenize(kw))
             kw_overlap = len(threat_tokens & kw_tokens)
 
+            # audit F061: applies_to is a HARD gate, not just a +3 score bonus,
+            # so an Agent-Ecosystem (L7) id can't latch onto a non-agent
+            # component via keyword overlap alone.
+            if not _maestro_id_applies(mid, comp.type, kb):
+                continue
             comp_match = comp.type in set(mthreat.get("applies_to", []))
             layer_match = mthreat.get("layer") in comp_layers or mthreat.get("layer") == "cross"
 
@@ -147,6 +178,9 @@ def enrich_with_maestro(
                 for kw in agt.get("keywords", []):
                     kw_tokens.update(_tokenize(kw))
                 kw_overlap = len(threat_tokens & kw_tokens)
+                # audit F061: applies_to is a hard gate for OWASP-Agentic too.
+                if not _agentic_id_applies(agt_id, comp.type, kb):
+                    continue
                 comp_match = comp.type in set(agt.get("applies_to", []))
                 stride_match = bool(set(agt.get("stride_ai", [])) & set(threat.stride_ai))
                 score = kw_overlap * 2 + (3 if comp_match else 0) + (1 if stride_match else 0)
@@ -156,5 +190,17 @@ def enrich_with_maestro(
             for agt_id, _ in agt_scored[:2]:
                 if agt_id not in threat.owasp_agentic:
                     threat.owasp_agentic.append(agt_id)
+
+        # audit F020/F021/F022: sanitise BOTH playbook-sourced and enrichment
+        # ids -- drop any MAESTRO / OWASP-Agentic id whose catalogue applies_to
+        # excludes this component type, so e.g. a Layer-7 agent-ecosystem id
+        # (M.L7.11) or an llm-only DoS id (M.L1.07) can't reach the client
+        # coverage of a container-registry / email-server.
+        threat.maestro_threats = [
+            m for m in threat.maestro_threats if _maestro_id_applies(m, comp.type, kb)
+        ]
+        threat.owasp_agentic = [
+            a for a in threat.owasp_agentic if _agentic_id_applies(a, comp.type, kb)
+        ]
 
     return threats

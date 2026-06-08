@@ -97,7 +97,10 @@ def find_attack_paths(
     # Edges: same component (intra-component pivot) OR adjacent component (via dataflow)
     for src in threats:
         src_max = _max_tactic_rank(threat_tactics[src.id])
-        for nbr_comp in comp_adj.get(src.component_id, set()) | {src.component_id}:
+        # sorted() -- iterating a set union directly varies across processes
+        # (PYTHONHASHSEED) and changed the selected top-N attack paths, their
+        # ids, narratives and threat_ids run-to-run (audit F041).
+        for nbr_comp in sorted(comp_adj.get(src.component_id, set()) | {src.component_id}):
             for dst in threats_by_comp.get(nbr_comp, []):
                 if dst.id == src.id:
                     continue
@@ -148,12 +151,15 @@ def find_attack_paths(
     out: list[AttackPath] = []
     for score, path in scored:
         threat_objs = [g.nodes[tid]["threat"] for tid in path]
+        # audit F059: collapse only ADJACENT duplicate components, not every
+        # revisit. A global de-dup dropped a legitimately re-visited component
+        # (A->B->A->C became A->B->C), printing a hop B->C between two
+        # components with no dataflow between them. Adjacent-only keeps every
+        # printed hop corresponding to a real edge / intra-component pivot.
         components_list = []
-        seen_comp = set()
         for t in threat_objs:
-            if t.component_id not in seen_comp:
+            if not components_list or components_list[-1] != t.component_id:
                 components_list.append(t.component_id)
-                seen_comp.add(t.component_id)
         tactics_traversed: list[str] = []
         for t in threat_objs:
             for tac in threat_tactics[t.id]:

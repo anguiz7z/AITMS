@@ -27,7 +27,11 @@ CONTROL_EFFECTS: dict[str, dict] = {
     "tls_terminated":         {"keywords": ["mitm", "sniff", "intercept", "cleartext"], "delta": -1},
     "mtls":                   {"keywords": ["mitm", "spoof", "client", "auth"], "delta": -1},
     "tls_pinning":            {"keywords": ["mitm", "downgrade", "ca compromise"], "delta": -1},
-    "waf":                    {"keywords": ["xss", "csrf", "ssrf", "sql injection", "owasp"], "delta": -1},
+    # audit F060: 'owasp' removed -- it substring-matched every threat whose
+    # description merely cites OWASP (the norm), so a network WAF was credited
+    # with mitigating LLM prompt injection it cannot inspect, understating a
+    # core AI threat's likelihood/severity.
+    "waf":                    {"keywords": ["xss", "csrf", "ssrf", "sql injection", "web attack"], "delta": -1},
     "rate_limit":             {"keywords": ["dos", "brute force", "stuffing", "exhaust", "fatigue"], "delta": -1},
     "input_validation":       {"keywords": ["injection", "xss", "deserialization", "path traversal"], "delta": -1},
     "output_encoding":        {"keywords": ["xss", "html", "injection"], "delta": -1},
@@ -69,6 +73,14 @@ CONTROL_EFFECTS: dict[str, dict] = {
 }
 
 
+# audit F060: a network/HTTP WAF only mitigates web-tier ingress. Crediting it
+# on an llm_inference / agent / datastore understates those components' real
+# (often AI) threats, so the WAF control only counts on web-tier types.
+_WAF_APPLICABLE_TYPES = frozenset({
+    "web_application", "api_gateway", "cdn", "reverse_proxy", "load_balancer", "waf",
+})
+
+
 def _tokenize(text: object) -> set[str]:
     if text is None:
         return set()
@@ -92,10 +104,15 @@ def apply_component_controls(
         deltas = 0
         applied: list[str] = []
         for ctrl_name in comp.controls:
-            ctrl_def = CONTROL_EFFECTS.get(ctrl_name.strip().lower())
+            ctrl_key = ctrl_name.strip().lower()
+            ctrl_def = CONTROL_EFFECTS.get(ctrl_key)
             if not ctrl_def:
                 # Unknown control — track for traceability but don't score.
                 applied.append(f"{ctrl_name}(unrecognised)")
+                continue
+            # audit F060: a WAF only protects web-tier ingress.
+            if ctrl_key == "waf" and comp.type not in _WAF_APPLICABLE_TYPES:
+                applied.append(f"{ctrl_name}(n/a:{comp.type})")
                 continue
             if any(kw in text_haystack for kw in ctrl_def["keywords"]):
                 deltas += int(ctrl_def["delta"])

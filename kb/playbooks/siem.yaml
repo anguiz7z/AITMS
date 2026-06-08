@@ -6,6 +6,7 @@ description: |
   patterns over time.
 threats:
   - id: T_SIEM_001
+    applicable_to_topology: [has_ai_component]  # audit F070: AI-specific; suppress on pure-IT
     title: AI-system logs not ingested → blind to LLM abuse
     stride_ai: [Defense_Evasion]
     owasp_llm: [LLM05:2025]
@@ -47,6 +48,7 @@ threats:
     refs: [AML.M0023]
 
   - id: T_SIEM_003
+    applicable_to_topology: [has_ai_component]  # audit F070: AI-specific; suppress on pure-IT
     title: Detection rules lag — no MITRE ATLAS / OWASP LLM coverage
     stride_ai: [Defense_Evasion]
     owasp_llm: [LLM05:2025]

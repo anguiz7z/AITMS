@@ -10,7 +10,7 @@ threats:
     stride_ai: [Defense_Evasion]
     owasp_api: [API8:2023]
     attack_enterprise: [T1190]
-    maestro: [M.L4.07]
+    maestro: [M.L6.02]
     likelihood: 4
     impact: 3
     description: |
@@ -31,7 +31,7 @@ threats:
     atlas: [AML.T0024]
     attack_cloud: [T1071.001]
     attack_enterprise: [T1573.002]
-    maestro: [M.L4.07]
+    maestro: [M.L6.02]
     likelihood: 4
     impact: 3
     description: |
@@ -51,7 +51,7 @@ threats:
     owasp_api: [API8:2023]
     attack_enterprise: [T1027, T1071.001, T1572]
     attack_cloud: [T1071.001]
-    maestro: [M.L4.07]
+    maestro: [M.L6.02]
     likelihood: 3
     impact: 4
     description: |

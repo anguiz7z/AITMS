@@ -34,10 +34,10 @@ never empty.
 
 from __future__ import annotations
 
-import csv
 import io
 
 from ..models import AttackPath, Component, Threat, ThreatModel
+from .csv_export import safe_csv_writer  # audit F047: formula-injection-safe CSV
 
 # ─── ATLAS tactic ID → human label ─────────────────────────────────────
 # Authoritative MITRE atlas-data tactic names (kept in sync with
@@ -291,7 +291,7 @@ def render_csa_table_csv(model: ThreatModel) -> str:
     """Render the CSA Table of Attack as CSV (one row per attack path)."""
     rows = build_table_of_attack(model)
     buf = io.StringIO()
-    w = csv.writer(buf, lineterminator="\n")
+    w = safe_csv_writer(buf, lineterminator="\n")
     w.writerow([
         "S/N",
         "Point of Entry",

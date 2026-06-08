@@ -423,9 +423,15 @@ def arm_template_to_system(text: str, name: str = "arm-import") -> System:
     boundaries: list[TrustBoundary] = []
 
     def _walk(resources: list, parent_id: str = "") -> None:
+        # audit F053: tolerate a malformed template -- resources may be a
+        # non-list, contain non-dict entries, or carry a non-string type/name.
+        if not isinstance(resources, list):
+            return
         for r in resources:
-            rtype = (r.get("type") or "").strip()
-            rname = (r.get("name") or "").strip()
+            if not isinstance(r, dict):
+                continue
+            rtype = str(r.get("type") or "").strip()
+            rname = str(r.get("name") or "").strip()
             if not rtype or not rname:
                 continue
             # ARM nested children: type can be "Type/Child" but only

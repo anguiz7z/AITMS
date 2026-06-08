@@ -6,6 +6,7 @@ description: |
   block known-bad payloads, and surface AI-specific abuse patterns.
 threats:
   - id: T_WAF_001
+    applicable_to_topology: [has_ai_component]  # audit F070: AI-specific; suppress on pure-IT
     title: WAF rule set missing AI-abuse signatures
     stride_ai: [Denial_of_Service, Tampering]
     owasp_llm: [LLM01:2025, LLM10:2025]
@@ -49,6 +50,7 @@ threats:
     refs: [AML.M0019]
 
   - id: T_WAF_003
+    applicable_to_topology: [has_ai_component]  # audit F070: AI-specific; suppress on pure-IT
     title: WAF DoS / fail-open on AI traffic spike
     stride_ai: [Denial_of_Service, Defense_Evasion]
     owasp_llm: [LLM10:2025]

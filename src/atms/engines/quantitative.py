@@ -165,8 +165,18 @@ def score_quantitative(threats: list[Threat], system: System | None = None) -> l
             for n in (t.nist_ai_100_2 or [])
         )
         if touches_pii:
-            t.loss_low = max(t.loss_low, PII_LOSS_FLOOR_LOW)
-            t.loss_high = max(t.loss_high, PII_LOSS_FLOOR_HIGH)
+            # audit F063: respect the deployment-tier loss ceiling. The PII
+            # floor ran AFTER the tier cap with no guard, so a deliberately
+            # capped POC/pilot ($200k ceiling) was force-inflated to the $500k
+            # PII floor (2.5x), blowing up portfolio ALE. Clamp the floor to the
+            # tier's loss_high_default when one is set.
+            pii_high = PII_LOSS_FLOOR_HIGH
+            pii_low = PII_LOSS_FLOOR_LOW
+            if tier_loss_high_cap:
+                pii_high = min(pii_high, tier_loss_high_cap)
+                pii_low = min(pii_low, pii_high)
+            t.loss_low = max(t.loss_low, pii_low)
+            t.loss_high = max(t.loss_high, pii_high)
 
         # Final ALE
         t.ale_low = round(t.freq_low * t.loss_low, 2)

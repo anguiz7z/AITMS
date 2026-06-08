@@ -5,4 +5,4 @@ OWASP LLM Top 10 2025, and NIST AI RMF. Deterministic Python core; LLM only used
 optionally for vision-based diagram parsing.
 """
 
-__version__ = "1.0.6"
+__version__ = "1.0.7"

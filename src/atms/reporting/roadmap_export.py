@@ -138,7 +138,11 @@ def render_roadmap_json(model: ThreatModel, top_n: int | None = None) -> str:
     tasks = []
     for rank, m in enumerate(top, start=1):
         sev_counts = _addressed_severities(m, model)
-        top_sev = max(sev_counts, key=sev_counts.get, default=None)
+        # audit F017: label a mitigation by the MOST-SEVERE severity it
+        # addresses, not the most FREQUENT -- a fix that closes one critical
+        # plus five lows is a critical-priority task, not a low one.
+        _sev_rank = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
+        top_sev = max(sev_counts, key=lambda s: _sev_rank.get(s, 0), default=None)
         # ai_relevance: take the mode across addressed threats.
         relevances = []
         for tid in m.addresses_threat_ids:

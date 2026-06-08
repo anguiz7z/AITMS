@@ -40,7 +40,7 @@ from .engines.nist_ai_100_2 import enrich_with_nist_ai_100_2
 from .engines.owasp_ml import enrich_with_owasp_ml
 from .engines.quantitative import portfolio_ale, score_quantitative
 from .engines.reference_patterns import enrich_with_reference_patterns
-from .engines.risk import risk_matrix_counts, score_threats
+from .engines.risk import recompute_risk_scores, risk_matrix_counts, score_threats
 from .engines.stride_ai import enumerate_threats
 from .engines.structural import propose_structural_recommendations
 from .evidence.matcher import match_evidence
@@ -266,6 +266,20 @@ def analyze(
         prov = ai_provenance(comp, ai_blast_radius)
         prov = [p for p in prov if p != comp.id]
         t.ai_caused_by = prov
+    # audit F065: the enrichment block (2..2h above) ran BEFORE arch threats
+    # existed, so a HIGH arch finding (e.g. Internet-reachable datastore)
+    # shipped with empty atlas/maestro/linddun/nist/compliance + a blank
+    # kill-chain phase, looking un-traceable next to fully-mapped playbook
+    # threats. Run the same passes over the arch threats so they are enriched
+    # identically before they join the model.
+    arch_threats = enrich_with_atlas(arch_threats, system.components, kb=kb)
+    arch_threats = enrich_with_maestro(arch_threats, system.components, kb=kb)
+    arch_threats = enrich_with_cloud(arch_threats, system.components, kb=kb)
+    arch_threats = enrich_with_linddun(arch_threats, system.components, kb=kb)
+    arch_threats = enrich_with_nist_ai_100_2(arch_threats, system.components, kb=kb)
+    arch_threats = assign_kill_chain_phases(arch_threats)
+    arch_threats = enrich_with_owasp_ml(arch_threats, system.components, kb=kb)
+    arch_threats = enrich_with_compliance(arch_threats, system.components, kb=kb, system=system)
     threats.extend(arch_threats)
 
     # v0.18.5 Cycle R — re-run disposition carry-forward AFTER arch
@@ -288,15 +302,27 @@ def analyze(
     threats = apply_component_controls(threats, system.components)
     threats = score_threats(threats, system.components)
 
-    # 3c. Apply VAPT / red-team / threat-intel evidence (v0.12). KEV-on-CVE
-    #     forces severity = critical and OVERRIDES the qualitative bucket
-    #     above — that override survives subsequent stages by design.
-    #     **Maintainers: do not insert a re-score after this step.**
+    # 3c. Apply VAPT / red-team / threat-intel evidence (v0.12). A KEV CVE the
+    #     threat references, or a demonstrated red-team exploit, OVERRIDES the
+    #     qualitative severity bucket above and that override survives by design.
+    #     **Maintainers: do not RE-BUCKET severity after this step.** We DO
+    #     refresh the numeric risk_score (recompute_risk_scores) so it stays
+    #     consistent with the evidence-adjusted likelihood/impact (audit F040);
+    #     that recompute deliberately does not touch severity.
     evidence_unmatched_count = 0
     if evidence:
         pairs = match_evidence(evidence, system.components)
         evidence_unmatched_count = sum(1 for _, matched in pairs if not matched)
         apply_evidence(threats, system.components, evidence, kb=kb)
+        recompute_risk_scores(threats, system.components)
+        # audit F068: a threat carried forward as closed (false_positive /
+        # mitigated / duplicate) that THIS run's evidence now shows
+        # observed/exploited must not stay hidden -- reopen it so it re-enters
+        # the active severity / risk-matrix / ALE rollups.
+        from .models import is_closed as _is_closed
+        for t in threats:
+            if _is_closed(t.disposition) and t.evidence_status in ("observed", "exploited"):
+                t.disposition = "open"
 
     # 3d. FAIR-lite quantitative ALE per threat (v0.13).
     threats = score_quantitative(threats, system=system)
@@ -353,7 +379,10 @@ def analyze(
         # Replace the playbook AML.M* refs with concrete Mitigation IDs from this run
         derived = threat_to_mits.get(t.id, [])
         # Keep both: AML.M* as references in citation, derived IDs in mitigation_ids
-        t.references = list(set((t.references or []) + [f"ATLAS-MIT:{x}" for x in t.mitigation_ids if x.startswith("AML.")]))
+        # sorted() not list(set()) -- set iteration order varies across
+        # processes (PYTHONHASHSEED), which leaked into the report and broke
+        # byte-identical output (audit F045).
+        t.references = sorted(set((t.references or []) + [f"ATLAS-MIT:{x}" for x in t.mitigation_ids if x.startswith("AML.")]))
         t.mitigation_ids = derived
 
     # 7. Summary
@@ -378,26 +407,39 @@ def analyze(
         "mitigations": len(mitigations),
         "severity_breakdown": dict(sev_counts),
         "risk_matrix": risk_matrix_counts(active_threats),
-        "owasp_coverage": sorted({owasp for t in threats for owasp in t.owasp_llm}),
-        "owasp_agentic_coverage": sorted({a for t in threats for a in t.owasp_agentic}),
-        "owasp_api_coverage": sorted({a for t in threats for a in t.owasp_api}),
-        "atlas_coverage": sorted({a for t in threats for a in t.atlas_techniques}),
-        "attack_cloud_coverage": sorted({a for t in threats for a in t.attack_cloud}),
-        "attack_enterprise_coverage": sorted({a for t in threats for a in t.attack_enterprise}),
-        "linddun_coverage": sorted({a for t in threats for a in t.linddun}),
-        "nist_ai_100_2_coverage": sorted({a for t in threats for a in t.nist_ai_100_2}),
-        "maestro_layers": sorted({layer for t in threats for layer in t.maestro_layers}),
-        "maestro_threats": sorted({m for t in threats for m in t.maestro_threats}),
+        # audit F066: framework coverage must be computed over the SAME active
+        # set as severity_breakdown / risk_matrix / ALE -- otherwise a threat
+        # the analyst marked false_positive still inflates "ATLAS techniques
+        # covered" / "OWASP LLM 8/10" in the headline, contradicting the
+        # active-only numbers in the same report.
+        "owasp_coverage": sorted({owasp for t in active_threats for owasp in t.owasp_llm}),
+        "owasp_agentic_coverage": sorted({a for t in active_threats for a in t.owasp_agentic}),
+        "owasp_api_coverage": sorted({a for t in active_threats for a in t.owasp_api}),
+        "atlas_coverage": sorted({a for t in active_threats for a in t.atlas_techniques}),
+        "attack_cloud_coverage": sorted({a for t in active_threats for a in t.attack_cloud}),
+        "attack_enterprise_coverage": sorted({a for t in active_threats for a in t.attack_enterprise}),
+        "linddun_coverage": sorted({a for t in active_threats for a in t.linddun}),
+        "nist_ai_100_2_coverage": sorted({a for t in active_threats for a in t.nist_ai_100_2}),
+        # audit F073: surface NIST AI 600-1 (GenAI Profile) coverage. The
+        # catalogue was loaded and the feature marketed, but no rollup consumed
+        # threat.nist_ai_rmf, so it was always empty (structurally dead).
+        "nist_ai_rmf_coverage": sorted({a for t in active_threats for a in t.nist_ai_rmf}),
+        "maestro_layers": sorted({layer for t in active_threats for layer in t.maestro_layers}),
+        "maestro_threats": sorted({m for t in active_threats for m in t.maestro_threats}),
         "kill_chain_breakdown": dict(Counter(t.kill_chain_phase for t in threats if t.kill_chain_phase)),
         "evidence_status_breakdown": dict(Counter(t.evidence_status for t in threats)),
         "evidence_total": sum(len(t.evidence) for t in threats),
-        "evidence_kev_hits": sum(1 for t in threats for e in t.evidence if e.kev),
+        # Count DISTINCT physical KEV evidence rows, not (threat x evidence)
+        # pairs -- one KEV finding attached to N threats is ONE hit, not N
+        # (audit F008). Evidence objects are shared by reference across the
+        # threats they touch, so identity de-dupes the physical rows.
+        "evidence_kev_hits": len({id(e) for t in threats for e in t.evidence if e.kev}),
         "evidence_unmatched": evidence_unmatched_count,
-        "owasp_ml_coverage": sorted({a for t in threats for a in t.owasp_ml}),
-        "compliance_coverage": sorted({c for t in threats for c in t.compliance_controls}),
+        "owasp_ml_coverage": sorted({a for t in active_threats for a in t.owasp_ml}),
+        "compliance_coverage": sorted({c for t in active_threats for c in t.compliance_controls}),
         "compliance_frameworks": sorted({
             kb.compliance_controls.get(c, {}).get("framework", "")
-            for t in threats for c in t.compliance_controls
+            for t in active_threats for c in t.compliance_controls
             if kb.compliance_controls.get(c)
         } - {""}),
         "disposition_breakdown": dict(Counter(t.disposition for t in threats)),
@@ -407,6 +449,17 @@ def analyze(
         "priority_mitigation_ids": [m.id for m in top_mitigations],
         "methodology": methodology,
     }
+
+    # audit F067: a general-purpose / pure-IT estate (no AI component) must not
+    # advertise AI-only taxonomy coverage. Individual dual-use threats may still
+    # carry an OWASP-LLM/ATLAS cross-walk tag, but presenting headline
+    # "OWASP LLM 8/10 covered" / "MITRE ATLAS techniques: N" for a non-AI system
+    # is a factual error a client/auditor would reject.
+    if not ai_components:
+        for _k in ("owasp_coverage", "owasp_agentic_coverage", "atlas_coverage",
+                   "maestro_layers", "maestro_threats", "nist_ai_100_2_coverage",
+                   "nist_ai_rmf_coverage"):
+            summary[_k] = []
 
     # v0.16.5 — Propose structural architecture edits where clusters of
     # threats on the same component share a root cause that one new
@@ -507,6 +560,13 @@ _DISPOSITION_CARRY_FIELDS = (
     "deferred_until",
 )
 
+# Valid disposition values a prior-run JSON may carry (audit F058 guard).
+from typing import get_args as _get_args  # noqa: E402
+
+from .models import Disposition as _Disposition  # noqa: E402
+
+_VALID_DISPOSITIONS = frozenset(_get_args(_Disposition))
+
 
 def _carry_forward_dispositions(threats: list, prior_run_path: str) -> None:
     """Load a saved ThreatModel JSON and copy disposition + lifecycle
@@ -556,8 +616,21 @@ def _carry_forward_dispositions(threats: list, prior_run_path: str) -> None:
         ):
             continue
         for field in _DISPOSITION_CARRY_FIELDS:
-            if field in prev and prev[field] is not None:
-                setattr(t, field, prev[field])
+            if field not in prev or prev[field] is None:
+                continue
+            val = prev[field]
+            # audit F058: honour the documented "must not fail" contract -- a
+            # prior-run JSON with a disposition outside the current Literal (or
+            # a non-string lifecycle value) must be skipped with a warning, not
+            # carried onto a live threat where it aborts the run at the
+            # _validate_threats checkpoint (the model has no validate_assignment).
+            if field == "disposition" and val not in _VALID_DISPOSITIONS:
+                log.warning("prior_run=%s: ignoring unknown disposition %r on %s", path.name, val, t.id)
+                continue
+            if field != "disposition" and not isinstance(val, str):
+                log.warning("prior_run=%s: ignoring non-string %s=%r on %s", path.name, field, val, t.id)
+                continue
+            setattr(t, field, val)
         carried += 1
 
     if carried:

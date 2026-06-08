@@ -4,6 +4,7 @@ description: |
   boundary; threats here describe how users are targeted by or contribute to attacks.
 threats:
   - id: T_USR_001
+    applicable_to_topology: [has_ai_component]  # audit F070: AI-specific; suppress on pure-IT
     title: User social-engineered via AI output (misinformation)
     stride_ai: [Spoofing, Repudiation]
     owasp_llm: [LLM09:2025]
@@ -22,6 +23,7 @@ threats:
     refs: [AML.M0018, AML.M0020]
 
   - id: T_USR_002
+    applicable_to_topology: [has_ai_component]  # audit F070: AI-specific; suppress on pure-IT
     title: User as injection vector (uploads adversarial content)
     stride_ai: [Tampering]
     owasp_llm: [LLM01:2025, LLM04:2025]
@@ -40,6 +42,7 @@ threats:
     refs: [AML.M0015, AML.M0020]
 
   - id: T_USR_003
+    applicable_to_topology: [has_ai_component]  # audit F070: AI-specific; suppress on pure-IT
     title: User session hijack / cookie theft leading to AI account takeover
     stride_ai: [Spoofing, Information_Disclosure]
     owasp_llm: [LLM06:2025]

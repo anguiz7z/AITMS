@@ -20,12 +20,25 @@ from ..models import Evidence
 # Falls back to medium when nothing useful is set.
 def _severity_from(obj: dict) -> str:
     confidence = obj.get("confidence")
-    if isinstance(confidence, int):
-        if confidence >= 90:
+    # audit F039: STIX confidence may be a float (95.0) or numeric string,
+    # not just an int. The old isinstance(int) check let those fall through to
+    # the label path and under-rated a critical indicator to 'medium'. Coerce.
+    conf_num: float | None
+    if isinstance(confidence, bool) or confidence is None:
+        conf_num = None
+    elif isinstance(confidence, (int, float)):
+        conf_num = float(confidence)
+    else:
+        try:
+            conf_num = float(confidence)
+        except (TypeError, ValueError):
+            conf_num = None
+    if conf_num is not None:
+        if conf_num >= 90:
             return "critical"
-        if confidence >= 70:
+        if conf_num >= 70:
             return "high"
-        if confidence >= 40:
+        if conf_num >= 40:
             return "medium"
         return "low"
     labels = [str(l).lower() for l in obj.get("labels", []) or []]

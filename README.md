@@ -78,7 +78,7 @@ cd AITMS
 pip install -e .
 ```
 
-**Or portable Windows installer (no Python needed):** double-click `dist/ATMS-Setup-1.0.6.exe`.
+**Or portable Windows installer (no Python needed):** double-click `dist/ATMS-Setup-1.0.6.exe` _(latest published build; the v1.0.7 installer is to follow)_.
 
 ## Quickstart
 

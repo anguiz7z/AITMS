@@ -35,6 +35,9 @@ from .yaml_autocorrect import (
 from .yaml_autocorrect import (
     format_validation_error as _format_validation_error,
 )
+from .yaml_autocorrect import (
+    safe_load_system_yaml as _safe_load_system_yaml,
+)
 
 _TEMPLATE_DIR = templates_dir()
 _SAMPLES_DIR = samples_dir()
@@ -505,8 +508,6 @@ def analyze(
     yaml: str = Form(...),
     methodology: str = Form("stride-ai"),
 ) -> HTMLResponse:
-    import yaml as yaml_mod
-
     # v0.16.9 (Bug-007): bound the YAML body before parsing. Legit System
     # YAMLs are < 100 KB; >2 MB is almost certainly a DoS / mistake.
     if len(yaml) > MAX_ANALYZE_YAML_SIZE:
@@ -518,7 +519,9 @@ def analyze(
 
     notice = None
     try:
-        raw = yaml_mod.safe_load(yaml)
+        # alias-free loader: bans YAML anchors/aliases so an alias-expansion
+        # 'billion laughs' payload can't OOM the server (audit F051).
+        raw = _safe_load_system_yaml(yaml)
         # v0.14.9: best-effort autocorrect common authoring mistakes
         # (mostly free-text component types like "IoT Device") so we
         # don't bounce the user out of the analyse flow for typos. We
@@ -1627,19 +1630,32 @@ def _compute_diff(old_data: dict, new_data: dict) -> dict:
     }
 
 
-def _resolve_diff_path(p: str) -> Path | None:
-    """Resolve a user-supplied diff path. Tries the literal path, then
-    cwd-relative + output/-relative. Returns None if not found."""
+def _resolve_saved_json(p: str) -> Path | None:
+    """Resolve a user-supplied saved-analysis path, CONFINED to the output/
+    and cwd directories.
+
+    Only the file *basename* is honoured, so absolute paths (``/etc/passwd``,
+    ``C:\\Windows\\...``) and ``../`` traversal are rejected: the web UI cannot
+    be turned into an arbitrary-file reader (audit F048/F049/F050). JSON only.
+    """
     if not p:
         return None
-    candidates = [Path(p)]
-    if not Path(p).is_absolute():
-        candidates.append(Path.cwd() / p)
-        candidates.append(Path.cwd() / "output" / Path(p).name)
-    for c in candidates:
-        if c.exists() and c.is_file():
-            return c
+    name = Path(p).name  # strips drive / directory / .. components
+    if not name or Path(name).suffix.lower() != ".json":
+        return None
+    for base in (Path.cwd() / "output", Path.cwd()):
+        try:
+            base_resolved = base.resolve()
+            cand = base_resolved / name
+            if cand.is_file() and cand.parent == base_resolved:
+                return cand
+        except OSError:
+            continue
     return None
+
+
+# Back-compat alias (the diff route used this name).
+_resolve_diff_path = _resolve_saved_json
 
 
 @app.get("/diff", response_class=HTMLResponse)
@@ -1725,23 +1741,20 @@ def methodology(request: Request, path: str = "") -> HTMLResponse:
     source = ""
 
     if path:
-        # Resolve path: relative paths are looked up relative to cwd / output dir.
-        candidates = [Path(path)]
-        if not Path(path).is_absolute():
-            candidates.append(Path.cwd() / path)
-            candidates.append(Path.cwd() / "output" / Path(path).name)
-        for cand in candidates:
-            if cand.exists() and cand.is_file():
-                try:
-                    data = json.loads(cand.read_text(encoding="utf-8"))
-                except Exception:
-                    break
-                # ThreatModel JSON has a `threats` list at the top level.
-                raw_threats = data.get("threats") if isinstance(data, dict) else None
-                if isinstance(raw_threats, list):
-                    threats = raw_threats
-                    source = str(cand.name)
-                break
+        # Resolve via the sandboxed resolver: basename-only, confined to
+        # output/ and cwd, .json only (audit F049/F050 -- was an arbitrary
+        # file read of any JSON on disk).
+        cand = _resolve_saved_json(path)
+        if cand is not None:
+            try:
+                data = json.loads(cand.read_text(encoding="utf-8"))
+            except Exception:
+                data = None
+            # ThreatModel JSON has a `threats` list at the top level.
+            raw_threats = data.get("threats") if isinstance(data, dict) else None
+            if isinstance(raw_threats, list):
+                threats = raw_threats
+                source = str(cand.name)
 
     if threats:
         # Count threats with at least one framework citation.

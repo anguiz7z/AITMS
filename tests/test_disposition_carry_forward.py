@@ -192,3 +192,42 @@ def test_summary_exposes_threats_active_and_closed_counts():
     assert "threats_closed" in tm.summary
     assert tm.summary["threats_active"] == len(tm.threats)
     assert tm.summary["threats_closed"] == 0
+
+
+def test_prior_run_with_unknown_disposition_does_not_crash(tmp_path):
+    """audit F058: a prior-run JSON carrying a disposition outside the current
+    Literal must be skipped with a warning, not abort analyze with a
+    ValidationError (the documented 'must not fail' contract)."""
+    sys_obj = _build_sample_system()
+    tm0 = analyze(sys_obj)
+    tid = tm0.threats[0].id
+    prior = tmp_path / "prior.json"
+    prior.write_text(json.dumps({"threats": [{"id": tid, "disposition": "wont_fix"}]}), encoding="utf-8")
+    tm = analyze(sys_obj, prior_run=str(prior))  # must not raise
+    carried = next(t for t in tm.threats if t.id == tid)
+    assert carried.disposition == "open"  # bad value ignored, default kept
+
+
+def test_evidence_reopens_carried_false_positive(tmp_path):
+    """audit F068: a threat carried forward as false_positive that THIS run's
+    evidence confirms exploited must be reopened so it re-enters the active
+    rollups, not stay hidden."""
+    from atms.models import Evidence
+    sys_obj = System(name="t", components=[
+        Component(id="llm", name="GPT4", type="llm_inference", metadata={"hostname": "gpt.corp"}),
+    ])
+    tm0 = analyze(sys_obj)
+    target = tm0.threats[0]
+    prior = tmp_path / "prior.json"
+    prior.write_text(
+        json.dumps({"threats": [{"id": target.id, "disposition": "false_positive"}]}),
+        encoding="utf-8",
+    )
+    techs = target.atlas_techniques[:1]
+    ev = Evidence(source="red_team", source_type="caldera", title="confirmed",
+                  severity="high", affected_asset="gpt.corp",
+                  references=["attack:" + techs[0]] if techs else [])
+    tm = analyze(sys_obj, prior_run=str(prior), evidence=[ev])
+    t = next(x for x in tm.threats if x.id == target.id)
+    assert t.evidence_status in ("observed", "exploited")
+    assert not is_closed(t.disposition), "evidence-confirmed threat must be reopened"

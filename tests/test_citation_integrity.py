@@ -260,6 +260,42 @@ def test_every_playbook_owasp_agentic_id_exists_in_kb(kb):
     )
 
 
+def test_every_playbook_nist_ai_100_2_id_exists_in_kb(kb):
+    """Every `nist_ai_100_2:` ID cited by a playbook threat must be a real
+    entry in the loaded NIST AI 100-2 adversarial-ML taxonomy. Guards the
+    audit F002-F007 class: fabricated NIST_GAI_*/NIST_PAI_* IDs (e.g.
+    NIST_GAI_CONFABULATION, NIST_PAI_POISONING_MODEL) that don't exist in
+    the catalogue but reached client nist_ai_100_2_coverage."""
+    valid = set(kb.nist_ai_100_2.keys())
+    offenders: list[str] = []
+    for fname, th in _iter_playbook_threats():
+        for cid in (th.get("nist_ai_100_2") or []):
+            if cid not in valid:
+                offenders.append(f"{fname}:{th.get('id')} cites {cid!r}")
+    assert not offenders, (
+        "playbook threats cite NIST AI 100-2 IDs not in the KB taxonomy "
+        "(fabricated citations -- indefensible in a client report):\n  "
+        + "\n  ".join(offenders)
+    )
+
+
+def test_every_playbook_maestro_id_exists_in_kb(kb):
+    """Every `maestro:` ID cited by a playbook threat must be a real CSA
+    MAESTRO threat in the KB (M.L1..M.L7 layers + M.X cross-layer). Guards
+    the audit F005/F007 class: a fabricated M.L4.07 (the L4 layer stops at
+    M.L4.06) that reached client maestro coverage + STIX external_references."""
+    valid = set(kb.maestro_threats.keys())
+    offenders: list[str] = []
+    for fname, th in _iter_playbook_threats():
+        for cid in (th.get("maestro") or []):
+            if cid not in valid:
+                offenders.append(f"{fname}:{th.get('id')} cites {cid!r}")
+    assert not offenders, (
+        "playbook threats cite MAESTRO IDs not in the KB:\n  "
+        + "\n  ".join(offenders)
+    )
+
+
 def test_analysis_output_has_no_fabricated_atlas_ids(kb):
     """End-to-end: analysing every bundled sample must never surface a
     threat carrying an ATLAS ID absent from the KB. This is the surface a
@@ -281,5 +317,120 @@ def test_analysis_output_has_no_fabricated_atlas_ids(kb):
                     offenders.append(f"{p.name}:{t.id} -> {aid!r}")
     assert not offenders, (
         "analysis output cites ATLAS IDs not in the KB:\n  "
+        + "\n  ".join(sorted(set(offenders)))
+    )
+
+
+def test_every_playbook_nist_ai_rmf_id_exists_in_kb(kb):
+    """audit F073: every `nist:` (NIST AI 600-1 GenAI Profile) id cited by a
+    playbook must resolve in the loaded catalogue. Also guards that the
+    catalogue is no longer structurally dead -- at least one playbook cites it."""
+    valid = set(kb.nist_ai_rmf.keys())
+    cited = 0
+    offenders: list[str] = []
+    for fname, th in _iter_playbook_threats():
+        for cid in (th.get("nist") or []):
+            cited += 1
+            if cid not in valid:
+                offenders.append(f"{fname}:{th.get('id')} cites {cid!r}")
+    assert not offenders, (
+        "playbook threats cite NIST AI 600-1 ids not in the KB:\n  " + "\n  ".join(offenders)
+    )
+    assert cited > 0, "the NIST AI 600-1 catalogue is loaded + marketed but no playbook cites it (dead)"
+
+
+def test_analysis_output_has_no_mislabeled_atlas_mitigations(kb):
+    """audit F069/F071/F072: the only ATLAS-MIT references a threat may carry
+    are real ATLAS mitigation ids (AML.M*). The playbook `refs` field was
+    polluted with ATT&CK techniques (T1190, ICS T08xx), OWASP categories
+    (LLM05:2025) and ATLAS techniques (AML.T*), all of which were wrongly
+    rendered to clients as 'ATLAS-MIT:<id>' mitigations."""
+    from atms.cli import _load_system_yaml
+    from atms.workflow import analyze
+
+    samples = ROOT / "samples"
+    offenders: list[str] = []
+    for p in sorted(samples.glob("*.yaml")):
+        try:
+            model = analyze(_load_system_yaml(p))
+        except Exception:
+            continue
+        for t in model.threats:
+            for ref in (t.references or []):
+                if ref.startswith("ATLAS-MIT:") and not ref.startswith("ATLAS-MIT:AML.M"):
+                    offenders.append(f"{p.name}:{t.id} -> {ref!r}")
+            for mid in t.mitigation_ids:
+                if str(mid).startswith(("T", "LLM", "API", "ML", "AML.T")):
+                    offenders.append(f"{p.name}:{t.id} mitigation_id {mid!r} is not an AML.M id")
+    assert not offenders, (
+        "analysis output presents non-mitigation ids as ATLAS mitigations:\n  "
+        + "\n  ".join(sorted(set(offenders))[:20])
+    )
+
+
+def test_analysis_output_maestro_and_agentic_respect_applies_to(kb):
+    """audit F020/F021/F022/F061: a MAESTRO threat id or OWASP-Agentic id may
+    only surface on a component its catalogue applies_to permits (cross-layer
+    M.X.* and unrestricted ids exempt). Pins that e.g. an Agent-Ecosystem (L7)
+    id can't reach a non-agent component's coverage."""
+    from atms.cli import _load_system_yaml
+    from atms.workflow import analyze
+
+    comp_types = {}  # filled per sample
+    offenders: list[str] = []
+    for p in sorted((ROOT / "samples").glob("*.yaml")):
+        try:
+            model = analyze(_load_system_yaml(p))
+        except Exception:
+            continue
+        comp_types = {c.id: c.type for c in model.system.components}
+        for t in model.threats:
+            ctype = comp_types.get(t.component_id, "")
+            for mid in t.maestro_threats:
+                m = kb.maestro_threats.get(mid)
+                if not isinstance(m, dict) or str(mid).startswith("M.X") or m.get("layer") == "cross":
+                    continue
+                applies = m.get("applies_to") or []
+                if applies and ctype not in set(applies):
+                    offenders.append(f"{p.name}:{t.id} ({ctype}) -> MAESTRO {mid} applies_to={applies}")
+            for aid in t.owasp_agentic:
+                a = kb.owasp_agentic.get(aid)
+                if not isinstance(a, dict):
+                    continue
+                applies = a.get("applies_to") or []
+                if applies and ctype not in set(applies):
+                    offenders.append(f"{p.name}:{t.id} ({ctype}) -> AGT {aid} applies_to={applies}")
+    assert not offenders, (
+        "MAESTRO/OWASP-Agentic ids surfaced on components their applies_to excludes:\n  "
+        + "\n  ".join(sorted(set(offenders))[:20])
+    )
+
+
+def test_analysis_output_has_no_fabricated_maestro_or_nist_ids(kb):
+    """End-to-end guard for audit F002-F007: analysing every bundled sample
+    must never surface a MAESTRO or NIST AI 100-2 ID absent from the KB --
+    these flow into summary coverage maps and the STIX external_references a
+    client ingests, so pin the actual output surface."""
+    from atms.cli import _load_system_yaml
+    from atms.workflow import analyze
+
+    valid_mae = set(kb.maestro_threats.keys())
+    valid_nist = set(kb.nist_ai_100_2.keys())
+    samples = ROOT / "samples"
+    offenders: list[str] = []
+    for p in sorted(samples.glob("*.yaml")):
+        try:
+            model = analyze(_load_system_yaml(p))
+        except Exception:
+            continue
+        for t in model.threats:
+            for mid in t.maestro_threats:
+                if mid not in valid_mae:
+                    offenders.append(f"{p.name}:{t.id} -> MAESTRO {mid!r}")
+            for nid in t.nist_ai_100_2:
+                if nid not in valid_nist:
+                    offenders.append(f"{p.name}:{t.id} -> NIST {nid!r}")
+    assert not offenders, (
+        "analysis output cites MAESTRO/NIST IDs not in the KB:\n  "
         + "\n  ".join(sorted(set(offenders)))
     )

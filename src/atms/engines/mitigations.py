@@ -27,8 +27,11 @@ def collect_mitigations(
     for threat in threats:
         comp_type = comp_type_by_id.get(threat.component_id)
         playbook = kb.get_playbook(comp_type) if comp_type else None
-        # Threat IDs follow "<component_id>.<playbook_threat_local_id>"
-        local_id = threat.id.split(".", 1)[-1]
+        # Threat IDs follow "<component_id>.<playbook_threat_local_id>". Split
+        # from the END (audit F062): a component id may itself contain a dot
+        # (e.g. 'llm.v2'), so split('.', 1) returned the wrong local id and
+        # silently dropped ALL inline playbook mitigations for that threat.
+        local_id = threat.id.rsplit(".", 1)[-1]
 
         # 1. Inline mitigations from playbook
         if playbook:
@@ -114,6 +117,33 @@ def collect_mitigations(
                 )
                 if threat.id not in m.addresses_threat_ids:
                     m.addresses_threat_ids.append(threat.id)
+
+        # 5. Architectural-rule mitigations (audit F065). Arch threats (id
+        #    "<comp>.A_<RULE>") carry their mitigations in the ArchRule
+        #    definition, not a playbook, so none of the paths above reach them.
+        #    Surface the rule's mitigations so a HIGH topology finding (e.g.
+        #    Internet-reachable datastore) isn't left with zero recommended fixes.
+        if ".A_" in threat.id:
+            from .architectural_rules import ARCHITECTURAL_RULES
+            rule_name = threat.id.split(".A_", 1)[1].lower()
+            rule = next((r for r in ARCHITECTURAL_RULES if r.name == rule_name), None)
+            if rule:
+                for mit_text in rule.mitigations:
+                    title = mit_text.split(":")[0][:80] if ":" in mit_text else mit_text[:80]
+                    key = f"ARCH:{rule.name}:{title.lower()}"
+                    m = mits_by_key.setdefault(
+                        key,
+                        Mitigation(
+                            id=stable_id("MIT", key),
+                            title=title,
+                            description=mit_text,
+                            framework_refs=list(rule.refs),
+                            effort="medium",
+                            risk_reduction=3,
+                        ),
+                    )
+                    if threat.id not in m.addresses_threat_ids:
+                        m.addresses_threat_ids.append(threat.id)
 
     mitigations = list(mits_by_key.values())
     mitigations.sort(

@@ -130,11 +130,11 @@ install: ## Install ATMS + dev dependencies in editable mode
 clean: ## Remove all generated artefacts (caches, output/, build, htmlcov)
 	rm -rf output/* .pytest_cache .mypy_cache .ruff_cache \
 	       dist build htmlcov .coverage coverage.json \
-	       .atms_kb_cache.pkl .atms_kb_cache.pkl.tmp
+	       .atms_kb_cache.pkl .atms_kb_cache.pkl.tmp .atms_kb_cache.key
 	@find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	@echo "Cleaned."
 
-# ─── Phase pipeline (used by autonomous-loop CI) ──────────────────────────
+# ─── Phase pipeline (used by CI) ──────────────────────────
 
 ci: lint test-parallel coverage-ci selftest ## Run the full local CI bundle
 

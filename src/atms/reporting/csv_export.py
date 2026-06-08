@@ -8,6 +8,39 @@ from io import StringIO
 from ..models import ThreatModel
 
 
+def csv_safe(value):
+    """Neutralise CSV / spreadsheet formula injection (audit F047).
+
+    A downloadable CSV deliverable embeds user-controlled component / threat
+    text. A cell whose text begins with ``=``, ``+``, ``-``, ``@`` (or a tab /
+    CR) is interpreted as a formula by Excel / Google Sheets -- e.g. a
+    component named ``=cmd|'/c calc'!A1``. Prefix such cells with a single
+    quote so they render as literal text. Non-string cells pass through.
+    """
+    if isinstance(value, str) and value[:1] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
+class _SafeWriter:
+    """csv.writer wrapper that runs every cell through csv_safe (audit F047)."""
+
+    def __init__(self, writer):
+        self._w = writer
+
+    def writerow(self, row):
+        self._w.writerow([csv_safe(c) for c in row])
+
+    def writerows(self, rows):
+        for r in rows:
+            self.writerow(r)
+
+
+def safe_csv_writer(buf, **kwargs):
+    """A csv.writer whose every cell is formula-injection sanitised (F047)."""
+    return _SafeWriter(csv.writer(buf, **kwargs))
+
+
 def write_csv(model: ThreatModel, kind: str = "risk_register") -> str:
     if kind == "risk_register":
         return _risk_register(model)
@@ -18,7 +51,7 @@ def write_csv(model: ThreatModel, kind: str = "risk_register") -> str:
 
 def _risk_register(model: ThreatModel) -> str:
     buf = StringIO()
-    w = csv.writer(buf, lineterminator="\n")
+    w = safe_csv_writer(buf, lineterminator="\n")
     w.writerow(
         [
             "threat_id",
@@ -105,7 +138,7 @@ def _risk_register(model: ThreatModel) -> str:
 
 def _mitigations(model: ThreatModel) -> str:
     buf = StringIO()
-    w = csv.writer(buf, lineterminator="\n")
+    w = safe_csv_writer(buf, lineterminator="\n")
     w.writerow([
         "mitigation_id", "title", "effort", "risk_reduction", "frameworks",
         "addresses_count",

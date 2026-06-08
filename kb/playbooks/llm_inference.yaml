@@ -111,7 +111,7 @@ threats:
     stride_ai: [Repudiation]
     owasp_llm: [LLM09:2025]
     atlas: [AML.T0048, AML.T0058]
-    nist_ai_100_2: [NIST_GAI_CONFABULATION, NIST_GAI_DANGEROUS_CONTENT]
+    nist: [NIST.AI.600-1.MS-1.1, NIST.AI.600-1.MG-2.4]  # audit F073: hallucination + harmful content
     csa_singapore: [CSA_AI.OPERATE.01]
     likelihood: 4
     impact: 3

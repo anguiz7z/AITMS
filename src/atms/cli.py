@@ -97,7 +97,10 @@ def _load_system_yaml(system_path: Path):
         console.print(f"[red]Could not read {system_path}:[/red] {e}")
         sys.exit(2)
     try:
-        raw = yaml.safe_load(text)
+        # alias-free loader: bans YAML anchors/aliases so an alias-expansion
+        # 'billion laughs' file can't OOM the CLI (audit F051).
+        from .yaml_autocorrect import safe_load_system_yaml
+        raw = safe_load_system_yaml(text)
     except yaml.YAMLError as e:
         console.print(
             f"[red]Malformed YAML in {system_path}:[/red] {str(e).splitlines()[0]}"
@@ -945,11 +948,11 @@ def scan_cmd(
         written.append(p)
     if "stix" in fmts:
         p = out_dir / f"{stem}.stix.json"
-        p.write_text(json.dumps(render_stix(model), indent=2), encoding="utf-8")
+        p.write_text(render_stix(model), encoding="utf-8")
         written.append(p)
     if "navigator" in fmts:
         p = out_dir / f"{stem}.navigator.json"
-        p.write_text(json.dumps(render_navigator(model), indent=2), encoding="utf-8")
+        p.write_text(render_navigator(model), encoding="utf-8")
         written.append(p)
     if "csv" in fmts:
         for kind in ("risk_register", "mitigations"):
@@ -962,11 +965,11 @@ def scan_cmd(
         written.append(p)
     if "sarif" in fmts:
         p = out_dir / f"{stem}.sarif"
-        p.write_text(json.dumps(render_sarif(model), indent=2), encoding="utf-8")
+        p.write_text(render_sarif(model), encoding="utf-8")
         written.append(p)
     if "otm" in fmts:
         p = out_dir / f"{stem}.otm.json"
-        p.write_text(json.dumps(render_otm(model), indent=2), encoding="utf-8")
+        p.write_text(render_otm(model), encoding="utf-8")
         written.append(p)
     if "exec" in fmts:
         # v0.18.10 Cycle Z: exec summary also wired into scan.
@@ -2210,9 +2213,24 @@ def selftest() -> None:
     """Run sample analyses against bundled fixtures and assert basic invariants."""
     samples_path = samples_dir()
     failures: list[str] = []
+    # audit F010: selftest is the official install-verification command (the
+    # installer runs it post-install). If the package shipped without its
+    # samples/, globbing yields zero files and the old code fell straight
+    # through to "All sample analyses passed." -- a false GREEN on a broken
+    # install. Fail loudly instead.
+    yaml_samples = sorted(samples_path.glob("*.yaml"))
+    if not yaml_samples:
+        console.print(
+            f"[red]selftest: no sample systems found at {samples_path}[/red]"
+        )
+        console.print(
+            "[red]This install is missing its bundled samples/ -- the package "
+            "is broken (see paths.samples_dir / wheel shared-data).[/red]"
+        )
+        sys.exit(1)
     # v0.17.4: auto-detect pure-IT samples so selftest covers them too.
     from .engines.ai_scope import find_ai_components
-    for path in sorted(samples_path.glob("*.yaml")):
+    for path in yaml_samples:
         try:
             raw = yaml.safe_load(path.read_text(encoding="utf-8"))
             system = System.model_validate(raw)

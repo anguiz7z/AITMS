@@ -114,8 +114,14 @@ Full report (HTML, STIX, SARIF, Navigator, CSV) generated alongside this summary
 
 
 def _table_threats(threats: list) -> str:
+    # audit F013/F014: the headline metrics exclude closed dispositions
+    # (mitigated / false_positive / duplicate), so the 'Top 5 threats by risk'
+    # table must too -- otherwise a triaged-away CRITICAL is presented as the
+    # #1 risk on a one-pager that simultaneously reports 'Critical: 0'.
+    from ..models import is_closed
+    active = [t for t in threats if not is_closed(t.disposition)]
     rows = ["<table><thead><tr><th>ID</th><th>Severity</th><th>Title</th><th>L × I</th><th>Risk</th></tr></thead><tbody>"]
-    for t in sorted(threats, key=lambda x: x.risk_score, reverse=True)[:5]:
+    for t in sorted(active, key=lambda x: x.risk_score, reverse=True)[:5]:
         rows.append(
             f"<tr><td><code>{_esc(t.id)}</code></td>"
             f"<td><span class='severity sev-{_esc(t.severity)}'>{_esc(t.severity)}</span></td>"

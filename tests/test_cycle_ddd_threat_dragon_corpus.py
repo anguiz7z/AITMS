@@ -73,12 +73,17 @@ def test_arch_rules_fire_on_real_world_diagram():
 
 def test_framework_enrichment_spans_multiple_taxonomies():
     """The same topology gets mapped to multiple framework taxonomies
-    that Threat Dragon doesn't track natively (OWASP API, ATLAS,
-    ATT&CK Cloud, ATT&CK Enterprise, LINDDUN)."""
+    that Threat Dragon doesn't track natively (OWASP API, ATT&CK Cloud,
+    ATT&CK Enterprise, LINDDUN).
+
+    NB: this demo is a non-AI web app (require_ai_components=False), so MITRE
+    ATLAS coverage is intentionally suppressed -- ATLAS is an adversarial-ML
+    (AI-only) taxonomy and claiming it for a non-AI estate is indefensible
+    (audit F067). The four non-AI-only taxonomies still demonstrate the span.
+    """
     m = _model()
     expected_nonempty = (
         "owasp_api_coverage",
-        "atlas_coverage",
         "attack_cloud_coverage",
         "attack_enterprise_coverage",
         "linddun_coverage",

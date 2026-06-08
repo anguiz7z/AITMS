@@ -134,9 +134,16 @@ def _apply_vendor_overlays(
 
 
 def _threat_from_playbook(comp: Component, raw: dict) -> Threat:
-    refs = []
-    for ref in raw.get("refs", []):
-        refs.append(f"ATLAS-MIT:{ref}")
+    # The `refs` field is contractually ATLAS *mitigation* ids (AML.M*). Many
+    # playbooks polluted it with ATT&CK attack-technique ids (T1190, ICS T08xx),
+    # OWASP categories (LLM05:2025, API8:2023) and even ATLAS *techniques*
+    # (AML.T*), which the old code blanket-prefixed 'ATLAS-MIT:' and copied into
+    # mitigation_ids -- presenting an attack technique / threat category to the
+    # client as a MITIGATION (audit F069/F071/F072). Only real ATLAS mitigation
+    # ids are treated as mitigations now; non-AML.M refs are ignored here (their
+    # proper citations live in the atlas/attack_*/owasp_* fields).
+    aml_mit_refs = [r for r in raw.get("refs", []) if str(r).startswith("AML.M")]
+    refs = [f"ATLAS-MIT:{ref}" for ref in aml_mit_refs]
     return Threat(
         id=f"{comp.id}.{raw['id']}",
         component_id=comp.id,
@@ -159,7 +166,7 @@ def _threat_from_playbook(comp: Component, raw: dict) -> Threat:
         likelihood=int(raw.get("likelihood", 3)),
         impact=int(raw.get("impact", 3)),
         confidence=0.95,  # playbook-sourced → high confidence
-        mitigation_ids=raw.get("refs", []),
+        mitigation_ids=list(aml_mit_refs),
         references=refs,
     )
 

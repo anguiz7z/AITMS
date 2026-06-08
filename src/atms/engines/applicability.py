@@ -89,10 +89,22 @@ def has_mtls_internal(system: System) -> bool:
     return any("mtls" in (c.controls or []) for c in system.components)
 
 
+def has_ai_component(system: System) -> bool:
+    """True iff the system has at least one AI/ML/agentic component.
+
+    Gates AI-specific infrastructure threats (e.g. 'EDR disabled on an AI
+    training host', 'WAF lacks LLM-prompt inspection') so they do NOT fire on a
+    pure-IT / general-purpose estate that has no AI in scope. (audit F070)
+    """
+    from .ai_scope import find_ai_components
+    return bool(find_ai_components(system))
+
+
 TOPOLOGY_PREDICATES: dict[str, Callable[[System], bool]] = {
     "multi_agent_mesh": has_multi_agent,
     "has_outbound_internet": has_outbound_internet,
     "has_mtls_internal": has_mtls_internal,
+    "has_ai_component": has_ai_component,
 }
 
 

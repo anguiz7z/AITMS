@@ -48,6 +48,7 @@ import io
 import json
 
 from ..models import ThreatModel
+from .csv_export import safe_csv_writer  # audit F047: formula-injection-safe CSV
 
 # Severity → JIRA priority.
 _PRIORITY_MAP = {
@@ -123,7 +124,10 @@ def _build_description(threat, model: ThreatModel) -> str:
     parts.append("")
     parts.append(f"*Component:* {threat.component_name or threat.component_id}")
     parts.append(
-        f"*Risk score:* {threat.risk_score}/25  "
+        # audit F015: risk_score is a 0-100 DREAD-AI score (exec summary +
+        # Navigator use /100); the '/25' label rendered every ticket as e.g.
+        # '90/25' (=360%). Correct the denominator.
+        f"*Risk score:* {threat.risk_score}/100  "
         f"(likelihood {threat.likelihood}, impact {threat.impact})"
     )
     if getattr(threat, "kill_chain_phase", None):
@@ -166,7 +170,7 @@ def render_jira_csv(model: ThreatModel) -> str:
     each ATMS threat is single-component today).
     """
     buf = io.StringIO()
-    w = csv.writer(buf, lineterminator="\n", quoting=csv.QUOTE_MINIMAL)
+    w = safe_csv_writer(buf, lineterminator="\n", quoting=csv.QUOTE_MINIMAL)
     w.writerow([
         "Summary", "Description", "Issue Type", "Priority", "Status",
         "Component/s", "Labels", "External ID",

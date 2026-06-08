@@ -89,6 +89,43 @@ def test_artefact_ids_repeat_across_runs():
     assert a.mitigations, "expected rag_system to yield mitigations"
 
 
+def test_stix_bundle_id_deterministic():
+    """audit F044: the STIX bundle id must repeat across runs (was uuid4())."""
+    import json
+
+    from atms.reporting.stix import render_stix
+    a = _analyze(str(ROOT / "samples" / "rag_system.yaml"))
+    b = _analyze(str(ROOT / "samples" / "rag_system.yaml"))
+    assert json.loads(render_stix(a))["id"] == json.loads(render_stix(b))["id"]
+
+
+def test_sbom_serial_deterministic():
+    """audit F043: the CycloneDX SBOM serialNumber must repeat across runs."""
+    import json
+
+    from atms.reporting.sbom_export import render_sbom_cdx
+    a = _analyze(str(ROOT / "samples" / "rag_system.yaml"))
+    b = _analyze(str(ROOT / "samples" / "rag_system.yaml"))
+    assert json.loads(render_sbom_cdx(a))["serialNumber"] == json.loads(render_sbom_cdx(b))["serialNumber"]
+
+
+def test_threat_references_are_sorted():
+    """audit F045: threat.references must be sorted (was list(set(...)),
+    whose iteration order varied across processes)."""
+    a = _analyze(str(ROOT / "samples" / "rag_system.yaml"))
+    for t in a.threats:
+        assert t.references == sorted(t.references), f"{t.id} references not sorted: {t.references}"
+
+
+def test_generated_at_honors_source_date_epoch(monkeypatch):
+    """audit F042: SOURCE_DATE_EPOCH pins generated_at so the primary
+    deliverable can be byte-identical across runs."""
+    from datetime import UTC, datetime
+    monkeypatch.setenv("SOURCE_DATE_EPOCH", "1700000000")
+    a = _analyze(str(ROOT / "samples" / "rag_system.yaml"))
+    assert a.generated_at == datetime.fromtimestamp(1700000000, UTC)
+
+
 def test_stable_id_contract():
     assert stable_id("MIT", "x", "y") == stable_id("MIT", "x", "y")
     assert stable_id("MIT", "x").startswith("MIT-")

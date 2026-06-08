@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "atms"
-version = "1.0.6"
+version = "1.0.7"
 description = "AI Threat Modeling Studio - workflow tool for AI/ML/LLM/agentic system threat modeling"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -64,6 +64,10 @@ packages = ["src/atms"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "kb" = "atms/kb"
+# v1.0.7 (audit F010): ship the sample systems too. Without this a
+# `pip install` wheel had no samples/, so `atms selftest` iterated zero
+# files and reported a false GREEN ("All sample analyses passed").
+"samples" = "atms/samples"
 "src/atms/templates" = "atms/templates"
 # v0.14.5: bundle the static JS / CSS too, otherwise `pip install atms`
 # ships a Web UI without mermaid.min.js / atms-mermaid.js / atms-editor.js

@@ -91,18 +91,31 @@ def render_navigator(model: ThreatModel) -> str:
                 enterprise_scores[tech_id] = max(enterprise_scores.get(tech_id, 0.0), t.risk_score)
                 enterprise_threats.setdefault(tech_id, []).append(t.id)
 
-    if atlas_scores or not enterprise_scores:
-        layer = _build_layer(
+    # audit F016: emit BOTH layers for a hybrid AI+cloud system instead of
+    # discarding the ATT&CK Enterprise/Cloud techniques whenever any ATLAS
+    # technique exists. A single-domain system returns one layer (object); a
+    # hybrid one returns a multi-layer document (array) -- both are valid
+    # MITRE Navigator imports.
+    layers = []
+    if atlas_scores:
+        layers.append(_build_layer(
             f"ATMS — {model.system.name}", "atlas",
             atlas_scores, atlas_threats, "v15",
             model.system.name, model.tool_version,
-        )
-    else:
-        # Cloud-only / IT-only fallback — keep the file useful instead of
-        # ship an empty ATLAS layer.
-        layer = _build_layer(
-            f"ATMS — {model.system.name}", "enterprise-attack",
+        ))
+    if enterprise_scores:
+        layers.append(_build_layer(
+            f"ATMS — {model.system.name} (ATT&CK)", "enterprise-attack",
             enterprise_scores, enterprise_threats, "v15",
             model.system.name, model.tool_version,
-        )
-    return json.dumps(layer, indent=2)
+        ))
+    if not layers:
+        # No mapped techniques at all -- keep the file useful with an (empty)
+        # ATLAS layer rather than emitting nothing.
+        layers.append(_build_layer(
+            f"ATMS — {model.system.name}", "atlas",
+            atlas_scores, atlas_threats, "v15",
+            model.system.name, model.tool_version,
+        ))
+    out = layers[0] if len(layers) == 1 else layers
+    return json.dumps(out, indent=2)

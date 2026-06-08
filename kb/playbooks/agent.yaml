@@ -91,7 +91,7 @@ threats:
     owasp_agentic: [AGT05]
     atlas: [AML.T0058]
     maestro: [M.L7.04, M.X.01]
-    nist_ai_100_2: [NIST_GAI_CONFABULATION]
+    nist: [NIST.AI.600-1.MS-1.1]  # audit F073: hallucination/confabulation -> NIST AI 600-1 MS-1.1
     csa_singapore: [CSA_AI.DEVELOP.01]
     likelihood: 3
     impact: 4
@@ -182,7 +182,7 @@ threats:
     owasp_agentic: [AGT05]
     atlas: [AML.T0048, AML.T0058]
     maestro: [M.X.05]
-    nist_ai_100_2: [NIST_GAI_CONFABULATION]
+    nist: [NIST.AI.600-1.MS-1.1]  # audit F073: cascading hallucination -> NIST AI 600-1 MS-1.1
     csa_singapore: [CSA_AI.OPERATE.01]
     likelihood: 4
     impact: 3

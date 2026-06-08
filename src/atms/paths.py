@@ -45,6 +45,16 @@ def _candidates(*relative: str) -> list[Path]:
     # 3. Installed wheel: data files copied alongside the package
     cands.append(here.parent.joinpath(*relative))
 
+    # 4. Installed wheel via hatch *shared-data*: top-level `kb` / `samples`
+    #    are mapped to `atms/kb` / `atms/samples`, which pip places under
+    #    <sys.prefix>/atms/... -- NOT inside the importable package. Without
+    #    this candidate a plain `pip install <wheel>` / PyPI install resolves
+    #    kb_dir()/samples_dir() to a nonexistent path and silently loads an
+    #    EMPTY knowledge base. (audit F009/F010)
+    cands.append(Path(sys.prefix).joinpath("atms", *relative))
+    if sys.base_prefix != sys.prefix:  # inside a venv: also try the base install
+        cands.append(Path(sys.base_prefix).joinpath("atms", *relative))
+
     return cands
 
 

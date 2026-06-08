@@ -673,7 +673,12 @@ def test_attack_id_correlation_routes_evidence_without_hostname():
         references=["attack:T1562.001"],
     )]
     apply_evidence(threats, components, ev)
-    assert threats[0].evidence_status == "exploited"
+    # audit F034: a red-team row that correlates to this threat ONLY by a shared
+    # ATT&CK technique tag (no hostname / CVE anchor) is weak evidence -- the
+    # technique was demonstrated *somewhere*, not necessarily against THIS
+    # component -- so it tops out at 'observed', not 'exploited'. The row must
+    # still attach (that is this test's real contract).
+    assert threats[0].evidence_status == "observed"
     assert threats[0].evidence, "expected the red-team row to attach via ATT&CK ID"
 
 

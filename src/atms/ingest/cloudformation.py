@@ -320,7 +320,10 @@ def cloudformation_to_system(
         comp_id = cfn_id_to_comp.get(logical_id)
         if not comp_id:
             continue
-        props = body.get("Properties", {}) or {}
+        # audit F054: Properties may be a YAML list (malformed template) --
+        # guard before .items().
+        props = body.get("Properties")
+        props = props if isinstance(props, dict) else {}
         # Inspect VpcId / SubnetId(s) properties.
         for key, value in props.items():
             if key in ("VpcId",):

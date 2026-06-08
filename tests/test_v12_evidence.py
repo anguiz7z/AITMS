@@ -259,7 +259,11 @@ def _toy_system_threats():
         Threat(id="vpn.t1", component_id="vpn",
                title="Internet-facing VPN with vendor-CVE chain",
                description="Exploitable PAN-OS CVE on the perimeter VPN.",
-               likelihood=3, impact=4, severity="medium"),
+               likelihood=3, impact=4, severity="medium",
+               # This threat IS about the PAN-OS CVE, so it references it --
+               # that is what makes a KEV hit on this CVE force-critical THIS
+               # threat (vs an unrelated threat merely on the same component).
+               references=["CVE-2024-3400"]),
     ]
     return components, threats
 
@@ -322,6 +326,73 @@ def test_engine_decorates_with_epss_score():
     # CVE-2021-44228 is in our bundled EPSS top-N
     assert threats[0].evidence[0].epss is not None
     assert threats[0].evidence[0].epss > 0.5
+
+
+# ──────────────── Proportionate escalation (audit F008/F034/F035/F036) ─────
+def test_kev_does_not_fan_out_to_unrelated_threats():
+    """audit F008: a KEV CVE matched to a component force-criticals ONLY the
+    threat that references that CVE, not every unrelated threat on the same
+    component (a perimeter-firewall CVE must not make a prompt-injection
+    threat 'critical')."""
+    comp = Component(id="c", name="node", type="llm_inference",
+                     metadata={"hostname": "h.corp"})
+    cve_threat = Threat(id="c.cve", component_id="c", title="VPN CVE chain",
+                        description="d", likelihood=3, impact=4, severity="medium",
+                        references=["CVE-2024-3400"])
+    unrelated = Threat(id="c.pi", component_id="c", title="Prompt injection",
+                       description="d", likelihood=2, impact=3, severity="medium")
+    ev = Evidence(source="vapt", source_type="nessus", affected_asset="h.corp",
+                  cve=["CVE-2024-3400"], severity="high")
+    apply_evidence([cve_threat, unrelated], [comp], [ev])
+    assert cve_threat.severity == "critical"       # the CVE's own threat -> critical
+    assert unrelated.severity != "critical"        # unrelated threat NOT force-critical
+    assert unrelated.likelihood <= 3               # at most a small exposure nudge
+
+
+def test_low_severity_red_team_does_not_inflate():
+    """audit F036: an info/low red-team row (weak or negative result) must not
+    push a medium threat to high / likelihood-5 / confidence-1.0."""
+    comp = Component(id="c", name="node", type="llm_inference", metadata={"hostname": "h"})
+    t = Threat(id="c.t", component_id="c", title="model extraction",
+               description="d", likelihood=2, impact=2, severity="medium")
+    ev = Evidence(source="red_team", source_type="caldera", affected_asset="h",
+                  title="non-event", severity="info")
+    apply_evidence([t], [comp], [ev])
+    assert t.severity == "medium"
+    assert t.likelihood == 2
+    assert t.evidence_status != "exploited"
+
+
+def test_red_team_confirmed_reaches_critical_not_capped_high():
+    """audit F035: a demonstrated (high/critical) red-team exploit whose
+    post-evidence coordinates land in the matrix CRITICAL cell is labelled
+    'critical', not capped at a hard-coded 'high'."""
+    comp = Component(id="c", name="node", type="llm_inference", metadata={"hostname": "h"})
+    t = Threat(id="c.t", component_id="c", title="rce", description="d",
+               likelihood=4, impact=5, severity="high")
+    ev = Evidence(source="red_team", source_type="caldera", affected_asset="h",
+                  title="confirmed RCE", severity="critical")
+    apply_evidence([t], [comp], [ev])
+    assert t.likelihood == 5
+    assert t.severity == "critical"
+    assert t.evidence_status == "exploited"
+
+
+def test_technique_only_correlation_is_weak_not_exploited():
+    """audit F034: an UNMATCHED red-team row that only shares a MITRE technique
+    tag with a threat correlates weakly -- at most 'observed', never
+    'exploited' with a forced severity across an unrelated component."""
+    comp = Component(id="c", name="node", type="agent")
+    t = Threat(id="c.t", component_id="c", title="tool misuse", description="d",
+               likelihood=2, impact=3, severity="medium",
+               atlas_techniques=["AML.T0051.001"])
+    ev = Evidence(source="red_team", source_type="caldera",
+                  title="Caldera op (no host match)", severity="medium",
+                  references=["attack:AML.T0051.001"])
+    apply_evidence([t], [comp], [ev])
+    assert t.evidence_status in ("observed", "likely")
+    assert t.severity == "medium"
+    assert t.likelihood <= 3
 
 
 # ────────────────────────────── Workflow integration ─────────────────────

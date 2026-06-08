@@ -184,8 +184,13 @@ def test_navigator_export_has_required_fields():
     )
     tm = analyze(System.model_validate(raw))
     nav = json.loads(render_navigator(tm))
-    assert "name" in nav
-    assert "techniques" in nav or "matrix" in nav.get("name", "").lower()
+    # audit F016: a hybrid AI+cloud system emits a multi-layer ARRAY; every
+    # layer (or the single object) must carry the Navigator structure.
+    layers = nav if isinstance(nav, list) else [nav]
+    assert layers
+    for layer in layers:
+        assert "name" in layer
+        assert "techniques" in layer or "matrix" in layer.get("name", "").lower()
 
 
 def test_stix_export_has_objects_array():

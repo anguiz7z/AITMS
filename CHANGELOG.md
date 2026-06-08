@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.7] - 2026-06-08 - Security hardening
+
+Hardening pass from an internal security review. No change to the
+offline, deterministic execution model. Windows installer to follow;
+`ATMS-Setup-1.0.6.exe` remains the latest published binary.
+
+- Gate MAESTRO / OWASP-Agentic / framework citations on applicability;
+  controls- and mTLS-aware architectural rules; proportionate,
+  link-scoped evidence escalation; risk_score / severity consistency.
+- Deterministic ids and timestamps: hash-seeded ids, sorted iteration,
+  SOURCE_DATE_EPOCH-pinnable generated_at, deterministic STIX/SBOM ids.
+- Exporter integrity (Jira scaling, Navigator layers, STIX references,
+  roadmap labels) and CSV/formula-injection guards; exec-summary and
+  CSA register internal consistency.
+- Crash-hardened Azure/CloudFormation/Kubernetes/OTM/Mermaid ingest;
+  sandboxed web /diff and /methodology paths; YAML alias-bomb rejection;
+  HMAC-authenticated KB cache.
+- Packaging: resolve bundled KB/samples from wheel shared-data; selftest
+  fails loudly on empty corpora.
+
 ## [1.0.6] - 2026-06-01 - Post-1.0 refinements
 
 Refinements on top of the v1.0.0 stable base (1.0.1 → 1.0.6):
@@ -147,7 +167,7 @@ determinism floor. Two real fixes shipped:
 
 ## Roadmap V4 — Phases J onwards (parser hardening + remaining coverage hotspots)
 
-Continuation of the autonomous-loop pipeline. V1 (Phases 0-6) shipped
+Continuation of the iterative release pipeline. V1 (Phases 0-6) shipped
 the consolidation roadmap; V2 (Phases A-D) targeted coverage hotspots;
 V3 (Phases E-I) lifted cli.py + locked perf floors + caught up
 documentation. V4 picks the highest-leverage remaining coverage gaps

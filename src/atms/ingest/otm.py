@@ -202,7 +202,10 @@ def parse_otm(path: Path) -> System:
         # zone — using it as a zone fallback was semantically wrong in
         # v0.14. We only consult `parent.trustZone` and the bare
         # `trustZone` attribute.
-        zone_id = ((c.get("parent") or {}).get("trustZone")
+        # audit F057: OTM `parent` may be a scalar (component-id string) rather
+        # than an object -- guard before .get().
+        _parent = c.get("parent")
+        zone_id = ((_parent.get("trustZone") if isinstance(_parent, dict) else None)
                    or c.get("trustZone")
                    or "")
         trust_zone = zones.get(zone_id, zone_id or "default")

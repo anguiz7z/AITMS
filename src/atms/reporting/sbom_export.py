@@ -198,7 +198,11 @@ def _cdx_type(atms_type: str) -> str:
 def render_sbom_cdx(model: ThreatModel) -> str:
     """Render the system as a CycloneDX 1.5 SBOM (JSON)."""
     sys = model.system
-    bom_serial = f"urn:uuid:{uuid.uuid4()}"
+    # Deterministic serial derived from the system identity -- uuid.uuid4()
+    # made the CycloneDX SBOM non-reproducible across runs (audit F043).
+    bom_serial = "urn:uuid:" + str(
+        uuid.uuid5(uuid.NAMESPACE_URL, f"atms-sbom:{sys.name}:{len(sys.components)}")
+    )
     timestamp = datetime.now(UTC).isoformat(timespec="seconds")
 
     components = []

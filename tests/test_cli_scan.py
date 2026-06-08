@@ -236,6 +236,46 @@ def test_scan_writes_full_report_with_default_formats(tmp_path):
     assert (out / "x.json").exists()
 
 
+def test_scan_json_exporters_emit_objects_not_double_encoded(tmp_path):
+    """Audit F001: scan_cmd must write renderer output directly.
+
+    render_stix/navigator/sarif/otm already return *serialized* JSON strings.
+    The old scan_cmd wrapped them in json.dumps() again, so each file on disk
+    was a quoted JSON string literal (json.load -> str) that every STIX /
+    MITRE Navigator / SARIF consumer rejects -- while the CLI reported success.
+    Assert each artifact parses to a JSON OBJECT, not a bare string. Uses a
+    System YAML input so this stays in the default (KEEP) run, not hibernated.
+    """
+    p = tmp_path / "sys.yaml"
+    p.write_text(
+        "name: T\n"
+        "components:\n"
+        "  - {id: u, name: User, type: user}\n"
+        "  - {id: llm, name: Model, type: llm_inference}\n"
+        "dataflows:\n"
+        "  - {source: u, target: llm}\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "out"
+    res = CliRunner().invoke(cli, ["scan", str(p), "--out", str(out), "--format", "all"])
+    assert res.exit_code == 0, res.output
+    for name in ("sys.stix.json", "sys.navigator.json", "sys.sarif", "sys.otm.json"):
+        f = out / name
+        assert f.exists(), f"{name} not written: {res.output}"
+        parsed = json.loads(f.read_text(encoding="utf-8"))
+        # A double-encoded file parses to a str. A correct artifact is a JSON
+        # object -- except the Navigator file, which is a multi-layer ARRAY of
+        # objects for a hybrid AI+cloud system (audit F016); both are valid.
+        if name == "sys.navigator.json" and isinstance(parsed, list):
+            assert parsed and all(isinstance(x, dict) for x in parsed), (
+                f"{name} navigator layers must be objects, got {parsed!r:.80}"
+            )
+        else:
+            assert isinstance(parsed, dict), (
+                f"{name} is double-encoded: json.load -> {type(parsed).__name__}, expected object"
+            )
+
+
 def test_scan_help_documents_supported_formats():
     res = CliRunner().invoke(cli, ["scan", "--help"])
     assert res.exit_code == 0

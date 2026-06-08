@@ -216,6 +216,12 @@ def kubernetes_to_system(
         default_name = "k8s"
 
     docs = [d for d in yaml.safe_load_all(text) if isinstance(d, dict)]
+    # audit F055: a malformed manifest may carry a scalar/null `metadata`
+    # (instead of a mapping). Normalise it to {} ONCE so every downstream loop
+    # (workload labels, Service selectors, Ingress backends) is crash-safe.
+    for _d in docs:
+        if not isinstance(_d.get("metadata"), dict):
+            _d["metadata"] = {}
     if not docs:
         raise ValueError(
             "No Kubernetes documents found in input. Expected one or "
@@ -246,12 +252,17 @@ def kubernetes_to_system(
     )
 
     for doc in docs:
+        # audit F055: a multi-doc YAML may contain a scalar/null document, and
+        # metadata may be a scalar instead of a mapping -- tolerate both.
+        if not isinstance(doc, dict):
+            continue
         kind = doc.get("kind", "")
         if kind in _SKIP_KINDS:
             continue
         if kind not in _KIND_MAP:
             continue  # unknown kind — silently skip (avoids cluttering with CRDs)
-        meta = doc.get("metadata", {}) or {}
+        meta = doc.get("metadata")
+        meta = meta if isinstance(meta, dict) else {}
         name = meta.get("name") or ""
         namespace = meta.get("namespace") or "default"
         if not name:
@@ -297,7 +308,8 @@ def kubernetes_to_system(
         kind = doc.get("kind", "")
         if kind not in _WORKLOAD_KINDS:
             continue
-        meta = doc.get("metadata", {}) or {}
+        meta = doc.get("metadata")
+        meta = meta if isinstance(meta, dict) else {}  # audit F055
         name = meta.get("name")
         ns = meta.get("namespace") or "default"
         if not name:
@@ -306,10 +318,13 @@ def kubernetes_to_system(
         if not comp_id:
             continue
         if kind == "Pod":
-            workload_labels[comp_id] = meta.get("labels") or {}
+            labels = meta.get("labels")
+            workload_labels[comp_id] = labels if isinstance(labels, dict) else {}
         else:
-            template_meta = ((doc.get("spec") or {}).get("template") or {}).get("metadata") or {}
-            workload_labels[comp_id] = template_meta.get("labels") or {}
+            template_meta = ((doc.get("spec") or {}).get("template") or {}).get("metadata")
+            template_meta = template_meta if isinstance(template_meta, dict) else {}  # audit F055
+            labels = template_meta.get("labels")
+            workload_labels[comp_id] = labels if isinstance(labels, dict) else {}
 
     # Service.spec.selector → workload matching the labels.
     for doc in docs:

@@ -136,10 +136,18 @@ def test_cache_version_bump_invalidates(monkeypatch):
     get_kb()
     get_kb.cache_clear()
     cache = _cache_path(_kb_dir())
-    payload = pickle.loads(cache.read_bytes())
-    # Tamper: write a payload pretending to be an older cache version.
+    # audit F046: the cache is now `HMAC-SHA256(32 bytes) || pickle`. Strip the
+    # MAC to read the payload, tamper the version, then re-MAC so it passes the
+    # authenticity check and is rejected purely on the stale version.
+    import hashlib
+    import hmac
+
+    from atms.kb import _cache_mac_key
+    key = _cache_mac_key(cache)
+    payload = pickle.loads(cache.read_bytes()[32:])
     payload["version"] = _CACHE_VERSION - 1
-    cache.write_bytes(pickle.dumps(payload))
+    data = pickle.dumps(payload)
+    cache.write_bytes(hmac.new(key, data, hashlib.sha256).digest() + data)
     init_calls = []
     real_init = KnowledgeBase.__init__
 

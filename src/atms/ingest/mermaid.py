@@ -115,6 +115,15 @@ _EDGE_BARE = re.compile(
     # A --> B   or   A ==> B   or   A -.-> B
     r"\b([A-Za-z0-9_]+)\b\s*(?:-{2,}|={2,}|-\.+-)>\s*\b([A-Za-z0-9_]+)\b"
 )
+# audit F056: leftward (A <-- B  => B->A) and bidirectional (A <--> B => both)
+# arrows were silently dropped, losing dataflows and (via the bare-endpoint
+# recorder) sometimes fabricating a phantom node from the unparsed line.
+_EDGE_BIDIR = re.compile(
+    r"\b([A-Za-z0-9_]+)\b\s*<(?:-{2,}|={2,}|-\.+-)>\s*\b([A-Za-z0-9_]+)\b"
+)
+_EDGE_LEFT = re.compile(
+    r"\b([A-Za-z0-9_]+)\b\s*<(?:-{2,}|={2,}|-\.+-)\s*\b([A-Za-z0-9_]+)\b"
+)
 
 
 def _strip_node_decorators(line: str) -> str:
@@ -274,6 +283,19 @@ def mermaid_to_system(
         # `A[user] --> B[api]` becomes `A --> B` so the edge regexes see
         # bare IDs at both ends.
         cleaned = _strip_node_decorators(raw_line)
+        # Bidirectional / leftward arrows first (audit F056) -- they would
+        # otherwise be missed by the rightward patterns below.
+        bidir = _EDGE_BIDIR.search(cleaned)
+        left = None if bidir else _EDGE_LEFT.search(cleaned)
+        if bidir or left:
+            a, b = (bidir or left).groups()
+            pairs = ((a, b), (b, a)) if bidir else ((b, a),)
+            for s, t in pairs:
+                edges.append((s, t, ""))
+            for raw_id in (a, b):
+                if raw_id not in nodes_by_id:
+                    _record_node(raw_id, "", "rect")
+            continue
         edge_match = None
         for pat in (_EDGE_PIPE_LABEL, _EDGE_INLINE_LABEL, _EDGE_BARE):
             edge_match = pat.search(cleaned)

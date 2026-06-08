@@ -51,8 +51,14 @@ def _dread_ai_score(threat: Threat, comp: Component | None) -> float:
     # Components in trust_zone "internet" raise Discoverability
     if comp and comp.trust_zone == "internet":
         Disc = min(5, Disc + 1)
-    # Agentic systems with broad tool surface raise Damage
-    if comp and comp.type == "agent" and comp.metadata.get("tool_count", 0) >= 5:
+    # Agentic systems with broad tool surface raise Damage. Coerce tool_count
+    # defensively (audit F052): a quoted YAML integer ('12') is a routine user
+    # mistake that must not abort the whole analysis with a TypeError.
+    try:
+        _tool_count = int(comp.metadata.get("tool_count", 0)) if comp else 0
+    except (TypeError, ValueError):
+        _tool_count = 0
+    if comp and comp.type == "agent" and _tool_count >= 5:
         Dscore = min(5, Dscore + 1)
 
     # v0.16.3 — tool-scope severity bump. Agents with explicit
@@ -88,6 +94,34 @@ def score_threats(threats: list[Threat], components: list[Component]) -> list[Th
         # (risk-assessment expert finding M-06).
         effective = t.risk_score * t.confidence
         t.severity = _bucket_from_score(effective, t.likelihood, t.impact)  # type: ignore[assignment]
+        # audit F064: display the confidence-weighted (effective) score as the
+        # risk_score, so the number can never invert the severity ordering.
+        # The raw DREAD score ignored confidence, so a low-confidence MEDIUM
+        # could show a HIGHER risk_score than a high-confidence HIGH.
+        t.risk_score = round(effective, 1)
+    return threats
+
+
+def recompute_risk_scores(threats: list[Threat], components: list[Component]) -> list[Threat]:
+    """Recompute ONLY the numeric ``risk_score`` from each threat's current
+    likelihood/impact.
+
+    Used after evidence application (audit F040): ``apply_evidence`` mutates
+    likelihood / severity / confidence in place but the qualitative
+    ``risk_score`` was last computed in the pre-evidence pass, so a threat
+    could render as ``likelihood=5 / severity=critical`` with a stale
+    medium-band ``risk_score`` -- an internally contradictory row. This
+    refreshes the numeric score WITHOUT re-bucketing ``severity`` (the
+    evidence severity override is intentional -- see workflow step 3c), so the
+    number stays consistent with the displayed coordinates.
+    """
+    comp_by_id = {c.id: c for c in components}
+    for t in threats:
+        # Keep risk_score == effective (confidence-weighted) score, consistent
+        # with score_threats (audit F064), using the evidence-adjusted
+        # likelihood/impact and confidence.
+        comp = comp_by_id.get(t.component_id)
+        t.risk_score = round(_dread_ai_score(t, comp) * t.confidence, 1)
     return threats
 
 

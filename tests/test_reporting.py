@@ -58,9 +58,11 @@ def test_stix(model):
 
 
 def test_navigator(model):
-    nav_str = render_navigator(model)
-    layer = json.loads(nav_str)
-    assert layer["domain"] == "atlas"
+    nav = json.loads(render_navigator(model))
+    # audit F016: a hybrid AI+cloud system now emits a multi-layer ARRAY; pick
+    # the ATLAS layer (a single-domain system still returns one object).
+    layers = nav if isinstance(nav, list) else [nav]
+    layer = next(layer for layer in layers if layer["domain"] == "atlas")
     assert "techniques" in layer
     assert all("techniqueID" in t and "score" in t for t in layer["techniques"])
     assert all(t["techniqueID"].startswith("AML.") for t in layer["techniques"])
