@@ -30,6 +30,9 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
+# Access atms.web live (not `from ... import`): sibling tests reload the module,
+# which rebinds _RUNS/app; a captured ref would be stranded on an empty _RUNS.
+import atms.web as _web
 from atms.models import Component, System
 from atms.reporting import render_html, render_markdown
 from atms.reporting.csa_table import (
@@ -39,7 +42,6 @@ from atms.reporting.csa_table import (
     render_csa_table_csv,
     render_csa_table_html,
 )
-from atms.web import _RUNS, app
 from atms.workflow import analyze
 
 _SAMPLES = Path(__file__).resolve().parents[1] / "samples"
@@ -225,11 +227,11 @@ def test_html_is_deterministic(model):
 
 @pytest.fixture(scope="module")
 def web_run():
-    client = TestClient(app, raise_server_exceptions=False)
+    client = TestClient(_web.app, raise_server_exceptions=False)
     yaml_text = _SAMPLE.read_text(encoding="utf-8")
     resp = client.post("/analyze", data={"yaml": yaml_text, "methodology": "stride-ai"})
     assert resp.status_code == 200
-    return client, list(_RUNS.keys())[-1]
+    return client, list(_web._RUNS.keys())[-1]
 
 
 def test_download_csa_table_html_serves(web_run):
@@ -257,7 +259,7 @@ def test_download_csa_table_csv_serves(web_run):
 
 def test_download_csa_table_not_hibernation_gated():
     """A bogus run id 404s on run lookup, not on a hibernation gate."""
-    client = TestClient(app, raise_server_exceptions=False)
+    client = TestClient(_web.app, raise_server_exceptions=False)
     r = client.get("/download/bogus_run/csa_table")
     assert r.status_code == 404
     assert "hibernated" not in r.text.lower()

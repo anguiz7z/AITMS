@@ -27,7 +27,9 @@ import pytest
 import yaml
 from fastapi.testclient import TestClient
 
-from atms.web import _RUNS, app
+# Access atms.web live (not `from ... import`): sibling tests reload the module,
+# which rebinds _RUNS/app; a captured ref would be stranded on an empty _RUNS.
+import atms.web as _web
 
 _SAMPLE = Path(__file__).resolve().parents[1] / "samples" / "azure_openai_rag.yaml"
 
@@ -43,11 +45,11 @@ _FORMATS = [
 def analyzed():
     """Analyse the unicode-named sample once; reuse the run for every
     format assertion (one analysis, not one-per-format)."""
-    client = TestClient(app, raise_server_exceptions=False)
+    client = TestClient(_web.app, raise_server_exceptions=False)
     yaml_text = _SAMPLE.read_text(encoding="utf-8")
     resp = client.post("/analyze", data={"yaml": yaml_text, "methodology": "stride-ai"})
     assert resp.status_code == 200, f"analyze failed: {resp.status_code}"
-    run_id = list(_RUNS.keys())[-1]
+    run_id = list(_web._RUNS.keys())[-1]
     return client, run_id
 
 
@@ -89,7 +91,7 @@ def test_content_disposition_header_is_latin1_safe(analyzed, fmt):
 def test_editor_save_yaml_download_survives_unicode_name():
     """The second header site: /editor/save builds the same kind of header
     from the system name."""
-    client = TestClient(app, raise_server_exceptions=False)
+    client = TestClient(_web.app, raise_server_exceptions=False)
     payload = yaml.safe_load(_SAMPLE.read_text(encoding="utf-8"))
     resp = client.post("/editor/save", json=payload)
     assert resp.status_code == 200, f"/editor/save failed: {resp.text[:200]}"
