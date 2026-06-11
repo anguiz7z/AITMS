@@ -177,4 +177,92 @@ def render_mermaid(system: System) -> str:
     return "\n".join(lines)
 
 
-__all__ = ["render_mermaid"]
+def render_attack_path_graph(
+    attack_paths: list,
+    system: System,
+    choke_ids: set[str] | None = None,
+) -> str:
+    """Return a Mermaid flowchart of the *combined* attack graph.
+
+    Every attack path is an ordered chain of component IDs
+    (``path.components``: entry → … → target). We merge the chains into one
+    graph so shared nodes line up — a component many paths run through becomes
+    a visible hub, which is exactly the choke point the table names. Colour
+    coding: green = external entry seed, red = a path's final target, amber +
+    thick border = a choke point, slate = an intermediate step. Edges are the
+    step-to-step transitions; a thick ``==>`` marks a transition into a choke
+    point so the "everything funnels here" story reads at a glance.
+
+    Returns ``""`` when there are no paths (template then skips the block).
+    """
+    if not attack_paths:
+        return ""
+    choke_ids = choke_ids or set()
+    name_by_id = {c.id: c.name for c in system.components}
+
+    node_order: list[str] = []          # preserve first-seen order, stable output
+    seen_nodes: set[str] = set()
+    edges: list[tuple[str, str]] = []
+    seen_edges: set[tuple[str, str]] = set()
+    entry_ids: set[str] = set()
+    target_ids: set[str] = set()
+
+    for p in attack_paths:
+        comps = [c for c in getattr(p, "components", []) if c]
+        # The graph visualises cross-component *traversal*. A path that stays
+        # within a single component (a localised multi-threat chain — the
+        # engine collapses adjacent duplicate component IDs) has no edge to
+        # draw and would render as a floating node, so it's skipped here; it
+        # still appears as a text path-card below.
+        if len(comps) < 2:
+            continue
+        entry_ids.add(comps[0])
+        target_ids.add(comps[-1])
+        for cid in comps:
+            if cid not in seen_nodes:
+                seen_nodes.add(cid)
+                node_order.append(cid)
+        for a, b in zip(comps, comps[1:], strict=False):
+            if (a, b) not in seen_edges:
+                seen_edges.add((a, b))
+                edges.append((a, b))
+
+    if not node_order:
+        return ""
+
+    lines: list[str] = ["flowchart LR"]
+    lines.append("  classDef entry fill:#16321a,stroke:#3fb950,color:#fff")
+    lines.append("  classDef target fill:#3a1a1a,stroke:#cf222e,color:#fff")
+    lines.append("  classDef choke fill:#3a2f14,stroke:#d29922,color:#fff,stroke-width:3px")
+    lines.append("  classDef step fill:#1f2630,stroke:#30363d,color:#e6edf3")
+
+    for cid in node_order:
+        sid = _safe_id(cid)
+        label = _label(name_by_id.get(cid, cid))
+        lines.append(f'  {sid}["{label}"]')
+
+    for a, b in edges:
+        # Thicker arrow into a choke point so the funnel is obvious.
+        arrow = "==>" if b in choke_ids else "-->"
+        lines.append(f"  {_safe_id(a)} {arrow} {_safe_id(b)}")
+
+    # Class priority: choke > entry > target > step. A node that is both an
+    # entry seed and a choke still reads as a choke (the more useful signal).
+    for cid in node_order:
+        sid = _safe_id(cid)
+        if cid in choke_ids:
+            cls = "choke"
+        elif cid in entry_ids and cid not in target_ids:
+            cls = "entry"
+        elif cid in target_ids and cid not in entry_ids:
+            cls = "target"
+        elif cid in entry_ids:           # both entry and target (single-hop)
+            cls = "entry"
+        else:
+            cls = "step"
+        lines.append(f"  class {sid} {cls};")
+
+    return "\n".join(lines)
+
+
+__all__ = ["render_mermaid", "render_attack_path_graph"]

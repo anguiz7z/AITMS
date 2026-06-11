@@ -202,11 +202,12 @@ footer { color: var(--muted); font-size: 12px; margin-top: 60px; padding-top: 16
 {{ mermaid_dfd }}
 </pre>
 </div>
-<!-- Mermaid CDN load. The standalone HTML report is meant to be shareable, so we
-     pull from jsDelivr by default; if the viewer is offline the inline init
-     script below detects that and replaces the diagram with a friendly notice
-     rather than throwing a bomb icon. -->
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.5/dist/mermaid.min.js"></script>
+<!-- Mermaid is INLINED from the bundled static/mermaid.min.js so the standalone
+     report renders its diagrams with zero network calls — matching the tool's
+     offline-first promise. (If the bundle was unavailable at render time the
+     variable is empty and the init script below shows the Mermaid source as a
+     graceful fallback.) -->
+{% if mermaid_js %}<script>{{ mermaid_js | safe }}</script>{% endif %}
 <script>
 (function () {
   function isLikelyMermaid(text) {
@@ -318,6 +319,14 @@ footer { color: var(--muted); font-size: 12px; margin-top: 60px; padding-top: 16
 <table><tr><th>Component</th><th>Paths through</th><th>Coverage</th></tr>
 {% for cp in summary.choke_points %}<tr><td>{{ cp.component_name }} (<code>{{ cp.component_id }}</code>)</td><td>{{ cp.paths_through }} / {{ cp.total_paths }}</td><td>{{ "{:.0%}".format(cp.coverage) }}</td></tr>
 {% endfor %}</table>
+{% endif %}
+{% if mermaid_paths %}
+<p class="muted">Combined attack graph — every path's chain merged so shared nodes line up. <span style="color:#3fb950">●</span> external entry · <span style="color:#cf222e">●</span> target · <span style="color:#d29922">●</span> choke point (thick arrows funnel into it). The textual step-by-step for each path follows below.</p>
+<div class="mermaid-wrap">
+<pre class="mermaid">
+{{ mermaid_paths }}
+</pre>
+</div>
 {% endif %}
 {% if attack_paths %}
 {% for p in attack_paths %}
