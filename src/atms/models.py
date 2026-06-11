@@ -217,6 +217,10 @@ class Component(BaseModel):
     #   hostname / ip / fqdn        — exact-match keys for evidence matching
     #   cpe / purl                  — CPE 2.3 / Package URL for high-fidelity match
     metadata: dict = Field(default_factory=dict)
+    # v0.19 — CBRA capabilities input: agent autonomy level
+    # (none | assisted | supervised | autonomous). Optional; inferred from
+    # component type + tool_count + human-in-the-loop control when omitted.
+    autonomy_level: str = Field(default="", max_length=32)
 
 
 class Dataflow(BaseModel):
@@ -245,6 +249,9 @@ class System(BaseModel):
     name: str
     description: str = ""
     business_context: str = ""
+    # v0.19 — CBRA criticality input (e.g. "safety-critical" / "financial" /
+    # "internal"). Optional; inferred from data_classification + business_context.
+    criticality: str = Field(default="", max_length=64)
     components: list[Component]
     dataflows: list[Dataflow] = Field(default_factory=list)
     trust_boundaries: list[TrustBoundary] = Field(default_factory=list)

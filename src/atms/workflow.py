@@ -25,6 +25,7 @@ from .engines.ai_scope import (
     find_ai_components,
 )
 from .engines.attack_paths import find_attack_paths, find_choke_points
+from .engines.cbra import compute_cbra
 from .engines.boundaries import annotate_dataflow_boundaries, infer_boundaries
 from .engines.cloud import enrich_with_cloud
 from .engines.compliance import enrich_with_compliance
@@ -462,6 +463,7 @@ def analyze(
         "kev_meta": kb.kev_meta or {},
         "epss_meta": kb.epss_meta or {},
         "choke_points": find_choke_points(attack_paths, system.components),
+        "cbra": compute_cbra(system),
         "ale": portfolio_ale(active_threats),
         "priority_mitigation_ids": [m.id for m in top_mitigations],
         "methodology": methodology,
