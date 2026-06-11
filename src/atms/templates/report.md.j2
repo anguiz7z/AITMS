@@ -105,6 +105,38 @@
 | {{ loop.index }} | {{ row[0] }} | {{ row[1] }} | {{ row[2] }} | {{ row[3] }} | {{ row[4] }} |
 {% endfor %}
 
+{% if summary.cbra -%}
+## CSA Capabilities-Based Risk (CBRA)
+
+{{ summary.cbra.method }} — capability-driven risk, complementary to the per-threat Likelihood × Impact (DREAD-derived) scores below. Formula: **{{ summary.cbra.formula }}**.
+
+**System risk: {{ summary.cbra.score }} / {{ summary.cbra.max_score }} → {{ summary.cbra.tier }}** &nbsp;({{ summary.cbra.tier_bands }})
+
+| Dimension | Score | Basis |
+|---|---|---|
+{% for k, d in summary.cbra.dimensions.items() -%}
+| {{ k.replace("_", " ") | title }} | {{ d.value }} / 4 | {{ d.rationale }} |
+{% endfor %}
+
+*Source: {{ summary.cbra.source }}.*
+
+{% endif -%}
+{% if summary.aicm -%}
+## CSA AICM control mapping
+
+{{ summary.aicm.method }} — each threat mapped to its AICM control domain + the responsible shared-responsibility actor.
+
+| AICM domain | Threats |
+|---|---|
+{% for d in summary.aicm.domains -%}
+| {{ d.id }} — {{ d.name }} | {{ d.threats }} |
+{% endfor %}
+
+**Control ownership (AICM shared-responsibility):** {% for o in summary.aicm.ownership %}{{ o.actor }} ({{ o.threats }}){% if not loop.last %} · {% endif %}{% endfor %}
+
+*{{ summary.aicm.note }} Source: {{ summary.aicm.source }}.*
+
+{% endif -%}
 ## Architecture (data flow diagram)
 
 > Auto-generated from the analysed system. Boundary crossings use thick (`==>`) edges.
@@ -202,6 +234,16 @@
 
 ## Attack paths
 
+{% if summary.choke_points and summary.choke_points[0].paths_through > 1 -%}
+**Choke points** — the components the most attack paths run through. Containing or fixing the top one breaks the most paths at once, so start there:
+
+| Component | Paths through | Coverage |
+|---|---|---|
+{% for cp in summary.choke_points -%}
+| {{ cp.component_name }} (`{{ cp.component_id }}`) | {{ cp.paths_through }} / {{ cp.total_paths }} | {{ "{:.0%}".format(cp.coverage) }} |
+{% endfor %}
+
+{% endif -%}
 {% if attack_paths -%}
 {% for p in attack_paths -%}
 ### {{ p.id }} — {{ p.title }}

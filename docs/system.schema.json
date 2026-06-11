@@ -3,6 +3,12 @@
     "Component": {
       "description": "A node in the AI system architecture.",
       "properties": {
+        "autonomy_level": {
+          "default": "",
+          "maxLength": 32,
+          "title": "Autonomy Level",
+          "type": "string"
+        },
         "controls": {
           "items": {
             "type": "string"
@@ -277,6 +283,12 @@
       },
       "title": "Components",
       "type": "array"
+    },
+    "criticality": {
+      "default": "",
+      "maxLength": 64,
+      "title": "Criticality",
+      "type": "string"
     },
     "dataflows": {
       "items": {

@@ -173,6 +173,28 @@ footer { color: var(--muted); font-size: 12px; margin-top: 60px; padding-top: 16
   {% endfor %}
 </div>
 
+{% if summary.cbra %}
+<h2>CSA Capabilities-Based Risk (CBRA)</h2>
+<p>{{ summary.cbra.method }} — capability-driven risk, complementary to the per-threat Likelihood × Impact (DREAD-derived) scores. Formula: <strong>{{ summary.cbra.formula }}</strong>.</p>
+<p><strong>System risk: {{ summary.cbra.score }} / {{ summary.cbra.max_score }} &rarr; {{ summary.cbra.tier }}</strong> &nbsp;({{ summary.cbra.tier_bands }})</p>
+<table>
+  <tr><th>Dimension</th><th>Score</th><th>Basis</th></tr>
+  {% for k, d in summary.cbra.dimensions.items() %}<tr><td>{{ k.replace("_", " ") | title }}</td><td>{{ d.value }} / 4</td><td>{{ d.rationale }}</td></tr>
+  {% endfor %}
+</table>
+<p class="muted">Source: {{ summary.cbra.source }}.</p>
+{% endif %}
+
+{% if summary.aicm %}
+<h2>CSA AICM control mapping</h2>
+<p>{{ summary.aicm.method }} — each threat mapped to its AICM control domain + the responsible shared-responsibility actor.</p>
+<table><tr><th>AICM domain</th><th>Threats</th></tr>
+{% for d in summary.aicm.domains %}<tr><td>{{ d.id }} &mdash; {{ d.name }}</td><td>{{ d.threats }}</td></tr>
+{% endfor %}</table>
+<p><strong>Control ownership (AICM shared-responsibility):</strong> {% for o in summary.aicm.ownership %}{{ o.actor }} ({{ o.threats }}){% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+<p class="muted">{{ summary.aicm.note }} Source: {{ summary.aicm.source }}.</p>
+{% endif %}
+
 <h2>Architecture (data flow diagram)</h2>
 <p class="muted">Auto-generated from the analysed system. Thick edges cross trust boundaries; subgraph clusters group components by trust zone. Pan / zoom with the buttons in the diagram. Falls back to the Mermaid source code if JS is disabled.</p>
 <div class="mermaid-wrap">
@@ -291,6 +313,12 @@ footer { color: var(--muted); font-size: 12px; margin-top: 60px; padding-top: 16
 {% endfor %}
 
 <h2>Attack paths</h2>
+{% if summary.choke_points and summary.choke_points[0].paths_through > 1 %}
+<p><strong>Choke points</strong> — the components the most attack paths run through. Containing or fixing the top one breaks the most paths at once, so start there:</p>
+<table><tr><th>Component</th><th>Paths through</th><th>Coverage</th></tr>
+{% for cp in summary.choke_points %}<tr><td>{{ cp.component_name }} (<code>{{ cp.component_id }}</code>)</td><td>{{ cp.paths_through }} / {{ cp.total_paths }}</td><td>{{ "{:.0%}".format(cp.coverage) }}</td></tr>
+{% endfor %}</table>
+{% endif %}
 {% if attack_paths %}
 {% for p in attack_paths %}
 <div class="path-card">

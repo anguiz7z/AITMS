@@ -101,7 +101,9 @@ atms web        # then open http://127.0.0.1:8765
 - **13 input formats**, auto-detected via `atms scan <file>`, with ingest commands for Visio, draw.io, Mermaid, Terraform, CloudFormation, Kubernetes, Pulumi, docker-compose, and `.tm7`.
 - **Rich outputs per run** — Markdown + HTML reports, STIX 2.1, ATLAS Navigator JSON, SARIF, OTM, CSV, and a full JSON model dump.
 - **Local web UI** at `http://127.0.0.1:8765` with a drag-and-drop editor, samples, and report views.
-- **Deeper analysis** — multi-step attack paths (chained, ATLAS-tactic-ordered), FAIR-lite *indicative* loss ranges (order-of-magnitude, not authoritative dollar figures), and a D3FEND-mapped mitigation roadmap.
+- **Deeper analysis** — multi-step attack paths (causal pre/post-condition derivation, seeded from external entry points), **choke-point ranking** ("fix this component first"), FAIR-lite *indicative* loss ranges, and a D3FEND-mapped mitigation roadmap.
+- **CSA-aligned risk + controls** — **CBRA** capabilities-based risk (Criticality × Autonomy × Access × Impact-Radius → Low/Med/High tier) *alongside* the per-threat score, and **AICM** control-domain + shared-responsibility ownership mapping. See [docs/CSA-ALIGNMENT.md](docs/CSA-ALIGNMENT.md) (MAESTRO 6-step crosswalk + citations).
+- **Diagram-image ingest** via the `tm-from-image` skill (vision reads the picture → model → deterministic analysis).
 - **1,200+ tests** (unit + browser-driven E2E); ships as a `pip install` from clone or a portable Windows installer.
 
 ## Inputs
@@ -110,7 +112,7 @@ System YAML (native) · draw.io / mxGraph · Mermaid · Microsoft Visio (`.vsdx`
 
 ## Frameworks
 
-OWASP LLM Top 10 (2025) · OWASP Agentic AI / ASI (2025) · MITRE ATLAS · MITRE ATT&CK (Cloud / Enterprise / ICS) · NIST AI RMF (AI 600-1) & NIST AI 100-2 · CSA MAESTRO · Singapore CSA Guidelines — plus **15 compliance frameworks / 117 controls**.
+OWASP LLM Top 10 (2025) · OWASP Agentic AI / ASI (2025) · MITRE ATLAS · MITRE ATT&CK (Cloud / Enterprise / ICS) · NIST AI RMF (AI 600-1) & NIST AI 100-2 · CSA MAESTRO · CSA AICM (v1.0.3) · CSA CBRA · Singapore CSA Guidelines — plus **15 compliance frameworks / 117 controls**.
 
 ---
 
@@ -122,7 +124,7 @@ What ATMS is — and isn't, plainly:
 - **AI-induced risk only.** It evaluates threats that exist *because of* the AI integration and rejects pure-IT systems at load time. It is a focused complement to — not a replacement for — general platforms like OWASP Threat Dragon / Microsoft TMT / IriusRisk / ThreatModeler.
 - **Methodology.** Threat enumeration is STRIDE applied to AI primitives ("STRIDE for AI"); scoring is Likelihood × Impact (DREAD-derived). There is no published "STRIDE-AI" / "DREAD-AI" standard — these are our extensions.
 - **"OWASP coverage X/10" means breadth, not depth** — at least one threat referencing each category, not an exhaustive assessment of it.
-- **Attack paths** are multi-step chains over the system's dataflows, ordered by ATLAS tactic — useful for review, but not yet a fully causal attack graph.
+- **Attack paths** are multi-step chains derived causally — each edge requires the upstream step's postcondition to satisfy the downstream's precondition, seeded from external entry points. A *heuristic* causal graph (pre/post-conditions inferred from ATLAS tactic + STRIDE category), not a formally verified one.
 - **FAIR-lite loss ranges** are indicative, order-of-magnitude estimates from generic priors — for relative prioritization, not authoritative dollar figures.
 - **Decision-support, not an authoritative assessment.** A human must review the output.
 

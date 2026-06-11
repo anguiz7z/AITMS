@@ -1,0 +1,127 @@
+name: Portfolio Simulation Assistant
+description: |
+  Agentic GenAI portfolio-analysis app (transcribed from an AWS architecture
+  diagram). Users hit a Streamlit UI on ECS/Fargate behind an ALB; a private
+  Fargate agent orchestrates Bedrock (Claude 3 Sonnet) with RAG over Kendra/S3
+  and three tools: a sentiment Lambda, a RAG retriever, and an AWS Batch
+  portfolio-simulation tool (EC2 compute env + DynamoDB). Results are pushed via
+  SNS/EventBridge.
+business_context: |
+  Handles users' financial portfolio data and investment positions (sensitive
+  financial PII). Simulation outputs drive investment-relevant decisions.
+
+components:
+  - id: users
+    name: Users
+    type: user
+    trust_zone: internet
+    description: External end users submitting portfolios + questions via the web UI.
+
+  - id: alb
+    name: Application Load Balancer
+    type: load_balancer
+    trust_zone: public_subnet
+    description: Public ALB terminating TLS, routing to the Streamlit service.
+    metadata: { vendor: aws, product: alb, deployment_mode: managed }
+
+  - id: streamlit
+    name: Streamlit App (Fargate, public)
+    type: container_runtime
+    trust_zone: public_subnet
+    description: Streamlit portfolio-simulation UI on ECS Fargate.
+    metadata: { vendor: aws, product: fargate }
+
+  - id: agent
+    name: Portfolio agent (Fargate, private)
+    type: agent
+    trust_zone: private_subnet
+    description: |
+      ReAct-style orchestrator that calls Bedrock and chooses among the RAG
+      retriever, the sentiment tool, and the batch-simulation tool.
+    metadata: { vendor: aws, product: fargate, tool_count: 3, multi_tenant: true }
+
+  - id: bedrock
+    name: Amazon Bedrock (Claude 3 Sonnet)
+    type: llm_inference
+    trust_zone: aws_managed
+    description: Bedrock-hosted Claude 3 Sonnet via the Messages API.
+    metadata: { vendor: aws, product: bedrock, model: claude-3-sonnet }
+
+  - id: kendra
+    name: Amazon Kendra (RAG doc source)
+    type: rag_vector_store
+    trust_zone: aws_managed
+    description: Kendra index used as the retrieval source for grounding answers.
+    metadata: { vendor: aws, product: kendra, multi_tenant: true }
+
+  - id: rag_s3
+    name: Amazon S3 (RAG data source)
+    type: object_storage
+    trust_zone: aws_managed
+    description: S3 bucket of source documents indexed by Kendra.
+    metadata: { vendor: aws, product: s3 }
+
+  - id: sentiment_lambda
+    name: Simple Sentiment Tool (Lambda)
+    type: serverless_function
+    trust_zone: private_subnet
+    description: Lambda tool the agent calls for sentiment scoring.
+    metadata: { vendor: aws, product: lambda }
+
+  - id: batch_tool
+    name: Batch Portfolio Simulation Tool (AWS Batch)
+    type: batch_compute
+    trust_zone: private_subnet
+    description: AWS Batch job-runner that fans out portfolio simulations.
+    metadata: { vendor: aws, product: batch }
+
+  - id: sim_ec2
+    name: EC2 simulation instances (compute environment)
+    type: cloud_compute
+    trust_zone: private_subnet
+    description: EC2 compute environment running simulation N containers.
+    metadata: { vendor: aws, product: ec2 }
+
+  - id: dynamodb
+    name: Amazon DynamoDB (simulation results)
+    type: nosql_database
+    trust_zone: private_subnet
+    description: Stores per-user simulation inputs/outputs (financial data).
+    metadata: { vendor: aws, product: dynamodb }
+
+  - id: ecr
+    name: Elastic Container Registry
+    type: container_registry
+    trust_zone: private_subnet
+    description: Image registry for the Fargate/Batch container images.
+    metadata: { vendor: aws, product: ecr }
+
+  - id: sns
+    name: Amazon SNS (notifications)
+    type: message_queue
+    trust_zone: private_subnet
+    description: Publishes simulation-complete + alert notifications.
+    metadata: { vendor: aws, product: sns }
+
+  - id: eventbridge
+    name: Amazon EventBridge
+    type: message_queue
+    trust_zone: private_subnet
+    description: Event bus wiring batch completion to notification fan-out.
+    metadata: { vendor: aws, product: eventbridge }
+
+dataflows:
+  - { source: users, target: alb, label: HTTPS request, data_classification: confidential }
+  - { source: alb, target: streamlit, label: forward request, data_classification: confidential }
+  - { source: streamlit, target: agent, label: portfolio + prompt, data_classification: confidential }
+  - { source: agent, target: bedrock, label: LLM inference, data_classification: confidential }
+  - { source: agent, target: kendra, label: RAG retrieve, data_classification: confidential }
+  - { source: kendra, target: rag_s3, label: index source docs, data_classification: internal }
+  - { source: agent, target: sentiment_lambda, label: tool call (sentiment), data_classification: confidential }
+  - { source: agent, target: batch_tool, label: tool call (run simulation), data_classification: confidential }
+  - { source: batch_tool, target: sim_ec2, label: submit jobs, data_classification: confidential }
+  - { source: batch_tool, target: dynamodb, label: read/write results, data_classification: restricted }
+  - { source: sim_ec2, target: dynamodb, label: write sim output, data_classification: restricted }
+  - { source: batch_tool, target: eventbridge, label: job-complete event, data_classification: internal }
+  - { source: eventbridge, target: sns, label: trigger notify, data_classification: internal }
+  - { source: streamlit, target: ecr, label: image pull, data_classification: internal }

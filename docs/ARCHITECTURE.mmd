@@ -110,7 +110,7 @@ flowchart LR
   %% ============================================================
   %% ENGINES — the analysis pipeline (24 modules)
   %% ============================================================
-  subgraph ENGINES["ENGINES · src/atms/engines/ · 24 modules"]
+  subgraph ENGINES["ENGINES · src/atms/engines/ · 26 modules"]
     direction TB
     e_ai_scope["ai_scope.py<br/>AI-component detection + blast radius"]
     e_boundaries["boundaries.py<br/>infer + annotate crossings"]
@@ -130,6 +130,8 @@ flowchart LR
     e_compliance["compliance.py<br/>15-framework mapping"]
     e_risk["risk.py<br/>severity rollup"]
     e_quant["quantitative.py<br/>FAIR-lite ALE"]
+    e_cbra["cbra.py<br/>CBRA capabilities-based risk (CSA)"]
+    e_aicm["aicm.py<br/>AICM control mapping (CSA)"]
     e_mitig["mitigations.py · d3fend.py<br/>D3FEND-mapped roadmap"]
     e_struct["structural.py<br/>architecture-edit proposals"]
     e_refpat["reference_patterns.py<br/>AWS SRA / Azure LZA tags"]

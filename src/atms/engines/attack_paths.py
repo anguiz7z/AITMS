@@ -42,6 +42,58 @@ TACTIC_ORDER = [
 TACTIC_RANK = {tid: i for i, tid in enumerate(TACTIC_ORDER)}
 
 
+# ─── Causal pre/post-condition layer (v0.19 — A-08 fix) ─────────────────────
+# Each threat is assigned a (precondition, postcondition) attacker asset-state.
+# An attack-path edge exists only when the upstream threat's postcondition
+# SATISFIES the downstream threat's precondition — a causal "achieving X gives
+# the attacker what Y needs" — instead of mere ATLAS-tactic ordering (which
+# produced paths that were permutations of one chain). Deterministic, no LLM.
+_STATE_POWER = {
+    "external": 0,   # any unauthenticated attacker (entry condition)
+    "input": 1,      # can deliver input/content to a component
+    "identity": 2,   # holds a stolen credential / assumed identity
+    "foothold": 3,   # code-exec / control of a component
+    "data": 3,       # read access to a component's data
+    "escalated": 4,  # elevated privilege / broad control
+}
+
+
+def _threat_conditions(threat: Threat, tactics: list[str]) -> tuple[str, str]:
+    """Heuristic (precondition, postcondition) from the threat's earliest ATLAS
+    tactic + STRIDE-AI category."""
+    rank = _min_tactic_rank(tactics)
+    stride = {str(s).lower() for s in (threat.stride_ai or [])}
+    r = TACTIC_RANK
+    if rank <= r.get("AML.TA0000", 3):        # recon/resource-dev/initial-access/model-access
+        pre, post = "external", "input"
+    elif rank <= r.get("AML.TA0005", 4):      # execution
+        pre, post = "input", "foothold"
+    elif rank <= r.get("AML.TA0012", 6):      # persistence / privilege-escalation
+        pre, post = "foothold", "escalated"
+    elif rank <= r.get("AML.TA0013", 8):      # defense-evasion / credential-access
+        pre, post = "foothold", "identity"
+    elif rank <= r.get("AML.TA0001", 11):     # discovery / collection / staging
+        pre, post = "foothold", "data"
+    elif rank <= r.get("AML.TA0010", 13):     # c2 / exfiltration
+        pre, post = "data", "data"
+    else:                                     # impact / lateral-movement
+        pre, post = "foothold", "escalated"
+    if "information_disclosure" in stride:
+        post = "data"
+    if "elevation_of_privilege" in stride:
+        post = "escalated"
+    if "spoofing" in stride and _STATE_POWER["identity"] > _STATE_POWER.get(post, 0):
+        post = "identity"
+    if "tampering" in stride and pre == "external":
+        pre = "input"
+    return pre, post
+
+
+def _state_enables(post: str, pre: str) -> bool:
+    """Does holding ``post`` satisfy needing ``pre``? (lattice power ordering)."""
+    return _STATE_POWER.get(post, 0) >= _STATE_POWER.get(pre, 0)
+
+
 def _tactics_for_threat(threat: Threat, kb: KnowledgeBase) -> list[str]:
     tactics: set[str] = set()
     for tech_id in threat.atlas_techniques:
@@ -75,6 +127,7 @@ def find_attack_paths(
     kb = kb or get_kb()
     comp_index = {c.id: c for c in components}
     threat_tactics = {t.id: _tactics_for_threat(t, kb) for t in threats}
+    threat_conditions = {t.id: _threat_conditions(t, threat_tactics[t.id]) for t in threats}
 
     # Component-level adjacency from dataflows (directed, both directions optional)
     comp_adj: dict[str, set[str]] = defaultdict(set)
@@ -105,18 +158,27 @@ def find_attack_paths(
                 if dst.id == src.id:
                     continue
                 dst_min = _min_tactic_rank(threat_tactics[dst.id])
-                # Allow if dst is "later" in kill chain OR same rank but different threat
-                if dst_min >= src_max:
+                # v0.19 causal layer (A-08 fix): tactic-ordered AND the upstream
+                # postcondition must satisfy the downstream precondition — an
+                # edge now means "achieving src gives the attacker what dst needs",
+                # not merely "dst's tactic is later".
+                if dst_min >= src_max and _state_enables(
+                    threat_conditions[src.id][1], threat_conditions[dst.id][0]
+                ):
                     g.add_edge(src.id, dst.id)
 
-    # Enumerate paths starting from "early" tactics
-    seeds = [
-        t.id
-        for t in threats
-        if any(TACTIC_RANK.get(tac, 999) <= TACTIC_RANK["AML.TA0006"] for tac in threat_tactics[t.id])
-    ]
+    # Entry points = threats an external attacker can reach directly
+    # (precondition 'external') — genuinely different START nodes per entry
+    # vector, instead of every path starting on the same earliest-tactic threat
+    # (A-08). Fall back to early-tactic, then any threat.
+    seeds = [t.id for t in threats if threat_conditions[t.id][0] == "external"]
     if not seeds:
-        # No early-tactic threats — start from any threat
+        seeds = [
+            t.id
+            for t in threats
+            if any(TACTIC_RANK.get(tac, 999) <= TACTIC_RANK["AML.TA0006"] for tac in threat_tactics[t.id])
+        ]
+    if not seeds:
         seeds = [t.id for t in threats]
 
     raw_paths: list[list[str]] = []
@@ -347,3 +409,41 @@ def _narrative(threats: list[Threat], comp_index: dict[str, Component], kb: Know
             f"  {t.description.strip()[:300]}"
         )
     return "\n\n".join(lines)
+
+
+def find_choke_points(
+    attack_paths: list,
+    components: list | None = None,
+    top_n: int = 5,
+) -> list[dict]:
+    """Rank components by how many attack paths traverse them.
+
+    The most-shared component is the highest-leverage mitigation: contain or fix
+    it and you break the most paths at once. This turns overlapping paths (the
+    historical "permutations of one chain" weakness) into a concrete "fix this
+    first" signal that flat difficulty/impact ranking does not give. Operates
+    over the *generated* path set, so it is independent of how paths are built.
+    Deterministic, no LLM.
+    """
+    from collections import Counter
+
+    total = len(attack_paths)
+    if total == 0:
+        return []
+    name_by_id = {c.id: c.name for c in (components or [])}
+    seen: Counter = Counter()
+    for p in attack_paths:
+        for cid in set(getattr(p, "components", []) or []):
+            seen[cid] += 1
+    out: list[dict] = []
+    for cid, n in seen.most_common(top_n):
+        out.append(
+            {
+                "component_id": cid,
+                "component_name": name_by_id.get(cid, cid),
+                "paths_through": n,
+                "total_paths": total,
+                "coverage": round(n / total, 4),
+            }
+        )
+    return out
