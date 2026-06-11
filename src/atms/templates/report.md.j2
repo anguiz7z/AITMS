@@ -244,6 +244,14 @@
 {% endfor %}
 
 {% endif -%}
+{% if mermaid_paths -%}
+**Combined attack graph** — every path's chain merged so shared nodes line up (green = external entry, red = target, amber = choke point). Render at <https://mermaid.live> or any GitHub-flavoured Markdown viewer.
+
+```mermaid
+{{ mermaid_paths }}
+```
+
+{% endif -%}
 {% if attack_paths -%}
 {% for p in attack_paths -%}
 ### {{ p.id }} — {{ p.title }}

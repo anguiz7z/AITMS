@@ -7,7 +7,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from ..models import ThreatModel
 from ..paths import templates_dir
 from .csa_table import build_table_of_attack
-from .mermaid import render_mermaid
+from .mermaid import render_attack_path_graph, render_mermaid
 
 _TEMPLATE_DIR = templates_dir()
 
@@ -33,5 +33,10 @@ def render_markdown(model: ThreatModel) -> str:
         tool_version=model.tool_version,
         generated_at=model.generated_at.isoformat(timespec="seconds"),
         mermaid_dfd=render_mermaid(model.system),
+        mermaid_paths=render_attack_path_graph(
+            model.attack_paths,
+            model.system,
+            {cp.get("component_id") for cp in (model.summary or {}).get("choke_points", []) if isinstance(cp, dict)},
+        ),
         csa_table=build_table_of_attack(model),
     )
