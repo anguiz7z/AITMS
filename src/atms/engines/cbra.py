@@ -14,7 +14,7 @@ Each dimension is a 1-4 anchor scale; the product (1-256) maps to a tier:
 
 from __future__ import annotations
 
-from ..models import Component, System
+from ..models import System
 
 _TIER_CUTS = ((16, "Low"), (64, "Medium"), (10**9, "High"))
 

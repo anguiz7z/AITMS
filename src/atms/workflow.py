@@ -24,10 +24,10 @@ from .engines.ai_scope import (
     compute_ai_blast_radius,
     find_ai_components,
 )
-from .engines.attack_paths import find_attack_paths, find_choke_points
-from .engines.cbra import compute_cbra
 from .engines.aicm import compute_aicm
+from .engines.attack_paths import find_attack_paths, find_choke_points
 from .engines.boundaries import annotate_dataflow_boundaries, infer_boundaries
+from .engines.cbra import compute_cbra
 from .engines.cloud import enrich_with_cloud
 from .engines.compliance import enrich_with_compliance
 from .engines.controls import apply_component_controls

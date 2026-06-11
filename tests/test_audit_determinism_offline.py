@@ -126,7 +126,7 @@ def test_expected_core_threats_present_and_stable():
     missing = EXPECTED_CORE_IDS - ids_a
     assert not missing, f"expected core threats absent from analysis: {missing}"
     # Same anchored set on the second run.
-    assert EXPECTED_CORE_IDS <= ids_b
+    assert ids_b >= EXPECTED_CORE_IDS
 
     # And the threat objects themselves are well-formed (real titles,
     # severities, framework mappings) — not empty stubs.
