@@ -105,8 +105,17 @@ yourself.
 
 ## False positives we know about
 
-Found during v0.15.0 real-world testing. Already on the v0.15.1 roadmap
-as the highest-priority content fix.
+Found during v0.15.0 real-world testing. **Status (audit 2026-06-11): FP-1,
+FP-2, FP-4, FP-5 are RESOLVED.** The v0.16.0 applicability engine
+(`engines/applicability.py`) gates these threats by `metadata.idp_kind`,
+managed-service vendor, and the `multi_agent_mesh` topology predicate.
+Verified by a full 18-sample sweep: zero AD/Kerberos/firmware false fires on
+managed services, zero multi-agent threats on single-agent systems. (The only
+firmware hit is `it_ot_factory`, which models real on-prem F5/Fortigate/Cisco
+appliances — a true positive, not an FP.) FP-6 is largely mitigated (per-threat
+caps + tier scaling removed the $10B-on-a-POC ranges). FP-3 remains open (a
+re-tagging preference, not a defect). The original entries are kept below for
+provenance — each is annotated with its current status.
 
 ### FP-1 (HIGH) — `directory_service` playbook fires Active Directory threats against AWS Cognito and Microsoft Entra ID
 

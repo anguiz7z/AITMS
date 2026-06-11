@@ -100,6 +100,22 @@ def analyze(
             f"Unknown methodology {methodology!r}; expected one of {SUPPORTED_METHODOLOGIES}"
         )
     kb = get_kb()
+    # Fail loud on an empty/unresolved KB instead of silently emitting a
+    # worthless threat model (generic STRIDE stubs, 0/10 OWASP, 0 ATLAS,
+    # junk ALE). Happens when the bundled kb/ doesn't resolve at runtime —
+    # a wheel install where shared-data landed off the import path, or a
+    # stale install shadowing the source. (audit 2026-06: a stale v1.0.4
+    # global install produced exactly this silent-junk output.)
+    if not kb.playbooks:
+        from .kb import EmptyKnowledgeBaseError
+        from .paths import kb_dir as _kb_dir
+
+        raise EmptyKnowledgeBaseError(
+            f"ATMS knowledge base is empty (0 playbooks) — cannot produce a "
+            f"threat model. The bundled kb/ was not found at {_kb_dir()}. "
+            f"Reinstall ATMS or set ATMS_KB_DIR to a valid kb/ directory; "
+            f"run `atms info` to diagnose."
+        )
 
     # 0a-pre. v0.16.3 — Bedrock Agent KB auto-synthesis. When an AWS
     # Bedrock agent component is present without an associated

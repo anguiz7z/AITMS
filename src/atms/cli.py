@@ -62,11 +62,15 @@ def run_analysis(*args, **kwargs):
     into a friendly CLI error + exit. Every other exception passes
     through unchanged."""
     from .engines.ai_scope import NoAIComponentsError
+    from .kb import EmptyKnowledgeBaseError
     try:
         return _raw_run_analysis(*args, **kwargs)
     except NoAIComponentsError as e:
         console.print(f"[red]ATMS rejects this system:[/red] {e}")
         sys.exit(2)
+    except EmptyKnowledgeBaseError as e:
+        console.print(f"[red]ATMS knowledge base not loaded:[/red] {e}")
+        sys.exit(4)
 
 # v0.14.4: force_terminal=None lets rich detect; legacy_windows=False
 # avoids the cp1252 codec path that previously crashed on CJK names.
@@ -228,6 +232,20 @@ def info(as_json: bool) -> None:
     click.echo("")
     click.echo("Knowledge base:")
     click.echo(f"  Playbooks            {data['kb']['playbooks']}")
+    if not data["kb"]["playbooks"]:
+        from .paths import kb_dir as _kb_dir
+
+        click.echo("")
+        click.echo(
+            "  !! WARNING: 0 playbooks loaded — the bundled kb/ did not resolve."
+        )
+        click.echo(f"     Looked for kb/ at: {_kb_dir()}")
+        click.echo(
+            "     `atms analyze` will refuse to run (it would emit a worthless,"
+        )
+        click.echo(
+            "     0/10-OWASP threat model). Reinstall ATMS, or set ATMS_KB_DIR."
+        )
     click.echo(f"  Frameworks           {data['kb']['frameworks']}")
     click.echo(f"  Compliance controls  {data['kb']['controls']}")
     click.echo(f"  Architecture rules   {data['kb']['architecture_rules']}")
@@ -689,6 +707,16 @@ def compliance_cmd(framework: str | None, query: str, limit: int) -> None:
     rows = list(kb.compliance_controls.values())
     if framework:
         wanted = framework.strip()
+        known = sorted({r.get("framework", "") for r in rows if r.get("framework")})
+        if not any(k.lower() == wanted.lower() for k in known):
+            # Distinguish a misspelled framework from a genuinely empty
+            # result (audit 2026-06: `--framework "EU AI Act"` silently
+            # returned nothing — same output as a real empty match).
+            console.print(
+                f"[red]Unknown framework {framework!r}.[/red] "
+                f"Valid: {', '.join(known)}"
+            )
+            return
         rows = [r for r in rows if r.get("framework", "").lower() == wanted.lower()]
     if query:
         ql = query.lower()
