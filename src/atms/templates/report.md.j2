@@ -121,6 +121,22 @@
 *Source: {{ summary.cbra.source }}.*
 
 {% endif -%}
+{% if summary.aicm -%}
+## CSA AICM control mapping
+
+{{ summary.aicm.method }} — each threat mapped to its AICM control domain + the responsible shared-responsibility actor.
+
+| AICM domain | Threats |
+|---|---|
+{% for d in summary.aicm.domains -%}
+| {{ d.id }} — {{ d.name }} | {{ d.threats }} |
+{% endfor %}
+
+**Control ownership (AICM shared-responsibility):** {% for o in summary.aicm.ownership %}{{ o.actor }} ({{ o.threats }}){% if not loop.last %} · {% endif %}{% endfor %}
+
+*{{ summary.aicm.note }} Source: {{ summary.aicm.source }}.*
+
+{% endif -%}
 ## Architecture (data flow diagram)
 
 > Auto-generated from the analysed system. Boundary crossings use thick (`==>`) edges.

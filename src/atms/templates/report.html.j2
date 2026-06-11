@@ -185,6 +185,16 @@ footer { color: var(--muted); font-size: 12px; margin-top: 60px; padding-top: 16
 <p class="muted">Source: {{ summary.cbra.source }}.</p>
 {% endif %}
 
+{% if summary.aicm %}
+<h2>CSA AICM control mapping</h2>
+<p>{{ summary.aicm.method }} — each threat mapped to its AICM control domain + the responsible shared-responsibility actor.</p>
+<table><tr><th>AICM domain</th><th>Threats</th></tr>
+{% for d in summary.aicm.domains %}<tr><td>{{ d.id }} &mdash; {{ d.name }}</td><td>{{ d.threats }}</td></tr>
+{% endfor %}</table>
+<p><strong>Control ownership (AICM shared-responsibility):</strong> {% for o in summary.aicm.ownership %}{{ o.actor }} ({{ o.threats }}){% if not loop.last %} &middot; {% endif %}{% endfor %}</p>
+<p class="muted">{{ summary.aicm.note }} Source: {{ summary.aicm.source }}.</p>
+{% endif %}
+
 <h2>Architecture (data flow diagram)</h2>
 <p class="muted">Auto-generated from the analysed system. Thick edges cross trust boundaries; subgraph clusters group components by trust zone. Pan / zoom with the buttons in the diagram. Falls back to the Mermaid source code if JS is disabled.</p>
 <div class="mermaid-wrap">
