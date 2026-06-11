@@ -34,6 +34,18 @@ from .paths import kb_dir as _kb_dir
 
 log = logging.getLogger(__name__)
 
+
+class EmptyKnowledgeBaseError(RuntimeError):
+    """Raised when analysis runs but the bundled KB failed to load (0 playbooks).
+
+    A threat model built from an empty KB is worthless (generic STRIDE
+    stubs, 0/10 OWASP, 0 ATLAS, junk ALE), so the analysis pipeline fails
+    loud instead of silently emitting it. Usually the bundled ``kb/`` did
+    not resolve at runtime — a wheel install where shared-data landed off
+    the import path, or a stale install shadowing the source. Diagnose with
+    ``atms info``; override the location with ``ATMS_KB_DIR``.
+    """
+
 # Pickle cache format version. Bump if any KnowledgeBase field is added
 # / removed / renamed so stale caches from an older ATMS get invalidated
 # even when the underlying YAML hasn't changed.
