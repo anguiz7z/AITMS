@@ -347,3 +347,41 @@ def _narrative(threats: list[Threat], comp_index: dict[str, Component], kb: Know
             f"  {t.description.strip()[:300]}"
         )
     return "\n\n".join(lines)
+
+
+def find_choke_points(
+    attack_paths: list,
+    components: list | None = None,
+    top_n: int = 5,
+) -> list[dict]:
+    """Rank components by how many attack paths traverse them.
+
+    The most-shared component is the highest-leverage mitigation: contain or fix
+    it and you break the most paths at once. This turns overlapping paths (the
+    historical "permutations of one chain" weakness) into a concrete "fix this
+    first" signal that flat difficulty/impact ranking does not give. Operates
+    over the *generated* path set, so it is independent of how paths are built.
+    Deterministic, no LLM.
+    """
+    from collections import Counter
+
+    total = len(attack_paths)
+    if total == 0:
+        return []
+    name_by_id = {c.id: c.name for c in (components or [])}
+    seen: Counter = Counter()
+    for p in attack_paths:
+        for cid in set(getattr(p, "components", []) or []):
+            seen[cid] += 1
+    out: list[dict] = []
+    for cid, n in seen.most_common(top_n):
+        out.append(
+            {
+                "component_id": cid,
+                "component_name": name_by_id.get(cid, cid),
+                "paths_through": n,
+                "total_paths": total,
+                "coverage": round(n / total, 4),
+            }
+        )
+    return out

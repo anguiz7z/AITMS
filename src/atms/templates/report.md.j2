@@ -202,6 +202,16 @@
 
 ## Attack paths
 
+{% if summary.choke_points and summary.choke_points[0].paths_through > 1 -%}
+**Choke points** — the components the most attack paths run through. Containing or fixing the top one breaks the most paths at once, so start there:
+
+| Component | Paths through | Coverage |
+|---|---|---|
+{% for cp in summary.choke_points -%}
+| {{ cp.component_name }} (`{{ cp.component_id }}`) | {{ cp.paths_through }} / {{ cp.total_paths }} | {{ "{:.0%}".format(cp.coverage) }} |
+{% endfor %}
+
+{% endif -%}
 {% if attack_paths -%}
 {% for p in attack_paths -%}
 ### {{ p.id }} — {{ p.title }}
