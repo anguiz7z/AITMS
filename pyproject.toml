@@ -51,6 +51,7 @@ dev = [
     "pyinstaller>=6.0",
     "pytest-xdist>=3.5",  # parallel runner (-n auto --dist=loadfile) used by CI + canonical invocations
     "pytest-cov>=5.0",    # coverage plugin (--cov) used by the coverage CI job
+    "playwright>=1.40",   # browser-driven E2E (tests/test_browser_e2e.py); also run `python -m playwright install chromium`. The browser tests skip cleanly if the browser binary is absent.
 ]
 
 [project.scripts]
