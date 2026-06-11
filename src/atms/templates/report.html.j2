@@ -313,6 +313,12 @@ footer { color: var(--muted); font-size: 12px; margin-top: 60px; padding-top: 16
 {% endfor %}
 
 <h2>Attack paths</h2>
+{% if summary.choke_points and summary.choke_points[0].paths_through > 1 %}
+<p><strong>Choke points</strong> — the components the most attack paths run through. Containing or fixing the top one breaks the most paths at once, so start there:</p>
+<table><tr><th>Component</th><th>Paths through</th><th>Coverage</th></tr>
+{% for cp in summary.choke_points %}<tr><td>{{ cp.component_name }} (<code>{{ cp.component_id }}</code>)</td><td>{{ cp.paths_through }} / {{ cp.total_paths }}</td><td>{{ "{:.0%}".format(cp.coverage) }}</td></tr>
+{% endfor %}</table>
+{% endif %}
 {% if attack_paths %}
 {% for p in attack_paths %}
 <div class="path-card">
