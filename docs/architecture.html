@@ -477,6 +477,18 @@ const NODES = {
     files: ["src/atms/engines/quantitative.py", "kb/priors/loss_priors.yaml"],
     related: ["kb_priors", "eng_risk"],
   },
+  eng_cbra: {
+    label: "cbra (CSA CBRA)", type: "engine", x: 620, y: 434, w: 130, h: 36,
+    desc: "CSA Capabilities-Based Risk Assessment: System Risk = Criticality × Autonomy × Access-Permissions × Impact-Radius → Low/Medium/High tier. Per-system capability score complementing per-threat scoring.",
+    files: ["src/atms/engines/cbra.py"],
+    related: ["eng_risk", "eng_quant"],
+  },
+  eng_aicm: {
+    label: "aicm (CSA AICM)", type: "engine", x: 620, y: 480, w: 130, h: 36,
+    desc: "CSA AI Controls Matrix v1.0.3 mapping: each threat → AICM control domain + the responsible shared-responsibility actor (Cloud/Model/Orchestrated/App Provider/AI Customer).",
+    files: ["src/atms/engines/aicm.py"],
+    related: ["eng_risk"],
+  },
   eng_paths: {
     label: "attack_paths", type: "engine", x: 480, y: 480, w: 130, h: 36,
     desc: "Multi-step kill-chain reconstruction across components + dataflows. v0.16.4 added diversity selection so 10 paths aren't permutations of the same chain.",

@@ -108,7 +108,7 @@
 {% if summary.cbra -%}
 ## CSA Capabilities-Based Risk (CBRA)
 
-{{ summary.cbra.method }} — capability-driven risk, complementary to the per-threat DREAD-AI scores below. Formula: **{{ summary.cbra.formula }}**.
+{{ summary.cbra.method }} — capability-driven risk, complementary to the per-threat Likelihood × Impact (DREAD-derived) scores below. Formula: **{{ summary.cbra.formula }}**.
 
 **System risk: {{ summary.cbra.score }} / {{ summary.cbra.max_score }} → {{ summary.cbra.tier }}** &nbsp;({{ summary.cbra.tier_bands }})
 

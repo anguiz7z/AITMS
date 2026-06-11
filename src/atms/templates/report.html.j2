@@ -175,7 +175,7 @@ footer { color: var(--muted); font-size: 12px; margin-top: 60px; padding-top: 16
 
 {% if summary.cbra %}
 <h2>CSA Capabilities-Based Risk (CBRA)</h2>
-<p>{{ summary.cbra.method }} — capability-driven risk, complementary to the per-threat DREAD-AI scores. Formula: <strong>{{ summary.cbra.formula }}</strong>.</p>
+<p>{{ summary.cbra.method }} — capability-driven risk, complementary to the per-threat Likelihood × Impact (DREAD-derived) scores. Formula: <strong>{{ summary.cbra.formula }}</strong>.</p>
 <p><strong>System risk: {{ summary.cbra.score }} / {{ summary.cbra.max_score }} &rarr; {{ summary.cbra.tier }}</strong> &nbsp;({{ summary.cbra.tier_bands }})</p>
 <table>
   <tr><th>Dimension</th><th>Score</th><th>Basis</th></tr>
